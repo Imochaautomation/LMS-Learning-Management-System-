@@ -5,10 +5,13 @@ builder = "NIXPACKS"
 nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
+cmds = ["rm -f package-lock.json", "npm install"]
 
 [phases.build]
 cmds = ["npm run build"]
 
 [deploy]
 startCommand = "npx serve dist -s -l $PORT"
+
+[variables]
+NIXPACKS_NODE_VERSION = "22"
