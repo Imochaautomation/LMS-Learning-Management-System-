@@ -1,0 +1,89 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from database import get_db
+from models import User
+from schemas import UserCreate, UserUpdate, UserOut
+from auth import hash_password, require_role
+
+router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+@router.get("/users", response_model=list[UserOut])
+def list_users(db: Session = Depends(get_db)):
+    """List all users — accessible by any authenticated user (manager/admin use it)."""
+    users = db.query(User).order_by(User.id).all()
+    result = []
+    for u in users:
+        out = UserOut.model_validate(u)
+        if u.manager:
+            out.manager_name = u.manager.name
+        result.append(out)
+    return result
+
+
+@router.post("/users", response_model=UserOut)
+def create_user(req: UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.email == req.email).first():
+        raise HTTPException(status_code=400, detail="Email already exists")
+    user = User(
+        name=req.name,
+        email=req.email,
+        password_hash=hash_password(req.password),
+        plain_password=req.password,
+        role=req.role,
+        department=req.department,
+        designation=req.designation,
+        experience=req.experience,
+        manager_id=req.manager_id,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    out = UserOut.model_validate(user)
+    if user.manager:
+        out.manager_name = user.manager.name
+    return out
+
+
+@router.put("/users/{user_id}", response_model=UserOut)
+def update_user(user_id: int, req: UserUpdate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if req.name is not None:
+        user.name = req.name
+    if req.email is not None:
+        existing = db.query(User).filter(User.email == req.email, User.id != user_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already taken")
+        user.email = req.email
+    if req.password is not None:
+        user.password_hash = hash_password(req.password)
+        user.plain_password = req.password
+    if req.role is not None:
+        user.role = req.role
+    if req.department is not None:
+        user.department = req.department
+    if req.designation is not None:
+        user.designation = req.designation
+    if req.experience is not None:
+        user.experience = req.experience
+    if req.manager_id is not None:
+        user.manager_id = req.manager_id
+    db.commit()
+    db.refresh(user)
+    out = UserOut.model_validate(user)
+    if user.manager:
+        out.manager_name = user.manager.name
+    return out
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+    return {"ok": True}
