@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON, Float, text
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON, Float
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base
 
-_now = text("NOW()")
+_now = func.now()
 
 
 class User(Base):
