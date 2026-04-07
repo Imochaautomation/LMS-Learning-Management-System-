@@ -58,7 +58,7 @@ export default function Sidebar() {
       <div className="p-5 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-1">
           <GraduationCap className="w-7 h-7 text-indigo-600" />
-          <span className="font-bold text-lg text-gray-900">AI-powered Learning Space</span>
+          <span className="font-bold text-lg text-gray-900">AI Powered Learning Space</span>
         </div>
         <p className="text-xs text-gray-400">Upskill &middot; Reskill &middot; Train</p>
       </div>

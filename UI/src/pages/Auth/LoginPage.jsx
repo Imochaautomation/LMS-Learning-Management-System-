@@ -51,7 +51,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-200 mb-4">
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">AI-powered Learning Space</h1>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">AI Powered Learning Space</h1>
           <p className="text-gray-500 mt-2">Upskill &middot; Reskill &middot; Train</p>
         </div>
 
