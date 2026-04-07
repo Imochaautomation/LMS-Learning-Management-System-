@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import api from '../../api/client';
+import api, { API_HOST } from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import {
   Download, Upload, ChevronDown, ChevronUp, CheckCircle2, Clock, FileText, ExternalLink,
@@ -60,7 +60,7 @@ export default function TrainingAssessments() {
     }
     // Open the file for download
     if (a.assessment_file_path) {
-      window.open(`http://localhost:8000${a.assessment_file_path}`, '_blank');
+      window.open(`${API_HOST}${a.assessment_file_path}`, '_blank');
     } else {
       toast.warning('No assessment file attached. Please contact your manager.');
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../api/client';
+import api, { API_HOST } from '../../api/client';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
 import {
   Users, Bell, GraduationCap, Loader2,
@@ -404,7 +404,7 @@ export default function ManagerDashboard() {
                   </td>
                   <td className="px-5 py-3.5 font-medium text-gray-900">{a.name}</td>
                   <td className="px-5 py-3.5 text-right flex items-center justify-end gap-1">
-                    {a.file_path && <a href={`http://localhost:8000${a.file_path}`} target="_blank" rel="noreferrer" className="px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 flex items-center gap-1"><ExternalLink className="w-3 h-3" /> View</a>}
+                    {a.file_path && <a href={`${API_HOST}${a.file_path}`} target="_blank" rel="noreferrer" className="px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 flex items-center gap-1"><ExternalLink className="w-3 h-3" /> View</a>}
                     <button onClick={() => setDeleteModal({ type: 'bank', id: a.id, name: a.name })} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                   </td>
                 </tr>

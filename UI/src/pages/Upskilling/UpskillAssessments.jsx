@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import api from '../../api/client';
+import api, { API_HOST } from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import { Download, Upload, Plus, CheckCircle2, Clock, ExternalLink, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -26,7 +26,7 @@ export default function UpskillAssessments() {
     }
     // Download the original assessment file from the bank
     if (a.assessment_file_path) {
-      window.open(`http://localhost:8000${a.assessment_file_path}`, '_blank');
+      window.open(`${API_HOST}${a.assessment_file_path}`, '_blank');
     }
   };
 
@@ -124,7 +124,7 @@ export default function UpskillAssessments() {
                 </div>
                 <div className="flex items-center gap-3">
                   {a.submission_path && (
-                    <a href={`http://localhost:8000${a.submission_path}`} target="_blank"
+                    <a href={`${API_HOST}${a.submission_path}`} target="_blank"
                       className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
                       <ExternalLink className="w-3 h-3" /> View Submission
                     </a>

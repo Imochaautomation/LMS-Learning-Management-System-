@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../../api/client';
+import api, { API_HOST } from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import SkillGaugeChart from '../../components/shared/SkillGaugeChart';
 import SkillLineChart from '../../components/shared/SkillLineChart';
@@ -255,7 +255,7 @@ export default function LearnerDetail() {
                         {a.submission_file && (
                           <div className="flex items-center gap-2">
                             <FileText className="w-4 h-4 text-indigo-500" />
-                            <a href={a.submission_path ? `http://localhost:8000${a.submission_path}` : '#'}
+                            <a href={a.submission_path ? `${API_HOST}${a.submission_path}` : '#'}
                               target="_blank"
                               className="text-sm text-indigo-600 hover:underline font-medium">
                               {a.submission_file}
@@ -417,7 +417,7 @@ export default function LearnerDetail() {
                     </div>
                     <div className="flex items-center gap-2">
                       {c.status === 'completed' && c.proof_file && (
-                        <a href={c.proof_path ? `http://localhost:8000${c.proof_path}` : '#'}
+                        <a href={c.proof_path ? `${API_HOST}${c.proof_path}` : '#'}
                           target="_blank"
                           className="flex items-center gap-1 px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50">
                           <ExternalLink className="w-3 h-3" /> Certificate

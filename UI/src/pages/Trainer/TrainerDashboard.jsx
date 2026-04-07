@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import api from '../../api/client';
+import api, { API_HOST } from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import {
   Users, Bell, BookOpen, CheckCircle, Check, Send, Loader2,
@@ -573,7 +573,7 @@ export default function TrainerDashboard() {
                     <p className="text-xs text-gray-400 mt-1">Completed: {new Date(c.submitted_at).toLocaleDateString()}</p>
                   </div>
                   {c.proof_path && (
-                    <a href={`http://localhost:8000${c.proof_path}`} target="_blank" rel="noreferrer"
+                    <a href={`${API_HOST}${c.proof_path}`} target="_blank" rel="noreferrer"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 shrink-0">
                       <ExternalLink className="w-3.5 h-3.5" /> View Certificate
                     </a>
@@ -613,7 +613,7 @@ export default function TrainerDashboard() {
                     </p>
                   </div>
                   {a.submission_path && (
-                    <a href={`http://localhost:8000${a.submission_path}`} target="_blank" rel="noreferrer"
+                    <a href={`${API_HOST}${a.submission_path}`} target="_blank" rel="noreferrer"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-lg hover:bg-indigo-100 shrink-0">
                       <FileText className="w-3.5 h-3.5" /> View Submission
                     </a>
@@ -714,7 +714,7 @@ export default function TrainerDashboard() {
                     </td>
                     <td className="px-5 py-3 text-right flex items-center justify-end gap-1.5">
                       {a.file_path ? (
-                        <a href={`http://localhost:8000${a.file_path}`} target="_blank" rel="noreferrer"
+                        <a href={`${API_HOST}${a.file_path}`} target="_blank" rel="noreferrer"
                           className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
                           <ExternalLink className="w-3.5 h-3.5" /> View
                         </a>
@@ -900,7 +900,7 @@ export default function TrainerDashboard() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   {f.file_path ? (
-                    <a href={`http://localhost:8000${f.file_path}`} target="_blank" rel="noreferrer"
+                    <a href={`${API_HOST}${f.file_path}`} target="_blank" rel="noreferrer"
                       className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
                       <ExternalLink className="w-3.5 h-3.5" /> View
                     </a>

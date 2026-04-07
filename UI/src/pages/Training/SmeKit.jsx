@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import api from '../../api/client';
+import api, { API_HOST } from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import { Download, Search, FileText, BookOpen } from 'lucide-react';
 
@@ -25,13 +25,13 @@ export default function SmeKit() {
 
   const handleDownload = (file) => {
     if (file.file_path) {
-      window.open(`http://localhost:8000${file.file_path}`, '_blank');
+      window.open(`${API_HOST}${file.file_path}`, '_blank');
     }
   };
 
   const handleDownloadAll = () => {
     files.forEach((f) => {
-      if (f.file_path) window.open(`http://localhost:8000${f.file_path}`, '_blank');
+      if (f.file_path) window.open(`${API_HOST}${f.file_path}`, '_blank');
     });
   };
 
