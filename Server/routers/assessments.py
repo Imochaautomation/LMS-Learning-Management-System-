@@ -30,7 +30,7 @@ async def _generate_ai_summary(filename: str, assessment_name: str, file_path: s
         try:
             ext = os.path.splitext(fpath)[1].lower()
             if ext == '.pdf':
-                try:
+                try:    
                     import PyPDF2
                     with open(fpath, 'rb') as f:
                         reader = PyPDF2.PdfReader(f)
