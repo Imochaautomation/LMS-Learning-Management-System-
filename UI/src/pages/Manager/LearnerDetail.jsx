@@ -700,6 +700,7 @@ export default function LearnerDetail() {
   const [activeSkillTab, setActiveSkillTab] = useState('overview');
   const [isReady, setIsReady] = useState(false);
   const [markingReady, setMarkingReady] = useState(false);
+  const [readyConfirm, setReadyConfirm] = useState(null); // { action: 'mark'|'revert' }
 
   // SME Kit assignment (only for new joiners under Content manager)
   const [smeBank, setSmeBank] = useState([]);
@@ -897,13 +898,7 @@ export default function LearnerDetail() {
                     <CheckCircle2 className="w-4 h-4" /> Marked Ready
                   </span>
                   <button
-                    onClick={async () => {
-                      if (!window.confirm(`Revert ${learner.name}'s ready status?`)) return;
-                      setMarkingReady(true);
-                      try { await api.post(`/admin/users/${id}/unmark-ready`); setIsReady(false); }
-                      catch (e) { alert('Failed: ' + e.message); }
-                      finally { setMarkingReady(false); }
-                    }}
+                    onClick={() => setReadyConfirm({ action: 'revert' })}
                     className="px-3 py-2 text-xs text-gray-500 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
                     Revert
                   </button>
@@ -911,13 +906,7 @@ export default function LearnerDetail() {
               ) : (
                 <button
                   disabled={markingReady}
-                  onClick={async () => {
-                    if (!window.confirm(`Mark ${learner.name} as training-complete and ready for self-learning?`)) return;
-                    setMarkingReady(true);
-                    try { await api.post(`/admin/users/${id}/mark-ready`); setIsReady(true); }
-                    catch (e) { alert('Failed: ' + e.message); }
-                    finally { setMarkingReady(false); }
-                  }}
+                  onClick={() => setReadyConfirm({ action: 'mark' })}
                   className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50 shadow-sm transition-colors">
                   {markingReady ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
                   {markingReady ? 'Marking...' : 'Mark as Ready'}
@@ -1476,6 +1465,75 @@ export default function LearnerDetail() {
 
       {/* Detailed Feedback Modal */}
       {feedbackModal && <FeedbackModal a={feedbackModal} onClose={() => setFeedbackModal(null)} />}
+
+      {/* Mark Ready / Revert Confirmation Modal */}
+      {readyConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setReadyConfirm(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col items-center text-center">
+            {readyConfirm.action === 'mark' ? (
+              <>
+                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4 shadow-md">
+                  <CheckCircle2 className="w-9 h-9 text-emerald-500" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Mark as Training-Complete?</h3>
+                <p className="text-sm text-gray-500 mb-6">
+                  You're about to mark <span className="font-semibold text-gray-800">{learner?.name}</span> as training-complete and ready for self-learning. This will notify them and unlock their learning dashboard.
+                </p>
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={() => setReadyConfirm(null)}
+                    className="flex-1 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    disabled={markingReady}
+                    onClick={async () => {
+                      setMarkingReady(true);
+                      setReadyConfirm(null);
+                      try { await api.post(`/admin/users/${id}/mark-ready`); setIsReady(true); }
+                      catch (e) { alert('Failed: ' + e.message); }
+                      finally { setMarkingReady(false); }
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors disabled:opacity-50">
+                    {markingReady ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    Yes, Mark Ready
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mb-4 shadow-md">
+                  <AlertTriangle className="w-9 h-9 text-amber-500" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Revert Ready Status?</h3>
+                <p className="text-sm text-gray-500 mb-6">
+                  This will revert <span className="font-semibold text-gray-800">{learner?.name}</span>'s training-complete status back to in-progress.
+                </p>
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={() => setReadyConfirm(null)}
+                    className="flex-1 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    disabled={markingReady}
+                    onClick={async () => {
+                      setMarkingReady(true);
+                      setReadyConfirm(null);
+                      try { await api.post(`/admin/users/${id}/unmark-ready`); setIsReady(false); }
+                      catch (e) { alert('Failed: ' + e.message); }
+                      finally { setMarkingReady(false); }
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-colors disabled:opacity-50">
+                    Yes, Revert
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
