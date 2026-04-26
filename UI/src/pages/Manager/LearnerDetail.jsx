@@ -299,15 +299,18 @@ function downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaP
     ? `Mixed profile — strong in some areas, significant gaps in others. Prioritise <strong>${criticalGaps.slice(0, 2).map(g => esc(g.skill)).join('</strong> and <strong>') || 'critical skills'}</strong> first — directly aligned with stated learning goals.`
     : `Several skills need significant development. A structured, course-by-course plan focused on critical areas will move the needle fastest.`;
 
+  const logoUrl = `${window.location.origin}/logoimocha.png`;
+
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <title>Skill Gap Analysis — ${esc(learner?.name)}</title>
+  <link rel="icon" type="image/png" href="${logoUrl}">
   <style>${CSS}</style></head><body>
   <div class="page">
 
     <div class="header">
       <div class="header-top">
         <div>
-          <div class="brand">AI-Powered Learning Space</div>
+          <img src="${logoUrl}" alt="iMocha" style="height:28px;width:auto;margin-bottom:8px;display:block;object-fit:contain">
           <div class="report-title">Skill Gap Analysis Report</div>
           <div class="report-subtitle">AI Interview Assessment &middot; Detailed Performance Review</div>
         </div>
@@ -397,7 +400,7 @@ function downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaP
 
     <div class="footer">
       <div class="footer-left">
-        <div class="footer-logo">AI-powered Learning Space</div>
+        <img src="${logoUrl}" alt="iMocha" style="height:18px;width:auto;margin-bottom:3px;display:block;object-fit:contain">
         <div style="margin-top:3px">This report is confidential and intended for authorized HR/Manager use only.</div>
       </div>
       <div class="footer-right">
