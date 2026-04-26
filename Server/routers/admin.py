@@ -2,7 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User
+from models import (
+    User, Profile, AssessmentAssignment, UserCourse, CourseAssignment,
+    CourseCompletion, InterviewSession, Notification
+)
 from schemas import UserCreate, UserUpdate, UserOut
 from auth import hash_password, require_role
 
@@ -84,6 +87,23 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Null out manager_id for any users who report to this person
+    db.query(User).filter(User.manager_id == user_id).update({"manager_id": None})
+
+    # Delete all child records that FK-reference this user
+    db.query(Notification).filter(Notification.user_id == user_id).delete()
+    db.query(InterviewSession).filter(InterviewSession.user_id == user_id).delete()
+    db.query(CourseCompletion).filter(CourseCompletion.user_id == user_id).delete()
+    db.query(UserCourse).filter(UserCourse.user_id == user_id).delete()
+    db.query(CourseAssignment).filter(
+        (CourseAssignment.user_id == user_id) | (CourseAssignment.assigned_by == user_id)
+    ).delete(synchronize_session=False)
+    db.query(AssessmentAssignment).filter(
+        (AssessmentAssignment.user_id == user_id) | (AssessmentAssignment.assigned_by == user_id)
+    ).delete(synchronize_session=False)
+    db.query(Profile).filter(Profile.user_id == user_id).delete()
+
     db.delete(user)
     db.commit()
     return {"ok": True}
