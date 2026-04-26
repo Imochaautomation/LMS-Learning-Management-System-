@@ -21,6 +21,7 @@ def list_users(db: Session = Depends(get_db)):
         out = UserOut.model_validate(u)
         if u.manager:
             out.manager_name = u.manager.name
+            out.manager_department = u.manager.department
         result.append(out)
     return result
 
@@ -43,9 +44,28 @@ def create_user(req: UserCreate, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Auto-notify new joiners whose manager is from Content dept — SME Kit is available
+    if user.role == "new_joiner" and user.manager_id:
+        manager = db.query(User).filter(User.id == user.manager_id).first()
+        if manager and (manager.department or "").strip() == "Content":
+            notif = Notification(
+                user_id=user.id,
+                title="📚 SME Kit Unlocked",
+                message=(
+                    f"Welcome! Because your manager {manager.name} is from the Content department, "
+                    "you have access to the SME Kit (Spellbook) — your go-to resource library for content guidelines, "
+                    "style guides, and references. Check it out from your sidebar!"
+                ),
+                type="info",
+            )
+            db.add(notif)
+            db.commit()
+
     out = UserOut.model_validate(user)
     if user.manager:
         out.manager_name = user.manager.name
+        out.manager_department = user.manager.department
     return out
 
 
@@ -79,7 +99,51 @@ def update_user(user_id: int, req: UserUpdate, db: Session = Depends(get_db)):
     out = UserOut.model_validate(user)
     if user.manager:
         out.manager_name = user.manager.name
+        out.manager_department = user.manager.department
     return out
+
+
+@router.post("/users/{user_id}/mark-ready")
+def mark_ready(
+    user_id: int,
+    manager: User = Depends(require_role("manager", "admin")),
+    db: Session = Depends(get_db),
+):
+    """Mark a new joiner as training-complete and ready for self-learning."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role != "new_joiner":
+        raise HTTPException(status_code=400, detail="Only new joiners can be marked ready")
+
+    user.is_ready = True
+    db.add(Notification(
+        user_id=user_id,
+        title="🎓 You've Been Marked Ready!",
+        message=(
+            f"Congratulations! {manager.name} has marked you as training-complete. "
+            "You have successfully finished your onboarding journey. "
+            "Your personalized course recommendations are now available — keep learning and growing!"
+        ),
+        type="info",
+    ))
+    db.commit()
+    return {"ok": True, "is_ready": True}
+
+
+@router.post("/users/{user_id}/unmark-ready")
+def unmark_ready(
+    user_id: int,
+    manager: User = Depends(require_role("manager", "admin")),
+    db: Session = Depends(get_db),
+):
+    """Revert a new joiner's ready status."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_ready = False
+    db.commit()
+    return {"ok": True, "is_ready": False}
 
 
 @router.delete("/users/{user_id}")

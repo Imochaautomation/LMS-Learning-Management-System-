@@ -57,7 +57,24 @@ def health():
 
 @app.on_event("startup")
 def startup():
-    """Auto-seed if DB is empty."""
+    """Auto-seed if DB is empty. Also run lightweight column migrations."""
+    # Add is_ready column to users table if it doesn't exist yet
+    from sqlalchemy import text
+    db_url_str = str(engine.url)
+    if "sqlite" in db_url_str:
+        # SQLite does not support IF NOT EXISTS on ALTER TABLE — catch duplicate error
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_ready BOOLEAN NOT NULL DEFAULT 0"))
+                conn.commit()
+        except Exception:
+            pass  # Column already exists
+    else:
+        # PostgreSQL supports ADD COLUMN IF NOT EXISTS
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_ready BOOLEAN NOT NULL DEFAULT FALSE"))
+            conn.commit()
+
     from sqlalchemy.orm import Session
     from database import SessionLocal
     from models import User

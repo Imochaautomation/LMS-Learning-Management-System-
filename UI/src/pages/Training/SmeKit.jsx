@@ -16,7 +16,7 @@ export default function SmeKit() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    api.get('/banks/smekit').then(setFiles).catch(() => {});
+    api.get('/banks/smekit/my-assigned').then(setFiles).catch(() => {});
   }, []);
 
   const filtered = files.filter((f) =>
@@ -78,9 +78,16 @@ export default function SmeKit() {
             </button>
           </div>
         ))}
-        {filtered.length === 0 && <p className="text-center text-gray-400 py-8 text-sm">No files found.</p>}
+        {filtered.length === 0 && files.length === 0 && (
+          <div className="text-center py-10">
+            <BookOpen className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium">No files assigned yet</p>
+            <p className="text-xs text-gray-400 mt-1">Your manager will assign SME Kit resources to you. Check back soon!</p>
+          </div>
+        )}
+        {filtered.length === 0 && files.length > 0 && <p className="text-center text-gray-400 py-8 text-sm">No files match your search.</p>}
       </div>
-      <p className="text-xs text-gray-400 text-center">{files.length} files in Spellbook</p>
+      <p className="text-xs text-gray-400 text-center">{files.length} file{files.length !== 1 ? 's' : ''} assigned to you</p>
     </div>
   );
 }
