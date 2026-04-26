@@ -44,6 +44,8 @@ class UserOut(BaseModel):
     experience: Optional[str] = None
     manager_id: Optional[int] = None
     manager_name: Optional[str] = None
+    manager_department: Optional[str] = None
+    is_ready: Optional[bool] = False
     plain_password: Optional[str] = None
     created_at: Optional[datetime] = None
 

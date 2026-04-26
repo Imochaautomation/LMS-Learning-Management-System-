@@ -19,6 +19,7 @@ class User(Base):
     designation = Column(String(100), nullable=True)
     experience = Column(String(50), nullable=True)
     manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_ready = Column(Boolean, default=False, nullable=False, server_default="0")
     created_at = Column(DateTime, server_default=_now)
 
     manager = relationship("User", remote_side=[id], foreign_keys=[manager_id])
@@ -137,6 +138,21 @@ class SmeKitFile(Base):
     file_path = Column(String(500), nullable=True)
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=_now)
+
+
+class SmeKitAssignment(Base):
+    """Content manager assigns SME Kit files to specific new joiners."""
+    __tablename__ = "sme_kit_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("sme_kit_files.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_at = Column(DateTime, server_default=_now)
+
+    file = relationship("SmeKitFile", foreign_keys=[file_id])
+    user = relationship("User", foreign_keys=[user_id])
+    assigner = relationship("User", foreign_keys=[assigned_by])
 
 
 class CourseBankItem(Base):

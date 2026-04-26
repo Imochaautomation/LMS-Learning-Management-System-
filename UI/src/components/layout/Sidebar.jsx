@@ -4,40 +4,40 @@ import {
   Home, BookOpen, FileText, GraduationCap, Users, LogOut,
   UserCircle, FolderOpen, UserPlus
 } from 'lucide-react';
-import { ROLES } from '../../data/mockData';
-
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   if (!user) return null;
 
-  const isEditingDept = (user.department || '').toLowerCase() === 'editing';
+  // SME Kit is only for Content dept: managers check their own dept, new joiners check manager's dept
+  const isContentManager = user.role === 'manager' && (user.department || '') === 'Content';
+  const isContentNewJoiner = user.role === 'new_joiner' && (user.manager_department || '') === 'Content';
 
   // Build nav dynamically based on role + department
   let items = [];
-  if (user.role === ROLES.NEW_JOINER) {
+  if (user.role === 'new_joiner') {
     items = [
       { to: '/training', label: 'Dashboard', icon: Home },
-      // Spellbook only for Editing dept new joiners
-      ...(isEditingDept ? [{ to: '/training/sme-kit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
+      // SME Kit only for new joiners whose manager is from Content dept
+      ...(isContentNewJoiner ? [{ to: '/training/sme-kit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
       { to: '/training/assessments', label: 'Assessments', icon: FileText },
       { to: '/training/courses', label: 'Courses', icon: GraduationCap },
     ];
-  } else if (user.role === ROLES.EMPLOYEE) {
+  } else if (user.role === 'employee') {
     items = [
       { to: '/upskilling', label: 'Dashboard', icon: Home },
       { to: '/upskilling/courses', label: 'My Courses', icon: GraduationCap },
       { to: '/upskilling/profile', label: 'My Profile', icon: UserCircle },
     ];
-  } else if (user.role === ROLES.MANAGER) {
+  } else if (user.role === 'manager') {
     items = [
       { to: '/manager?tab=learners', label: 'Learners', icon: Users },
       { to: '/manager?tab=bank', label: 'Assessment Bank', icon: FileText },
-      // SME Kit only for Editing dept managers
-      ...(isEditingDept ? [{ to: '/manager?tab=smekit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
+      // SME Kit only for Content dept managers
+      ...(isContentManager ? [{ to: '/manager?tab=smekit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
       { to: '/manager?tab=team', label: 'Manage Team', icon: UserPlus },
     ];
-  } else if (user.role === ROLES.ADMIN) {
+  } else if (user.role === 'admin') {
     items = [
       { to: '/admin', label: 'Overview', icon: Home },
       { to: '/admin/users', label: 'Users', icon: Users },
@@ -45,10 +45,10 @@ export default function Sidebar() {
   }
 
   const roleBadge = {
-    [ROLES.NEW_JOINER]: { label: 'New Joiner', color: 'bg-emerald-100 text-emerald-700' },
-    [ROLES.EMPLOYEE]: { label: 'Employee', color: 'bg-indigo-100 text-indigo-700' },
-    [ROLES.MANAGER]: { label: 'Manager', color: 'bg-amber-100 text-amber-700' },
-    [ROLES.ADMIN]: { label: 'Admin', color: 'bg-red-100 text-red-700' },
+    new_joiner: { label: 'New Joiner', color: 'bg-emerald-100 text-emerald-700' },
+    employee:   { label: 'Employee',   color: 'bg-indigo-100 text-indigo-700' },
+    manager:    { label: 'Manager',    color: 'bg-amber-100 text-amber-700' },
+    admin:      { label: 'Admin',      color: 'bg-red-100 text-red-700' },
   }[user.role];
 
   const managerName = user.manager_name;
@@ -67,9 +67,9 @@ export default function Sidebar() {
         <div className="flex items-center gap-3">
           {/* Avatar with role-specific gradient */}
           <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white shadow-md shrink-0 ${
-            user.role === ROLES.ADMIN ? 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-200' :
-            user.role === ROLES.MANAGER ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-200' :
-            user.role === ROLES.EMPLOYEE ? 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-200' :
+            user.role === 'admin'     ? 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-200' :
+            user.role === 'manager'  ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-200' :
+            user.role === 'employee' ? 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-200' :
             'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200'
           }`}>
             {user.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}

@@ -18,6 +18,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     out = UserOut.model_validate(user)
     if user.manager:
         out.manager_name = user.manager.name
+        out.manager_department = user.manager.department
     return LoginResponse(token=token, user=out)
 
 
@@ -26,4 +27,5 @@ def me(user: User = Depends(get_current_user)):
     out = UserOut.model_validate(user)
     if user.manager:
         out.manager_name = user.manager.name
+        out.manager_department = user.manager.department
     return out
