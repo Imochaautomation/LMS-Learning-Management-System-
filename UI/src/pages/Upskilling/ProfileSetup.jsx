@@ -1,11 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import { UserCircle, Briefcase, Target, Upload, FileText, Check, Loader2, Sparkles, Rocket, Brain, ArrowRight } from 'lucide-react';
 
 const stepLabels = ['Basic Info', 'Background', 'Goals & Resume'];
 
+const DEPARTMENTS = [
+  'Content', 'Customer Success', 'Engineering', 'Finance', 'Human Resources',
+  'IT Services', 'Product Marketing', 'Sales', 'Product', 'Channel Sales',
+  'Marketing', 'Marketing (Business Development)', 'Pre-Sales & Solutioning',
+];
+
 export default function ProfileSetup() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', designation: '', experience: '', department: '', summary: '', goals: '' });
   const [resumeName, setResumeName] = useState('');
   const [resumePath, setResumePath] = useState('');
@@ -18,23 +26,53 @@ export default function ProfileSetup() {
   useEffect(() => {
     api.get('/auth/me').then((user) => {
       setForm((f) => ({ ...f, name: user.name || '', designation: user.designation || '', experience: user.experience || '', department: user.department || '' }));
-    }).catch(() => {});
+    }).catch(() => { });
     api.get('/profile').then((profile) => {
       if (profile) {
         setForm((f) => ({ ...f, summary: profile.summary || '', goals: profile.learning_goals || '' }));
         if (profile.resume_path) { setResumePath(profile.resume_path); setResumeName('Resume uploaded'); }
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
-  const update = (field) => (e) => { setForm({ ...form, [field]: e.target.value }); setSaved(false); };
-  const step1Ok = form.name && form.designation && form.experience;
-  const step2Ok = form.summary.length > 20;
-  const allFilled = step1Ok && step2Ok && form.goals;
+  const [errors, setErrors] = useState({});
+
+  const update = (field) => (e) => { setForm((f) => ({ ...f, [field]: e.target.value })); setSaved(false); setErrors((p) => ({ ...p, [field]: '' })); };
+  const step1Ok = form.name.trim().length >= 2 && form.designation.trim().length >= 2 && form.experience;
+  const step2Ok = form.summary.trim().length > 20;
+  const allFilled = step1Ok && step2Ok && form.goals.trim().length >= 10;
+
+  const tryNextStep = (from) => {
+    const errs = {};
+    if (from === 0) {
+      if (!form.name.trim()) errs.name = 'Full name is required';
+      else if (form.name.trim().length < 2) errs.name = 'Name must be at least 2 characters';
+      if (!form.designation.trim()) errs.designation = 'Designation is required';
+      else if (form.designation.trim().length < 2) errs.designation = 'Must be at least 2 characters';
+      if (!form.experience) errs.experience = 'Please select your experience range';
+    }
+    if (from === 1) {
+      if (!form.summary.trim()) errs.summary = 'Professional background is required';
+      else if (form.summary.trim().length < 20) errs.summary = 'Please write at least 20 characters';
+    }
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+    setErrors({});
+    setStep(from + 1);
+  };
 
   const handleSave = async (e) => {
-    e.preventDefault(); setSaving(true);
-    try { await api.post('/profile', { summary: form.summary, learning_goals: form.goals }); setSaved(true); }
+    e.preventDefault();
+    const errs = {};
+    if (!form.goals.trim()) errs.goals = 'Please describe your learning goals';
+    else if (form.goals.trim().length < 10) errs.goals = 'Please write at least 10 characters';
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+    setErrors({});
+    setSaving(true);
+    try {
+      await api.post('/profile', { summary: form.summary, learning_goals: form.goals });
+      setSaved(true);
+      setTimeout(() => navigate('/upskilling/interview'), 800);
+    }
     catch (err) { console.error(err.message); }
     finally { setSaving(false); }
   };
@@ -73,12 +111,11 @@ export default function ProfileSetup() {
         {stepLabels.map((label, i) => (
           <div key={i} className="flex items-center gap-2">
             <button onClick={() => setStep(i)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                step === i ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' :
-                (i === 0 && step1Ok) || (i === 1 && step2Ok) || (i === 2 && allFilled)
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                'bg-gray-100 text-gray-400'
-              }`}>
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${step === i ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' :
+                  (i === 0 && step1Ok) || (i === 1 && step2Ok) || (i === 2 && allFilled)
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    'bg-gray-100 text-gray-400'
+                }`}>
               {(i === 0 && step1Ok) || (i === 1 && step2Ok) || (i === 2 && allFilled)
                 ? <Check className="w-3.5 h-3.5" />
                 : <span className="w-5 h-5 rounded-full border-2 border-current flex items-center justify-center text-xs">{i + 1}</span>}
@@ -106,17 +143,19 @@ export default function ProfileSetup() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Full Name <span className="text-red-400">*</span></label>
                 <input value={form.name} onChange={update('name')} placeholder="e.g. Arjun Nair"
-                  className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all" />
+                  className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all ${errors.name ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Current Designation <span className="text-red-400">*</span></label>
                 <input value={form.designation} onChange={update('designation')} placeholder="e.g. Senior Editor"
-                  className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all" />
+                  className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all ${errors.designation ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                {errors.designation && <p className="text-xs text-red-500 mt-1">{errors.designation}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Years of Experience <span className="text-red-400">*</span></label>
                 <select value={form.experience} onChange={update('experience')}
-                  className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all bg-white appearance-none cursor-pointer">
+                  className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all bg-white appearance-none cursor-pointer ${errors.experience ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
                   <option value="">Select experience range</option>
                   <option value="0-2 years">0-2 years</option>
                   <option value="2-4 years">2-4 years</option>
@@ -135,27 +174,16 @@ export default function ProfileSetup() {
                 <select value={form.department} onChange={update('department')}
                   className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all bg-white appearance-none cursor-pointer">
                   <option value="">Select Department</option>
-                  <option value="Content">Content</option>
-                  <option value="Customer Success">Customer Success</option>
-                  <option value="Engineering">Engineering</option>
-                  <option value="Finance">Finance</option>
-                  <option value="Human Resources">Human Resources</option>
-                  <option value="IT Services">IT Services</option>
-                  <option value="Product Marketing">Product Marketing</option>
-                  <option value="Sales">Sales</option>
-                  <option value="Product">Product</option>
-                  <option value="Channel Sales">Channel Sales</option>
-                  <option value="Marketing">Marketing</option>
-                  <option value="Marketing (Business Development)">Marketing (Business Development)</option>
-                  <option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option>
+                  {DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
                 </select>
+                {errors.experience && <p className="text-xs text-red-500 mt-1">{errors.experience}</p>}
               </div>
             </div>
             <div className="flex justify-end pt-2">
-              <button type="button" disabled={!step1Ok} onClick={() => setStep(1)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  step1Ok ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}>
+              <button type="button" onClick={() => tryNextStep(0)}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200">
                 Next: Background <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -176,12 +204,14 @@ export default function ProfileSetup() {
             </div>
             <div>
               <textarea value={form.summary} onChange={update('summary')} rows={5}
-                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 resize-none transition-all"
+                className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 resize-none transition-all ${errors.summary ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
                 placeholder="Describe your background — roles held, responsibilities, skills, specialisations..." />
               <div className="flex items-center justify-between mt-2">
-                <p className="text-xs text-gray-400">Write like a mini resume. AI uses this to tailor your assessment.</p>
-                <span className={`text-xs font-medium ${form.summary.length > 20 ? 'text-emerald-500' : 'text-gray-300'}`}>
-                  {form.summary.length} chars {form.summary.length > 20 ? '✓' : '(min 20)'}
+                {errors.summary
+                  ? <p className="text-xs text-red-500">{errors.summary}</p>
+                  : <p className="text-xs text-gray-400">Write like a mini resume. AI uses this to tailor your assessment.</p>}
+                <span className={`text-xs font-medium ${form.summary.trim().length > 20 ? 'text-emerald-500' : 'text-gray-300'}`}>
+                  {form.summary.length} chars {form.summary.trim().length > 20 ? '✓' : '(min 20)'}
                 </span>
               </div>
             </div>
@@ -193,10 +223,8 @@ export default function ProfileSetup() {
             </div>
             <div className="flex justify-between pt-2">
               <button type="button" onClick={() => setStep(0)} className="px-5 py-3 text-sm text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">← Back</button>
-              <button type="button" disabled={!step2Ok} onClick={() => setStep(2)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  step2Ok ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg shadow-purple-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}>
+              <button type="button" onClick={() => tryNextStep(1)}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all bg-purple-600 text-white hover:bg-purple-700 shadow-lg shadow-purple-200">
                 Next: Goals & Resume <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -219,9 +247,11 @@ export default function ProfileSetup() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Learning Goals & Expectations <span className="text-red-400">*</span></label>
               <textarea value={form.goals} onChange={update('goals')} rows={4}
-                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-400 resize-none transition-all"
+                className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-400 resize-none transition-all ${errors.goals ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
                 placeholder="What skills do you want to learn? What are your career aspirations? Any domain you're curious about..." />
-              <p className="text-xs text-gray-400 mt-1.5">Not restricted to your current role — explore any domain!</p>
+              {errors.goals
+                ? <p className="text-xs text-red-500 mt-1.5">{errors.goals}</p>
+                : <p className="text-xs text-gray-400 mt-1.5">Not restricted to your current role — explore any domain!</p>}
             </div>
 
             {/* Resume Upload */}
@@ -229,9 +259,8 @@ export default function ProfileSetup() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Upload Resume <span className="text-gray-400 font-normal">(Optional)</span></label>
               <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleResume} />
               <div onClick={() => fileRef.current.click()}
-                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all hover:shadow-sm ${
-                  resumePath ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30'
-                }`}>
+                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all hover:shadow-sm ${resumePath ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+                  }`}>
                 {uploading ? (
                   <Loader2 className="w-8 h-8 text-indigo-400 mx-auto animate-spin" />
                 ) : resumePath ? (
@@ -271,11 +300,10 @@ export default function ProfileSetup() {
             <div className="flex justify-between pt-2">
               <button type="button" onClick={() => setStep(1)} className="px-5 py-3 text-sm text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">← Back</button>
               <button type="submit" disabled={!allFilled || saving}
-                className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all ${
-                  saved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' :
-                  allFilled ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-200' :
-                  'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}>
+                className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all ${saved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' :
+                    allFilled ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-200' :
+                      'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
                 {saved ? 'Profile Saved! ✨' : 'Save & Start AI Journey'}
               </button>

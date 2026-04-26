@@ -90,6 +90,9 @@ export default function ManagerDashboard() {
   const [selectedBank, setSelectedBank] = useState([]);
   const [selectedSme, setSelectedSme] = useState([]);
 
+  // SME Kit assignment count (read-only — assignment happens in LearnerDetail)
+  const [smeAssignments, setSmeAssignments] = useState([]); // [{id, file_id, user_id, ...}]
+
   useEffect(() => {
     Promise.all([
       api.get('/admin/users').then((all) => {
@@ -100,6 +103,7 @@ export default function ManagerDashboard() {
       api.get('/banks/assessments').then(setBank).catch(() => {}),
       api.get('/banks/courses').then(setCourseBank).catch(() => {}),
       api.get('/banks/sme-kit').then(setSmeKit).catch(() => {}),
+      api.get('/banks/smekit/assignments').then(setSmeAssignments).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [user]);
 
@@ -125,7 +129,12 @@ export default function ManagerDashboard() {
     setNewAssessName(''); setNewAssessFile(null); setUploadingBank(false);
   };
   const addCourse = async () => {
-    if (!newCourse.title.trim()) { toast.warning('Please enter a course title.'); return; }
+    const errs = {};
+    if (!newCourse.title.trim()) errs.title = 'Course title is required';
+    if (!newCourse.provider.trim()) errs.provider = 'Provider is required';
+    if (newCourse.link && !/^https?:\/\/.+/.test(newCourse.link.trim())) errs.link = 'Must be a valid URL (https://...)';
+    if (Object.keys(errs).length) { setCourseFormErrors(errs); return; }
+    setCourseFormErrors({});
     try {
       const res = await api.post('/banks/courses', newCourse);
       setCourseBank((p) => [...p, res]);
@@ -145,10 +154,28 @@ export default function ManagerDashboard() {
     } catch (e) { toast.error(`Failed to upload SME file: ${e.message}`); }
     setSmeUploadName(''); setSmeFile(null); setUploadingSme(false);
   };
+
+  const isImochaEmail = (email) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+    ['@imocha.co', '@imocha.io'].some((d) => email.toLowerCase().endsWith(d));
+
+  const [userFormErrors, setUserFormErrors] = useState({});
+  const [courseFormErrors, setCourseFormErrors] = useState({});
+
   const generatePwd = () => { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!'; let p = ''; for (let i = 0; i < 10; i++) p += c[Math.floor(Math.random() * c.length)]; setUserForm((f) => ({ ...f, password: p })); };
 
   const createTeamUser = async (e) => {
-    e.preventDefault(); setCreatingUser(true);
+    e.preventDefault();
+    const errs = {};
+    if (!userForm.name.trim()) errs.name = 'Full name is required';
+    if (!userForm.email.trim()) errs.email = 'Email is required';
+    else if (!isImochaEmail(userForm.email)) errs.email = 'Must end with @imocha.co or @imocha.io';
+    if (!userForm.password.trim()) errs.password = 'Password is required';
+    else if (userForm.password.length < 8) errs.password = 'Minimum 8 characters';
+    if (!userForm.department) errs.department = 'Please select a department';
+    if (Object.keys(errs).length) { setUserFormErrors(errs); return; }
+    setUserFormErrors({});
+    setCreatingUser(true);
     try {
       await api.post('/admin/users', { ...userForm, manager_id: user.id });
       setShowCreateUser(false); setUserForm({ name: '', email: '', password: '', role: 'new_joiner', department: '' });
@@ -451,24 +478,43 @@ export default function ManagerDashboard() {
               {paginate(smeKit, smePage).every((f) => selectedSme.includes(f.id)) && paginate(smeKit, smePage).length > 0 ? 'Deselect All' : 'Select All'}
             </button>
           </div>
-          <div className="space-y-2">{paginate(smeKit, smePage).map((f) => (
-            <div key={f.id} className={`bg-white border rounded-xl px-5 py-3.5 flex items-center justify-between hover:shadow-sm ${selectedSme.includes(f.id) ? 'border-indigo-200 bg-indigo-50 ring-1 ring-indigo-200' : 'border-gray-200'}`}>
-              <div className="flex items-center gap-3">
-                <button onClick={() => toggleSmeSelect(f.id)} className="p-0.5 shrink-0">
-                  {selectedSme.includes(f.id)
-                    ? <CheckSquare className="w-4 h-4 text-indigo-600" />
-                    : <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />}
-                </button>
-                <span className="text-lg">{categoryIcon[f.category] || '📄'}</span>
-                <div><p className="font-medium text-gray-900 text-sm">{f.name}</p><div className="flex items-center gap-2 mt-0.5"><span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{f.category}</span><span className="text-xs text-gray-400">{f.type} · {f.size}</span></div></div>
+          <div className="space-y-2">{paginate(smeKit, smePage).map((f) => {
+            const assignCount = smeAssignments.filter((a) => a.file_id === f.id).length;
+            return (
+              <div key={f.id} className={`bg-white border rounded-xl px-5 py-3.5 flex items-center justify-between hover:shadow-sm ${selectedSme.includes(f.id) ? 'border-indigo-200 bg-indigo-50 ring-1 ring-indigo-200' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => toggleSmeSelect(f.id)} className="p-0.5 shrink-0">
+                    {selectedSme.includes(f.id)
+                      ? <CheckSquare className="w-4 h-4 text-indigo-600" />
+                      : <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />}
+                  </button>
+                  <span className="text-lg">{categoryIcon[f.category] || '📄'}</span>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">{f.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{f.category}</span>
+                      <span className="text-xs text-gray-400">{f.file_type}</span>
+                      {assignCount > 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">
+                          Assigned to {assignCount} learner{assignCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  {f.file_path && (
+                    <a href={`${API_HOST}${f.file_path}`} target="_blank" rel="noreferrer"
+                      className="px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 flex items-center gap-1">
+                      <ExternalLink className="w-3 h-3" /> View
+                    </a>
+                  )}
+                  <button onClick={() => setDeleteModal({ type: 'sme', id: f.id, name: f.name })} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                {f.file && <a href="#" className="px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 flex items-center gap-1"><ExternalLink className="w-3 h-3" /> View</a>}
-                <button onClick={() => setDeleteModal({ type: 'sme', id: f.id, name: f.name })} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-              </div>
-            </div>
-          ))}</div>
-          <p className="text-xs text-gray-400 text-center">{smeKit.length} files</p>
+            );
+          })}</div>
+          <p className="text-xs text-gray-400 text-center">{smeKit.length} files · Assign files to learners from their profile page</p>
           <Pagination current={smePage} total={totalPages(smeKit)} onChange={setSmePage} />
         </div>
       )}
@@ -481,13 +527,35 @@ export default function ManagerDashboard() {
           {showCreateUser && (
             <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
               <form onSubmit={createTeamUser} className="grid sm:grid-cols-2 gap-3">
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Name *</label><input required value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg" /></div>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Email *</label><input required type="email" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg" /></div>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Password *</label><div className="flex gap-2"><input required value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-lg" /><button type="button" onClick={generatePwd} className="flex items-center gap-1 px-3 py-2.5 bg-gray-100 text-xs rounded-lg hover:bg-gray-200 shrink-0"><RefreshCw className="w-3.5 h-3.5" /> Gen</button></div></div>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Role *</label><select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white"><option value="new_joiner">New Joiner</option><option value="employee">Employee</option></select></div>
-                <div><label className="block text-xs font-medium text-gray-600 mb-1">Department</label><select value={userForm.department} onChange={(e) => setUserForm({ ...userForm, department: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white"><option value="">Select Department</option><option value="Content">Content</option><option value="Customer Success">Customer Success</option><option value="Engineering">Engineering</option><option value="Finance">Finance</option><option value="Human Resources">Human Resources</option><option value="IT Services">IT Services</option><option value="Product Marketing">Product Marketing</option><option value="Sales">Sales</option><option value="Product">Product</option><option value="Channel Sales">Channel Sales</option><option value="Marketing">Marketing</option><option value="Marketing (Business Development)">Marketing (Business Development)</option><option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option></select></div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+                  <input value={userForm.name} onChange={(e) => { setUserForm({ ...userForm, name: e.target.value }); setUserFormErrors((p) => ({ ...p, name: '' })); }} className={`w-full px-3 py-2.5 text-sm border rounded-lg ${userFormErrors.name ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                  {userFormErrors.name && <p className="text-xs text-red-500 mt-0.5">{userFormErrors.name}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email * <span className="text-gray-400 font-normal">(@imocha.co / @imocha.io)</span></label>
+                  <input type="email" value={userForm.email} onChange={(e) => { setUserForm({ ...userForm, email: e.target.value }); setUserFormErrors((p) => ({ ...p, email: '' })); }} className={`w-full px-3 py-2.5 text-sm border rounded-lg ${userFormErrors.email ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                  {userFormErrors.email && <p className="text-xs text-red-500 mt-0.5">{userFormErrors.email}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Password * <span className="text-gray-400 font-normal">(min 8)</span></label>
+                  <div className="flex gap-2">
+                    <input value={userForm.password} onChange={(e) => { setUserForm({ ...userForm, password: e.target.value }); setUserFormErrors((p) => ({ ...p, password: '' })); }} className={`flex-1 px-3 py-2.5 text-sm border rounded-lg ${userFormErrors.password ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                    <button type="button" onClick={generatePwd} className="flex items-center gap-1 px-3 py-2.5 bg-gray-100 text-xs rounded-lg hover:bg-gray-200 shrink-0"><RefreshCw className="w-3.5 h-3.5" /> Gen</button>
+                  </div>
+                  {userFormErrors.password && <p className="text-xs text-red-500 mt-0.5">{userFormErrors.password}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Role *</label>
+                  <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white"><option value="new_joiner">New Joiner</option><option value="employee">Employee</option></select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Department *</label>
+                  <select value={userForm.department} onChange={(e) => { setUserForm({ ...userForm, department: e.target.value }); setUserFormErrors((p) => ({ ...p, department: '' })); }} className={`w-full px-3 py-2.5 text-sm border rounded-lg bg-white ${userFormErrors.department ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}><option value="">Select Department</option><option value="Content">Content</option><option value="Customer Success">Customer Success</option><option value="Engineering">Engineering</option><option value="Finance">Finance</option><option value="Human Resources">Human Resources</option><option value="IT Services">IT Services</option><option value="Product Marketing">Product Marketing</option><option value="Sales">Sales</option><option value="Product">Product</option><option value="Channel Sales">Channel Sales</option><option value="Marketing">Marketing</option><option value="Marketing (Business Development)">Marketing (Business Development)</option><option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option></select>
+                  {userFormErrors.department && <p className="text-xs text-red-500 mt-0.5">{userFormErrors.department}</p>}
+                </div>
                 <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowCreateUser(false)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="button" onClick={() => { setShowCreateUser(false); setUserFormErrors({}); }} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
                   <button type="submit" disabled={creatingUser} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg disabled:opacity-50">{creatingUser && <Loader2 className="w-4 h-4 animate-spin" />} Create</button>
                 </div>
               </form>

@@ -1,25 +1,27 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { GraduationCap, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Loader2, Brain, BarChart3, BookOpen, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+
+const ORANGE = '#F05A28';
+const NAVY = '#1E1040';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [showPw, setShowPw]     = useState(false);
+  const [error, setError]       = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [shake, setShake] = useState(false);
-  const { login, roleRoute } = useAuth();
-  const navigate = useNavigate();
+  const [shake, setShake]       = useState(false);
+  const { login, roleRoute }    = useAuth();
+  const navigate                = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setShake(false);
-
-    if (!email.trim()) { setError('Please enter your email address'); triggerShake(); return; }
-    if (!password.trim()) { setError('Please enter your password'); triggerShake(); return; }
-
+    if (!email.trim())    { setError('Please enter your email address'); triggerShake(); return; }
+    if (!password.trim()) { setError('Please enter your password');      triggerShake(); return; }
     setSubmitting(true);
     try {
       const user = await login(email, password);
@@ -27,9 +29,9 @@ export default function LoginPage() {
     } catch (err) {
       const msg = err.message || 'Invalid credentials';
       if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('password') || msg.toLowerCase().includes('email')) {
-        setError('Invalid email or password. Please check your credentials and try again.');
+        setError('Invalid email or password. Please check your credentials.');
       } else if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch')) {
-        setError('Unable to connect to server. Please check your connection and try again.');
+        setError('Unable to connect to server. Please check your connection.');
       } else {
         setError(msg);
       }
@@ -39,100 +41,190 @@ export default function LoginPage() {
     }
   };
 
-  const triggerShake = () => {
-    setShake(true);
-    setTimeout(() => setShake(false), 600);
-  };
+  const triggerShake = () => { setShake(true); setTimeout(() => setShake(false), 600); };
+
+  const fillCreds = (em, pw) => { setEmail(em); setPassword(pw); setError(''); };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-violet-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-200 mb-4">
-            <GraduationCap className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">AI Powered Learning Space</h1>
-          <p className="text-gray-500 mt-2">Upskill &middot; Reskill &middot; Train</p>
+    <div className="min-h-screen flex" style={{ fontFamily: "'Segoe UI', system-ui, Arial, sans-serif" }}>
+
+      {/* ── Left panel — branding ── */}
+      <div className="hidden lg:flex lg:w-[58%] flex-col justify-between p-12 relative overflow-hidden" style={{ background: `linear-gradient(140deg, ${NAVY} 0%, #2D1B6B 60%, #1B3A8A 100%)` }}>
+        {/* Glow blobs */}
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full pointer-events-none" style={{ background: ORANGE, opacity: 0.09, filter: 'blur(80px)' }} />
+        <div className="absolute bottom-16 -left-12 w-64 h-64 rounded-full pointer-events-none" style={{ background: '#60A5FA', opacity: 0.06, filter: 'blur(70px)' }} />
+        {/* Grid pattern */}
+        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
+
+        {/* Logo */}
+        <div className="relative flex items-center gap-2">
+          <img src="/logoimocha.png" alt="iMocha" className="h-8 w-auto" style={{ filter: 'brightness(0) invert(1)' }} />
+          <div className="h-5 w-px bg-white/20 mx-1" />
+          <span className="text-white/60 text-xs font-semibold tracking-wide uppercase">AI Learning Space</span>
         </div>
 
-        <div className={`bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-8 transition-transform ${shake ? 'animate-shake' : ''}`}>
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Welcome back</h2>
-          <p className="text-sm text-gray-500 mb-6">Sign in to access your dashboard</p>
+        {/* Hero copy */}
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-bold mb-8" style={{ background: 'rgba(240,90,40,0.18)', color: '#FCA06A', border: '1px solid rgba(240,90,40,0.35)' }}>
+            ⚡ AI-Powered Skills Intelligence
+          </div>
 
+          <h1 className="text-4xl font-black text-white leading-tight tracking-tight mb-3">
+            Skills Visibility.<br />
+            <span style={{ color: ORANGE }}>Business Agility.</span>
+          </h1>
+          <p className="text-blue-200/70 text-sm leading-relaxed max-w-sm mb-10">
+            Identify skill gaps with AI interviews, get visual gap analysis, and follow personalised learning paths — for every role in your organisation.
+          </p>
+
+          <div className="space-y-4">
+            {[
+              { icon: Brain,    color: ORANGE,    bg: 'rgba(240,90,40,0.15)',  label: 'AI Interview Engine',   sub: 'Adaptive 10-question skill assessment' },
+              { icon: BarChart3, color: '#A78BFA', bg: 'rgba(167,139,250,0.15)', label: 'Skill Gap Analysis',    sub: 'Visual reports with learning roadmaps' },
+              { icon: BookOpen, color: '#38BDF8',  bg: 'rgba(56,189,248,0.15)', label: 'Personalised Courses',  sub: 'AI-matched to your specific gaps' },
+            ].map(({ icon: Icon, color, bg, label, sub }) => (
+              <div key={label} className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg }}>
+                  <Icon className="w-5 h-5" style={{ color }} />
+                </div>
+                <div>
+                  <div className="text-white font-semibold text-sm">{label}</div>
+                  <div className="text-blue-200/60 text-xs">{sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom quote */}
+        <div className="relative border-t border-white/10 pt-6">
+          <p className="text-blue-100/50 text-xs italic leading-relaxed">
+            "Your AI-powered skills intelligence layer for smarter workforce decisions"
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <img src="/logoimocha.png" alt="iMocha" className="h-4 w-auto" style={{ filter: 'brightness(0) invert(1)', opacity: 0.35 }} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Right panel — form ── */}
+      <div className="flex-1 flex flex-col justify-center items-center px-8 py-12 bg-white">
+        <div className="w-full max-w-sm">
+
+          {/* Mobile logo */}
+          <div className="lg:hidden mb-8 text-center">
+            <img src="/logoimocha.png" alt="iMocha" className="h-8 w-auto mx-auto" />
+          </div>
+
+          {/* Back link */}
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 mb-8 transition-colors group">
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" /> Back to home
+          </Link>
+
+          <h2 className="text-2xl font-black mb-1" style={{ color: NAVY }}>Welcome back</h2>
+          <p className="text-sm text-gray-400 mb-8">Sign in to access your learning dashboard</p>
+
+          {/* Error */}
           {error && (
-            <div className="flex items-start gap-2.5 px-4 py-3 mb-5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            <div className={`flex items-start gap-2.5 px-4 py-3 mb-5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 ${shake ? 'animate-shake' : ''}`}>
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className={`space-y-4 ${shake && !error ? 'animate-shake' : ''}`}>
+            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email address</label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                  className={`w-full pl-10 pr-4 py-3 text-sm bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 focus:bg-white transition-all ${error && !email ? 'border-red-300' : 'border-gray-200'}`}
+                  className="w-full pl-10 pr-4 py-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:bg-white transition-all"
+                  style={{ '--tw-ring-color': ORANGE }}
+                  onFocus={e => { e.target.style.borderColor = ORANGE; e.target.style.boxShadow = `0 0 0 3px rgba(240,90,40,0.12)`; }}
+                  onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none'; }}
                   placeholder="you@company.com"
-                  required
+                  autoComplete="email"
                 />
               </div>
             </div>
+
+            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
                 <input
-                  type="password"
+                  type={showPw ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                  className={`w-full pl-10 pr-4 py-3 text-sm bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 focus:bg-white transition-all ${error && !password ? 'border-red-300' : 'border-gray-200'}`}
+                  className="w-full pl-10 pr-10 py-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:bg-white transition-all"
+                  onFocus={e => { e.target.style.borderColor = ORANGE; e.target.style.boxShadow = `0 0 0 3px rgba(240,90,40,0.12)`; }}
+                  onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none'; }}
                   placeholder="Enter your password"
-                  required
+                  autoComplete="current-password"
                 />
+                <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors">
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
+
+            {/* Submit */}
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-semibold rounded-xl hover:from-indigo-700 hover:to-violet-700 focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+              className="w-full py-3.5 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2 shadow-md mt-2"
+              style={{ background: ORANGE }}
+              onMouseEnter={e => { if (!submitting) e.target.style.opacity = '0.9'; }}
+              onMouseLeave={e => { e.target.style.opacity = '1'; }}
             >
-              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in...</> : 'Sign In'}
+              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</> : 'Sign In →'}
             </button>
           </form>
-        </div>
 
-        <div className="mt-6 bg-white/60 backdrop-blur rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-medium text-gray-500 mb-2">Test Credentials</p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="font-semibold text-gray-700">Admin</p>
-              <p className="text-gray-400">admin@company.com / admin123</p>
-            </div>
-            <div className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="font-semibold text-gray-700">Manager</p>
-              <p className="text-gray-400">neha@company.com / neha123</p>
-            </div>
-            <div className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="font-semibold text-gray-700">New Joiner</p>
-              <p className="text-gray-400">priya@company.com / priya123</p>
-            </div>
-            <div className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="font-semibold text-gray-700">Employee</p>
-              <p className="text-gray-400">arjun@company.com / arjun123</p>
-            </div>
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 h-px bg-gray-100" />
+            <span className="text-xs text-gray-300 font-medium">test credentials</span>
+            <div className="flex-1 h-px bg-gray-100" />
           </div>
+
+          {/* Test credentials */}
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { role: 'Admin',      email: 'admin@company.com',  pw: 'admin123',  color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
+              { role: 'Manager',    email: 'neha@company.com',   pw: 'neha123',   color: ORANGE,    bg: '#FFF4EE', border: '#FFD5C2' },
+              { role: 'New Joiner', email: 'priya@company.com',  pw: 'priya123',  color: '#0EA5E9', bg: '#F0F9FF', border: '#BAE6FD' },
+              { role: 'Employee',   email: 'arjun@company.com',  pw: 'arjun123',  color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
+            ].map(({ role, email: em, pw, color, bg, border }) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => fillCreds(em, pw)}
+                className="text-left px-3 py-2.5 rounded-xl border transition-all hover:shadow-sm"
+                style={{ background: bg, borderColor: border }}
+              >
+                <p className="text-xs font-bold" style={{ color }}>{role}</p>
+                <p className="text-[10px] text-gray-400 truncate mt-0.5">{em}</p>
+              </button>
+            ))}
+          </div>
+
+          <p className="text-center text-xs text-gray-300 mt-6">
+            Powered by <span className="font-semibold" style={{ color: ORANGE }}>iMocha</span> · AI Skills Intelligence
+          </p>
         </div>
       </div>
 
       <style>{`
         @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-          20%, 40%, 60%, 80% { transform: translateX(4px); }
+          0%,100%{transform:translateX(0)}
+          15%,45%,75%{transform:translateX(-4px)}
+          30%,60%,90%{transform:translateX(4px)}
         }
         .animate-shake { animation: shake 0.5s ease-in-out; }
       `}</style>

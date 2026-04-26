@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/Auth/LoginPage';
+import LandingPage from './pages/LandingPage';
 import TrainingDashboard from './pages/Training/TrainingDashboard';
 import SmeKit from './pages/Training/SmeKit';
 import TrainingAssessments from './pages/Training/TrainingAssessments';
@@ -18,8 +19,12 @@ import UserManagement from './pages/Admin/UserManagement';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
-  if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#F05A28', borderTopColor: 'transparent' }} />
+    </div>
+  );
+  if (!user) return <LandingPage />;
   const routes = { admin: '/admin', manager: '/manager', new_joiner: '/training', employee: '/upskilling' };
   return <Navigate to={routes[user.role] || '/login'} replace />;
 }

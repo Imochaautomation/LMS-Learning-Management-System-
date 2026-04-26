@@ -17,11 +17,16 @@ const roleLabel = {
   employee: 'Employee',
 };
 
+const isImochaEmail = (email) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+  ['@imocha.co', '@imocha.io'].some((d) => email.toLowerCase().endsWith(d));
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'manager', department: '' });
+  const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState({});
@@ -29,6 +34,7 @@ export default function UserManagement() {
   const [deleting, setDeleting] = useState(false);
   const [editModal, setEditModal] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [editErrors, setEditErrors] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [copied, setCopied] = useState(null);
   const [page, setPage] = useState(1);
@@ -57,9 +63,24 @@ export default function UserManagement() {
   const rangeStart = filteredUsers.length === 0 ? 0 : (page - 1) * rowsPerPage + 1;
   const rangeEnd = Math.min(page * rowsPerPage, filteredUsers.length);
 
+  const validateCreate = () => {
+    const e = {};
+    if (!form.name.trim()) e.name = 'Full name is required';
+    else if (form.name.trim().length < 2) e.name = 'Name must be at least 2 characters';
+    if (!form.email.trim()) e.email = 'Email is required';
+    else if (!isImochaEmail(form.email)) e.email = 'Email must end with @imocha.co or @imocha.io';
+    if (!form.password.trim()) e.password = 'Password is required';
+    else if (form.password.length < 8) e.password = 'Password must be at least 8 characters';
+    if (!form.department) e.department = 'Please select a department';
+    return e;
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     setError('');
+    const errs = validateCreate();
+    if (Object.keys(errs).length) { setFormErrors(errs); return; }
+    setFormErrors({});
     setSaving(true);
     try {
       await api.post('/admin/users', form);
@@ -90,8 +111,20 @@ export default function UserManagement() {
     setEditModal(true);
   };
 
+  const validateEdit = () => {
+    const e = {};
+    if (!editForm.name.trim()) e.name = 'Full name is required';
+    if (!editForm.email.trim()) e.email = 'Email is required';
+    else if (!isImochaEmail(editForm.email)) e.email = 'Email must end with @imocha.co or @imocha.io';
+    if (editForm.password && editForm.password.length < 8) e.password = 'Password must be at least 8 characters';
+    return e;
+  };
+
   const handleEdit = async (e) => {
     e.preventDefault();
+    const errs = validateEdit();
+    if (Object.keys(errs).length) { setEditErrors(errs); return; }
+    setEditErrors({});
     setEditSaving(true);
     try {
       const payload = { name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department };
@@ -140,27 +173,32 @@ export default function UserManagement() {
             <h2 className="text-base font-semibold text-gray-900">New User</h2>
             <button onClick={() => setShowForm(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4" /></button>
           </div>
-          {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+          {error && <p className="text-sm text-red-600 mb-4 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</p>}
           <form onSubmit={handleCreate} className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Full Name *</label>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+              <input value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setFormErrors((p) => ({ ...p, name: '' })); }}
+                className={`w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.name ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+              {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Email *</label>
-              <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Email * <span className="text-gray-400 font-normal">(@imocha.co or @imocha.io)</span></label>
+              <input type="email" value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); setFormErrors((p) => ({ ...p, email: '' })); }}
+                className={`w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.email ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+              {formErrors.email && <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Password *</label>
               <div className="flex gap-2">
-                <input required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="Enter or generate"
-                  className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                <input value={form.password} onChange={(e) => { setForm({ ...form, password: e.target.value }); setFormErrors((p) => ({ ...p, password: '' })); }}
+                  placeholder="Min 8 characters"
+                  className={`flex-1 px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.password ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
                 <button type="button" onClick={generatePassword}
                   className="flex items-center gap-1.5 px-3 py-2.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-xl hover:bg-gray-200 shrink-0">
                   <RefreshCw className="w-3.5 h-3.5" /> Generate
                 </button>
               </div>
+              {formErrors.password && <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Role *</label>
@@ -170,8 +208,9 @@ export default function UserManagement() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Department</label>
-              <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Department *</label>
+              <select value={form.department} onChange={(e) => { setForm({ ...form, department: e.target.value }); setFormErrors((p) => ({ ...p, department: '' })); }}
+                className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.department ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
                 <option value="">Select Department</option>
                 <option value="Content">Content</option>
                 <option value="Customer Success">Customer Success</option>
@@ -187,9 +226,10 @@ export default function UserManagement() {
                 <option value="Marketing (Business Development)">Marketing (Business Development)</option>
                 <option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option>
               </select>
+              {formErrors.department && <p className="text-xs text-red-500 mt-1">{formErrors.department}</p>}
             </div>
             <div className="sm:col-span-2 flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
+              <button type="button" onClick={() => { setShowForm(false); setFormErrors({}); }} className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
               <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-60">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Create User
               </button>
@@ -301,16 +341,22 @@ export default function UserManagement() {
             <h3 className="font-semibold text-gray-900 mb-4">Edit User</h3>
             <form onSubmit={handleEdit} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
-                <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
+                <input value={editForm.name} onChange={(e) => { setEditForm({ ...editForm, name: e.target.value }); setEditErrors((p) => ({ ...p, name: '' })); }}
+                  className={`w-full px-3 py-2.5 text-sm border rounded-xl ${editErrors.name ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                {editErrors.name && <p className="text-xs text-red-500 mt-1">{editErrors.name}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                <input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">Email * <span className="text-gray-400 font-normal">(@imocha.co or @imocha.io)</span></label>
+                <input type="email" value={editForm.email} onChange={(e) => { setEditForm({ ...editForm, email: e.target.value }); setEditErrors((p) => ({ ...p, email: '' })); }}
+                  className={`w-full px-3 py-2.5 text-sm border rounded-xl ${editErrors.email ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                {editErrors.email && <p className="text-xs text-red-500 mt-1">{editErrors.email}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">New Password (leave blank to keep)</label>
-                <input value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="••••••••" className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl" />
+                <label className="block text-xs font-medium text-gray-700 mb-1">New Password <span className="text-gray-400 font-normal">(leave blank to keep, min 8 if set)</span></label>
+                <input value={editForm.password} onChange={(e) => { setEditForm({ ...editForm, password: e.target.value }); setEditErrors((p) => ({ ...p, password: '' })); }}
+                  placeholder="••••••••" className={`w-full px-3 py-2.5 text-sm border rounded-xl ${editErrors.password ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                {editErrors.password && <p className="text-xs text-red-500 mt-1">{editErrors.password}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Role</label>

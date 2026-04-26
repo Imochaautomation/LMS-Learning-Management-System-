@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 import httpx, json
 
 from database import get_db
-from models import User, InterviewSession, UserCourse, CourseBankItem
+from models import User, InterviewSession, UserCourse, CourseBankItem, Profile
 from schemas import InterviewRequest, InterviewResponse, AnalysisRequest
 from auth import get_current_user
 from config import OPENROUTER_API_KEY, MODEL_NAME
@@ -24,21 +24,27 @@ Rules:
 - After the user answers, acknowledge their response briefly then ask the next question
 - Questions should be relevant to their role in editing, content creation, and language skills"""
 
-ANALYSIS_PROMPT = """Based on the following interview conversation, generate a skill gap analysis.
+ANALYSIS_PROMPT = """Based on the following interview conversation, generate a detailed skill gap analysis.
 
 Return ONLY valid JSON in this exact format:
 {
   "skill_gaps": [
-    {"skill": "Skill Name", "score": 75, "severity": "Medium"},
-    ...
+    {
+      "skill": "Skill Name",
+      "score": 75,
+      "severity": "Medium",
+      "observation": "A specific 2-sentence observation referencing exactly what this employee said. Quote or paraphrase their actual answer. E.g. 'When asked about X, you described Y which shows Z. However, your response on Q revealed a gap in R.'",
+      "question_asked": "The specific question from the interview that most revealed this skill level",
+      "answer_summary": "A concise 1-sentence summary of what the employee actually said that determined this score"
+    }
   ],
   "strengths": [
-    "Clear strength point 1",
+    "Clear strength point 1 — reference what the employee actually said",
     "Clear strength point 2"
   ],
   "areas_of_improvement": [
-    "Specific area to improve 1",
-    "Specific area to improve 2"
+    "Specific area referencing something from the interview 1",
+    "Specific area 2"
   ],
   "course_recommendations": [
     {"title": "Course Title", "provider": "Coursera", "category": "Category", "tag": "Gap-Fill", "link": "https://www.coursera.org/learn/course-slug", "duration": "4 weeks"},
@@ -48,17 +54,21 @@ Return ONLY valid JSON in this exact format:
 
 Rules for skill_gaps:
 - Score is 0-100 (higher = better)
-- Severity: ONLY use these 3 levels — "High" (score < 50), "Medium" (50-75), "Low" (75+)
+- Severity: ONLY use these 3 levels — "High" (score < 50), "Medium" (score 50-69), "Low" (score 70+)
+- score of exactly 70 = "Low" (proficient), NOT "Medium"
 - DO NOT use "Strong" — use "Low" for high scores
 - Include 5-8 skills
+- observation MUST be personalized — reference specific things the employee said, NOT generic text
+- question_asked: copy or paraphrase the actual interview question
+- answer_summary: summarize what the employee specifically said (1 sentence)
 
 Rules for strengths:
-- List 3-5 concrete strengths observed from the interview
-- Each should be a clear, actionable bullet point
+- List 3-5 concrete strengths observed from what they specifically said in the interview
+- Reference actual answers, not generic observations
 
 Rules for areas_of_improvement:
-- List 3-5 specific areas where the professional needs to grow
-- Each should be a clear, actionable bullet point
+- List 3-5 specific areas grounded in what was revealed in the conversation
+- Be specific about what was missing from their answers
 
 Rules for course_recommendations:
 - Recommend MAXIMUM 10 courses
@@ -69,26 +79,29 @@ Rules for course_recommendations:
   * LinkedIn Learning: https://www.linkedin.com/learning/search?keywords=YOUR+COURSE+TOPIC
   * edX: https://www.edx.org/search?q=YOUR+COURSE+TOPIC
   * YouTube: https://www.youtube.com/results?search_query=YOUR+COURSE+TOPIC+full+course
-- If you are 100% sure a specific course exists, you may use its direct URL instead.
 - The link field must NEVER be empty or null.
-- Use real course titles that actually exist on these platforms.
 
 Interview conversation:
 """
 
 
-async def _call_llm(messages: list[dict]) -> str:
+async def _call_llm(messages: list[dict], timeout: int = 30) -> str:
     """Call OpenRouter LLM."""
     if not OPENROUTER_API_KEY:
         return "Thank you for your answer! Let me ask you about another area."
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
             json={"model": MODEL_NAME, "messages": messages},
         )
         data = resp.json()
+        if "error" in data:
+            err = data["error"]
+            raise Exception(f"OpenRouter error {err.get('code', '')}: {err.get('message', str(err))}")
+        if "choices" not in data or not data["choices"]:
+            raise Exception(f"No choices in response: {str(data)[:200]}")
         return data["choices"][0]["message"]["content"]
 
 
@@ -261,41 +274,69 @@ async def generate_analysis(
 
     llm_messages = [
         {"role": "system", "content": ANALYSIS_PROMPT + conversation},
-        {"role": "user", "content": "Generate the skill gap analysis and course recommendations as JSON."},
+        {"role": "user", "content": "Generate the skill gap analysis and course recommendations as JSON. Include observation, question_asked, and answer_summary for every skill_gap item."},
     ]
 
+    # Extract Q&A pairs once — used for keyword fallback below
+    messages_list = session.messages or []
+    qa_pairs = []
+    for i, msg in enumerate(messages_list):
+        if msg.get("role") == "assistant" and i + 1 < len(messages_list) and messages_list[i + 1].get("role") == "user":
+            qa_pairs.append({"question": msg["content"], "answer": messages_list[i + 1]["content"]})
+
     try:
-        response = await _call_llm(llm_messages)
-        # Parse JSON from response
-        cleaned = response.strip().removeprefix("```json").removesuffix("```").strip()
+        response = await _call_llm(llm_messages, timeout=120)
+        # Strip markdown fences if present
+        cleaned = response.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("```", 2)[1]
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:]
+            cleaned = cleaned.rsplit("```", 1)[0].strip()
         analysis = json.loads(cleaned)
-    except Exception:
-        # Fallback analysis
+    except Exception as e:
+        # Fallback — build basic analysis from Q&A so it at least has real content
         analysis = {
-            "skill_gaps": [
-                {"skill": "Grammar & Punctuation", "score": 72, "severity": "Medium"},
-                {"skill": "US English Conventions", "score": 45, "severity": "High"},
-                {"skill": "Document Formatting", "score": 80, "severity": "Low"},
-                {"skill": "Technical Editing", "score": 55, "severity": "Medium"},
-                {"skill": "Style Guide Adherence", "score": 70, "severity": "Medium"},
-                {"skill": "Communication Skills", "score": 85, "severity": "Low"},
-            ],
-            "strengths": [
-                "Demonstrates good communication skills",
-                "Shows willingness to learn and adapt",
-                "Has foundational editing knowledge",
-            ],
-            "areas_of_improvement": [
-                "US English conventions need focused practice",
-                "Grammar and punctuation consistency",
-                "Deep understanding of style guide adherence",
-            ],
-            "course_recommendations": [
-                {"title": "English for Career Development", "provider": "Coursera", "category": "Editing Skills", "tag": "Gap-Fill", "link": "https://www.coursera.org/search?query=English+for+Career+Development", "duration": "6 weeks"},
-                {"title": "Writing in English at University", "provider": "Coursera", "category": "Language", "tag": "Gap-Fill", "link": "https://www.coursera.org/search?query=Writing+in+English+at+University", "duration": "4 weeks"},
-                {"title": "Business Writing", "provider": "Coursera", "category": "Writing", "tag": "Growth", "link": "https://www.coursera.org/search?query=Business+Writing", "duration": "3 weeks"},
-            ],
+            "skill_gaps": [],
+            "strengths": ["Completed the full AI interview — demonstrates commitment to growth."],
+            "areas_of_improvement": ["Further analysis will be available after a successful AI evaluation."],
+            "course_recommendations": [],
         }
+
+    # For any skill_gap missing observation/question_asked/answer_summary,
+    # find the most relevant Q&A by keyword matching on the skill name
+    skill_gaps = analysis.get("skill_gaps", [])
+    used_qa_indices = set()
+    for gap in skill_gaps:
+        skill_lower = gap.get("skill", "").lower()
+        # Fill missing observation with a score-based description
+        if not gap.get("observation"):
+            score = gap.get("score", 50)
+            sev = gap.get("severity", "Medium")
+            if sev == "High":
+                gap["observation"] = (
+                    f"Responses showed limited familiarity with core {gap['skill']} concepts — answers lacked depth and applied confidence."
+                    if score < 40 else
+                    f"Basic awareness of {gap['skill']} was evident but answers were inconsistent when applied to varied scenarios."
+                )
+            elif sev == "Medium":
+                gap["observation"] = (
+                    f"Good foundational grasp of {gap['skill']} but struggled with edge cases and nuanced application."
+                    if score >= 60 else
+                    f"Knowledge of {gap['skill']} exists but depth and consistency were missing in more complex questions."
+                )
+            else:
+                gap["observation"] = f"Demonstrated confident and consistent understanding of {gap['skill']} across all scenarios."
+        # Fill missing Q&A evidence by keyword search — each Q&A used at most once
+        if not gap.get("question_asked") and qa_pairs:
+            for idx, qa in enumerate(qa_pairs):
+                if idx not in used_qa_indices and (skill_lower in qa["question"].lower() or skill_lower in qa["answer"].lower()):
+                    gap["question_asked"] = qa["question"].strip()
+                    gap["answer_summary"] = qa["answer"].strip()[:300]
+                    used_qa_indices.add(idx)
+                    break
+
+    analysis["skill_gaps"] = skill_gaps
 
     # Save skill gaps, strengths, areas
     session.skill_gaps = analysis.get("skill_gaps", [])
@@ -330,6 +371,63 @@ async def generate_analysis(
     return {"ok": True, "skill_gaps": analysis.get("skill_gaps"), "courses": len(courses)}
 
 
+def _build_analysis_response(session, profile):
+    """Build the full analysis response including Q&A and profile context."""
+    messages = session.messages or []
+    qa_pairs = []
+    for i, msg in enumerate(messages):
+        if msg.get("role") == "assistant" and i + 1 < len(messages) and messages[i + 1].get("role") == "user":
+            qa_pairs.append({
+                "question": msg["content"],
+                "answer": messages[i + 1]["content"],
+            })
+
+    # For skill_gaps missing observation or question_asked, fill them in now
+    skill_gaps = []
+    used_qa_indices = set()
+    for gap in (session.skill_gaps or []):
+        gap = dict(gap)  # don't mutate the stored object
+        skill_lower = gap.get("skill", "").lower()
+
+        if not gap.get("observation"):
+            score = gap.get("score", 50)
+            sev = gap.get("severity", "Medium")
+            if sev == "High":
+                gap["observation"] = (
+                    f"Responses showed limited familiarity with core {gap['skill']} concepts — answers lacked depth and applied confidence."
+                    if score < 40 else
+                    f"Basic awareness of {gap['skill']} was evident but answers were inconsistent when applied to varied scenarios."
+                )
+            elif sev == "Medium":
+                gap["observation"] = (
+                    f"Good foundational grasp of {gap['skill']} but struggled with edge cases and nuanced application."
+                    if score >= 60 else
+                    f"Knowledge of {gap['skill']} exists but depth and consistency were missing in more complex questions."
+                )
+            else:
+                gap["observation"] = f"Demonstrated confident and consistent understanding of {gap['skill']} across all scenarios."
+
+        if not gap.get("question_asked") and qa_pairs:
+            for idx, qa in enumerate(qa_pairs):
+                if idx not in used_qa_indices and (skill_lower in qa["question"].lower() or skill_lower in qa["answer"].lower()):
+                    gap["question_asked"] = qa["question"].strip()
+                    gap["answer_summary"] = qa["answer"].strip()[:300]
+                    used_qa_indices.add(idx)
+                    break
+
+        skill_gaps.append(gap)
+
+    return {
+        "skill_gaps": skill_gaps,
+        "strengths": session.strengths or [],
+        "areas_of_improvement": session.areas_of_improvement or [],
+        "qa_pairs": qa_pairs,
+        "interview_date": session.completed_at.isoformat() if session.completed_at else None,
+        "learning_goals": profile.learning_goals if profile else None,
+        "profile_summary": profile.summary if profile else None,
+    }
+
+
 @router.get("/skill-analysis")
 async def get_skill_analysis(
     user: User = Depends(get_current_user),
@@ -341,12 +439,9 @@ async def get_skill_analysis(
         InterviewSession.status == "completed"
     ).order_by(InterviewSession.completed_at.desc()).first()
     if not session:
-        return {"skill_gaps": [], "strengths": [], "areas_of_improvement": []}
-    return {
-        "skill_gaps": session.skill_gaps or [],
-        "strengths": session.strengths or [],
-        "areas_of_improvement": session.areas_of_improvement or [],
-    }
+        return {"skill_gaps": [], "strengths": [], "areas_of_improvement": [], "qa_pairs": []}
+    profile = db.query(Profile).filter(Profile.user_id == user.id).first()
+    return _build_analysis_response(session, profile)
 
 
 @router.get("/skill-analysis/{user_id}")
@@ -360,9 +455,6 @@ async def get_user_skill_analysis(
         InterviewSession.status == "completed"
     ).order_by(InterviewSession.completed_at.desc()).first()
     if not session:
-        return {"skill_gaps": [], "strengths": [], "areas_of_improvement": []}
-    return {
-        "skill_gaps": session.skill_gaps or [],
-        "strengths": session.strengths or [],
-        "areas_of_improvement": session.areas_of_improvement or [],
-    }
+        return {"skill_gaps": [], "strengths": [], "areas_of_improvement": [], "qa_pairs": []}
+    profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+    return _build_analysis_response(session, profile)
