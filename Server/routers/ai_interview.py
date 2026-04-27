@@ -12,31 +12,122 @@ from config import OPENROUTER_API_KEY, MODEL_NAME
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
-SYSTEM_PROMPT = """You are Jarvis, an AI skill analyst for an LMS (Learning Management System) platform. 
-Your job is to interview employees to understand their skills, experience, strengths and areas for improvement.
-You are friendly, professional, and encouraging. Your name is Jarvis — use it naturally when appropriate.
+def _build_system_prompt(user, profile=None) -> str:
+    """Build a fully personalised interview system prompt from employee profile data."""
+    dept = (user.department or "").strip()
+    designation = (user.designation or "").strip()
+    experience = (user.experience or "").strip()
+    learning_goals = (profile.learning_goals or "").strip() if profile else ""
+    resume_summary = (profile.summary or "").strip() if profile else ""
+
+    # Infer focus domain from department + designation
+    dept_lower = dept.lower()
+    desig_lower = designation.lower()
+
+    if any(k in dept_lower or k in desig_lower for k in ["tech", "engineer", "software", "developer", "data", "it", "cloud", "devops", "ai", "ml"]):
+        domain = "technology and software engineering"
+        skill_areas = "programming languages, system design, debugging, cloud platforms, data structures, APIs, DevOps practices, testing, code quality, and technical problem-solving"
+    elif any(k in dept_lower or k in desig_lower for k in ["sales", "business development", "account", "revenue"]):
+        domain = "sales and business development"
+        skill_areas = "prospecting, lead qualification, CRM tools, negotiation, objection handling, pipeline management, closing techniques, customer relationship management, and sales metrics"
+    elif any(k in dept_lower or k in desig_lower for k in ["product", "ux", "design", "ui"]):
+        domain = "product management and design"
+        skill_areas = "product roadmapping, user research, competitive analysis, stakeholder management, sprint planning, wireframing, A/B testing, metrics and KPIs, and go-to-market strategy"
+    elif any(k in dept_lower or k in desig_lower for k in ["market", "growth", "brand", "content", "seo", "social"]):
+        domain = "marketing and growth"
+        skill_areas = "digital marketing, SEO/SEM, content strategy, campaign management, analytics, social media, email marketing, brand positioning, and customer acquisition"
+    elif any(k in dept_lower or k in desig_lower for k in ["finance", "accounting", "audit", "tax", "budget"]):
+        domain = "finance and accounting"
+        skill_areas = "financial analysis, budgeting, forecasting, accounting principles, Excel/BI tools, compliance, risk management, and financial reporting"
+    elif any(k in dept_lower or k in desig_lower for k in ["hr", "people", "talent", "recruit", "learning"]):
+        domain = "human resources and people management"
+        skill_areas = "talent acquisition, performance management, employee engagement, HRIS tools, conflict resolution, learning & development, and HR compliance"
+    elif any(k in dept_lower or k in desig_lower for k in ["ops", "operations", "supply", "logistics", "project", "program"]):
+        domain = "operations and project management"
+        skill_areas = "project planning, Agile/Scrum, process optimisation, stakeholder communication, risk management, resource allocation, and operational metrics"
+    elif any(k in dept_lower or k in desig_lower for k in ["content", "edit", "write", "publish", "media", "journalism"]):
+        domain = "content creation and editorial"
+        skill_areas = "writing, editing, grammar, style guides, SEO writing, content strategy, storytelling, research, fact-checking, and publishing workflows"
+    else:
+        domain = f"{dept or designation or 'professional'} domain"
+        skill_areas = "core technical skills, communication, problem-solving, tools and workflows, collaboration, and continuous learning"
+
+    # Build profile context block
+    profile_block = f"""
+Employee Profile:
+- Name: {user.name}
+- Designation: {designation or 'Not specified'}
+- Department: {dept or 'Not specified'}
+- Experience: {experience or 'Not specified'}"""
+
+    if learning_goals:
+        profile_block += f"\n- Learning Goals: {learning_goals}"
+    if resume_summary:
+        profile_block += f"\n- Professional Background: {resume_summary[:600]}"
+
+    goal_instruction = ""
+    if learning_goals:
+        goal_instruction = f"""
+The employee's stated learning goals are: "{learning_goals}"
+Tailor your questions to probe whether their current skills align with these goals.
+Identify gaps between where they are now and where they want to reach."""
+
+    return f"""You are Jarvis, an expert AI skill assessor for iMocha's Learning Management platform.
+You are interviewing {user.name}, a {designation or 'professional'} in the {dept or 'organisation'} with {experience or 'some'} of experience.
+Your job is to conduct a structured yet conversational skill assessment focused on the {domain}.
+{profile_block}
+{goal_instruction}
+
+Your interview must:
+- Ask questions specifically relevant to {domain}
+- Probe skills in: {skill_areas}
+- Follow up intelligently based on their answers — if they mention a tool or technique, ask them to go deeper
+- Start with their current role and daily responsibilities, then move to specific skills
+- Ask about real scenarios they have faced, not theoretical knowledge
+- Explore both technical skills AND soft skills relevant to {domain}
+- Gauge depth of knowledge, not just surface awareness
 
 Rules:
 - Ask ONE question at a time
-- Make questions contextual — follow up on previous answers
-- Cover areas like: current skills, tools used, challenges faced, areas they want to improve, career goals
-- Be conversational, not robotic
-- After the user answers, acknowledge their response briefly then ask the next question
-- Questions should be relevant to their role in editing, content creation, and language skills"""
+- Be conversational, warm, and encouraging — this is an assessment, not an interrogation
+- Acknowledge their answer briefly before asking the next question
+- Do NOT ask generic questions like "Tell me about yourself" — start directly with role-specific questions
+- Vary question types: scenario-based, tool-specific, challenge-focused, goal-oriented
+- Your name is Jarvis — use it naturally at the start"""
 
-ANALYSIS_PROMPT = """Based on the following interview conversation, generate a detailed skill gap analysis.
+
+def _build_analysis_prompt(user, profile=None) -> str:
+    """Build a personalised analysis prompt that knows the employee's domain and goals."""
+    dept = (user.department or "").strip()
+    designation = (user.designation or "").strip()
+    experience = (user.experience or "").strip()
+    learning_goals = (profile.learning_goals or "").strip() if profile else ""
+    resume_summary = (profile.summary or "").strip() if profile else ""
+
+    profile_section = f"""Employee: {user.name}
+Designation: {designation or 'N/A'} | Department: {dept or 'N/A'} | Experience: {experience or 'N/A'}"""
+    if learning_goals:
+        profile_section += f"\nLearning Goals: {learning_goals}"
+    if resume_summary:
+        profile_section += f"\nProfessional Background: {resume_summary[:500]}"
+
+    return f"""You are an expert skill analyst. Based on the interview conversation below, generate a detailed, personalised skill gap analysis for this employee.
+
+{profile_section}
+
+IMPORTANT: The skill gaps, observations, and course recommendations MUST be directly relevant to this employee's role ({designation or 'professional'}), department ({dept or 'N/A'}), and their stated learning goals. Do NOT generate generic or irrelevant skills.
 
 Return ONLY valid JSON in this exact format:
-{
+{{
   "skill_gaps": [
-    {
-      "skill": "Skill Name",
+    {{
+      "skill": "Skill Name relevant to their role/domain",
       "score": 75,
       "severity": "Medium",
       "observation": "A specific 2-sentence observation referencing exactly what this employee said. Quote or paraphrase their actual answer. E.g. 'When asked about X, you described Y which shows Z. However, your response on Q revealed a gap in R.'",
       "question_asked": "The specific question from the interview that most revealed this skill level",
       "answer_summary": "A concise 1-sentence summary of what the employee actually said that determined this score"
-    }
+    }}
   ],
   "strengths": [
     "Clear strength point 1 — reference what the employee actually said",
@@ -47,17 +138,17 @@ Return ONLY valid JSON in this exact format:
     "Specific area 2"
   ],
   "course_recommendations": [
-    {"title": "Course Title", "provider": "Coursera", "category": "Category", "tag": "Gap-Fill", "link": "https://www.coursera.org/learn/course-slug", "duration": "4 weeks"},
-    ...
+    {{"title": "Course Title", "provider": "Coursera", "category": "Category", "tag": "Gap-Fill", "link": "https://www.coursera.org/search?query=TOPIC", "duration": "4 weeks"}},
+    "..."
   ]
-}
+}}
 
 Rules for skill_gaps:
 - Score is 0-100 (higher = better)
 - Severity: ONLY use these 3 levels — "High" (score < 50), "Medium" (score 50-69), "Low" (score 70+)
 - score of exactly 70 = "Low" (proficient), NOT "Medium"
 - DO NOT use "Strong" — use "Low" for high scores
-- Include 5-8 skills
+- Include 5-8 skills — ALL must be relevant to the employee's role and department
 - observation MUST be personalized — reference specific things the employee said, NOT generic text
 - question_asked: copy or paraphrase the actual interview question
 - answer_summary: summarize what the employee specifically said (1 sentence)
@@ -69,10 +160,13 @@ Rules for strengths:
 Rules for areas_of_improvement:
 - List 3-5 specific areas grounded in what was revealed in the conversation
 - Be specific about what was missing from their answers
+- Align improvement areas with their stated learning goals where possible
 
 Rules for course_recommendations:
 - Recommend MAXIMUM 10 courses
 - Focus on weak areas (High/Medium severity)
+- Courses MUST be relevant to the employee's role ({designation or 'N/A'}) and department ({dept or 'N/A'})
+- If they have learning goals, prioritise courses that help achieve those goals
 - CRITICAL: Every course MUST have a working "link" URL. Use SEARCH URLs (always valid) as your PRIMARY format:
   * Coursera: https://www.coursera.org/search?query=YOUR+COURSE+TOPIC
   * Udemy: https://www.udemy.com/courses/search/?q=YOUR+COURSE+TOPIC
@@ -197,12 +291,11 @@ async def interview(
             follow_up=f"Great! You've answered {req.question_index + 1} questions — that's enough for a solid analysis. Let me generate your skill breakdown and course recommendations now! 🎯"
         )
 
-    # Build LLM context
-    llm_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Fetch profile for personalised context
+    profile = db.query(Profile).filter(Profile.user_id == user.id).first()
 
-    # Add user context
-    context = f"Employee: {user.name}, Role: {user.role}, Department: {user.department or 'N/A'}, Designation: {user.designation or 'N/A'}, Experience: {user.experience or 'N/A'}"
-    llm_messages.append({"role": "system", "content": f"Employee context: {context}"})
+    # Build LLM context using dynamic profile-aware prompt
+    llm_messages = [{"role": "system", "content": _build_system_prompt(user, profile)}]
 
     remaining = req.total_questions - req.question_index - 1
     if remaining > 0:
@@ -217,12 +310,20 @@ async def interview(
     try:
         follow_up = await _call_llm(llm_messages)
     except Exception:
-        # Fallback questions
-        fallback_topics = ['editing tools', 'grammar standards', 'US English conventions', 'team collaboration', 
-                           'deadline management', 'document formatting', 'quality assurance', 'mentoring',
-                           'handling feedback', 'career goals']
+        dept_lower = (user.department or "").lower()
+        desig_lower = (user.designation or "").lower()
+        if any(k in dept_lower or k in desig_lower for k in ["tech", "engineer", "software", "developer", "data", "it"]):
+            fallback_topics = ["your primary programming languages", "system design decisions you've made", "debugging a complex issue", "tools you use daily", "code review practices", "a recent technical challenge", "testing strategies", "your learning approach for new tech"]
+        elif any(k in dept_lower or k in desig_lower for k in ["sales", "business development", "account"]):
+            fallback_topics = ["your sales process", "handling objections", "CRM tools you use", "your best deal and how you closed it", "pipeline management", "prospecting strategies", "customer relationship building", "meeting sales targets"]
+        elif any(k in dept_lower or k in desig_lower for k in ["product", "ux", "design"]):
+            fallback_topics = ["how you prioritise features", "your user research process", "a product decision you made", "working with engineering teams", "metrics you track", "handling stakeholder conflicts", "your roadmapping process", "A/B testing experience"]
+        elif any(k in dept_lower or k in desig_lower for k in ["market", "growth", "brand", "seo"]):
+            fallback_topics = ["your go-to marketing channels", "a campaign you led", "analytics tools you use", "SEO or content strategy", "measuring campaign ROI", "audience targeting", "brand messaging", "growth experiments you've run"]
+        else:
+            fallback_topics = ["your daily responsibilities", "tools and workflows you use", "a challenge you overcame", "your collaboration style", "areas you're actively improving", "your career goals", "how you handle feedback", "a recent achievement"]
         idx = min(req.question_index, len(fallback_topics) - 1)
-        follow_up = f"That's great! Tell me about your experience with {fallback_topics[idx]}?"
+        follow_up = f"That's helpful context! Tell me more about {fallback_topics[idx]}?"
 
     messages.append({"role": "assistant", "content": follow_up})
     session.messages = messages
@@ -266,14 +367,20 @@ async def generate_analysis(
     if not session:
         raise HTTPException(status_code=404, detail="No completed interview found")
 
+    # Fetch profile for personalised analysis
+    target_user = db.query(User).filter(User.id == req.user_id).first()
+    profile = db.query(Profile).filter(Profile.user_id == req.user_id).first()
+
     # Build conversation text
     conversation = "\n".join([
         f"{'Employee' if m['role'] == 'user' else 'Interviewer'}: {m['content']}"
         for m in (session.messages or [])
     ])
 
+    analysis_prompt = _build_analysis_prompt(target_user or user, profile)
+
     llm_messages = [
-        {"role": "system", "content": ANALYSIS_PROMPT + conversation},
+        {"role": "system", "content": analysis_prompt + conversation},
         {"role": "user", "content": "Generate the skill gap analysis and course recommendations as JSON. Include observation, question_asked, and answer_summary for every skill_gap item."},
     ]
 
