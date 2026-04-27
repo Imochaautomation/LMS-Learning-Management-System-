@@ -145,7 +145,9 @@ function downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaP
     const foundLabel  = g.severity === 'Medium' ? 'Where they\'re falling short' : 'What the AI found';
     const actionLabel = g.severity === 'Medium' ? 'Next step' : 'Recommended action';
     const toGo   = g.severity === 'Medium' ? ` &nbsp;&nbsp; ${Math.max(0, 70 - g.score)} pts to go` : '';
-    const observation = g.observation ? esc(toThirdPerson(g.observation)) : fallbackObservation(g);
+    const obsText = (g.observation && g.observation.toLowerCase().includes(g.skill.toLowerCase()))
+      ? g.observation : null;
+    const observation = obsText ? esc(toThirdPerson(obsText)) : fallbackObservation(g);
     const action = fallbackAction(g);
     const qaBlock = (g.question_asked && g.answer_summary)
       ? `<div class="evidence-box">
@@ -1307,11 +1309,11 @@ export default function LearnerDetail() {
                                 <div className="bg-red-50 rounded-lg p-3 border border-red-100">
                                   <p className="text-xs font-semibold text-red-800 mb-1">What the AI found</p>
                                   <p className="text-xs text-red-700">
-                                    {g.observation
+                                    {(g.observation && g.observation.toLowerCase().includes(g.skill.toLowerCase()))
                                       ? g.observation
-                                      : g.score < 30 ? `Responses showed limited understanding of core ${g.skill} concepts. Foundational study is needed before applied practice.`
-                                      : g.score < 40 ? `Partial awareness of ${g.skill} concepts but significant gaps in application and accuracy under varied scenarios.`
-                                      : `Basic ${g.skill} concepts were understood but answers lacked depth, specificity, and confidence in practical situations.`}
+                                      : g.score < 30 ? `Responses showed limited familiarity with core ${g.skill} concepts — answers lacked depth and applied confidence.`
+                                      : g.score < 40 ? `Partial awareness of ${g.skill} was evident but significant gaps in application and accuracy under varied scenarios.`
+                                      : `Basic ${g.skill} concepts were present but answers lacked specificity and confidence in practical situations.`}
                                   </p>
                                 </div>
                                 <div className="bg-white rounded-lg p-3 border border-gray-200">
@@ -1366,9 +1368,9 @@ export default function LearnerDetail() {
                                   <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
                                     <p className="text-xs font-semibold text-amber-800 mb-1">Where they're falling short</p>
                                     <p className="text-xs text-amber-700">
-                                      {g.observation
+                                      {(g.observation && g.observation.toLowerCase().includes(g.skill.toLowerCase()))
                                         ? g.observation
-                                        : g.score >= 65 ? `Answered most ${g.skill} scenarios correctly but struggled with edge cases and nuanced variations.`
+                                        : g.score >= 65 ? `Most ${g.skill} scenarios were handled well but edge cases and nuanced variations caused errors.`
                                         : g.score >= 58 ? `Good conceptual grasp of ${g.skill} but inconsistent when applying to unfamiliar or complex situations.`
                                         : `${g.skill} knowledge exists but depth and consistency are missing — answers were surface-level in harder questions.`}
                                     </p>

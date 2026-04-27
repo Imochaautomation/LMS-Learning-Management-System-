@@ -129,7 +129,9 @@ function downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPair
     const foundLabel  = g.severity === 'Medium' ? 'Where you\'re falling short' : 'What the AI found';
     const actionLabel = g.severity === 'Medium' ? 'Next step' : 'Recommended action';
     const toGo   = g.severity === 'Medium' ? ` &nbsp;&nbsp; ${Math.max(0, 70 - g.score)} pts to go` : '';
-    const observation = g.observation ? esc(g.observation) : fallbackObservation(g);
+    const obsText = (g.observation && g.observation.toLowerCase().includes(g.skill.toLowerCase()))
+      ? g.observation : null;
+    const observation = obsText ? esc(obsText) : fallbackObservation(g);
     const action = fallbackAction(g);
     const qaBlock = (g.question_asked && g.answer_summary)
       ? `<div class="evidence-box">
@@ -682,10 +684,10 @@ export default function UpskillDashboard() {
                                 <p className="text-xs font-semibold text-red-800 mb-1">What the AI found</p>
                                 <p className="text-xs text-red-700">
                                   {g.score < 30
-                                    ? 'Responses showed limited understanding of core concepts. Foundational study is needed before applied practice.'
+                                    ? `Responses showed limited familiarity with core ${g.skill} concepts — answers lacked depth and applied confidence.`
                                     : g.score < 40
-                                    ? 'Partial awareness of concepts but significant gaps in application and accuracy under varied scenarios.'
-                                    : 'Basic concepts understood but answers lacked depth, specificity, and confidence in practical situations.'}
+                                    ? `Partial awareness of ${g.skill} was evident but significant gaps in application and accuracy under varied scenarios.`
+                                    : `Basic ${g.skill} concepts were present but answers lacked specificity and confidence in practical situations.`}
                                 </p>
                               </div>
                               <div className="bg-white rounded-lg p-3 border border-gray-200">
@@ -741,10 +743,10 @@ export default function UpskillDashboard() {
                                   <p className="text-xs font-semibold text-amber-800 mb-1">Where you're falling short</p>
                                   <p className="text-xs text-amber-700">
                                     {g.score >= 65
-                                      ? 'You answered most scenarios correctly but struggled with edge cases and nuanced variations.'
+                                      ? `Most ${g.skill} scenarios were handled well but edge cases and nuanced variations caused errors.`
                                       : g.score >= 58
-                                      ? 'Good conceptual grasp but inconsistent when applying to unfamiliar or complex situations.'
-                                      : 'Knowledge exists but both depth and consistency are missing — answers were surface-level in harder questions.'}
+                                      ? `Good conceptual grasp of ${g.skill} but inconsistent when applying to unfamiliar or complex situations.`
+                                      : `${g.skill} knowledge exists but depth and consistency are missing — answers were surface-level in harder questions.`}
                                   </p>
                                 </div>
                                 <div className="bg-white rounded-lg p-3 border border-gray-200">
