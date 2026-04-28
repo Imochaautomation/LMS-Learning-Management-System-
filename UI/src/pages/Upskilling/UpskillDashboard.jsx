@@ -491,10 +491,10 @@ export default function UpskillDashboard() {
                   style={isActive ? { background: 'rgba(240,90,40,0.08)' } : {}}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isDone ? 'bg-emerald-500 text-white' : isActive ? 'text-white' : 'bg-gray-200 text-gray-400'}`}
                     style={isActive ? { background: '#F05A28' } : {}}>
-                    {isDone ? <CheckCircle2 className="w-5 h-5" /> : step.num}
+                    {isDone ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-base">{step.emoji}</span>}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold">{step.emoji} {step.label}</p>
+                    <p className="text-sm font-semibold">{step.label}</p>
                     <p className="text-xs opacity-70">{step.desc}</p>
                   </div>
                 </div>
