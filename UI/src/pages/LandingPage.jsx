@@ -83,7 +83,7 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: ORANGE }}>Platform Capabilities</p>
             <h2 className="text-3xl md:text-4xl font-black mb-4" style={{ color: NAVY }}>Everything your workforce needs</h2>
-            <p className="text-gray-400 max-w-xl mx-auto">From day-one onboarding to continuous upskilling — one platform, full visibility.</p>
+            <p className="text-gray-400 max-w-xl mx-auto">Continuous upskilling, skill gap analysis, and AI-powered learning — one platform, full visibility.</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-5">
@@ -188,7 +188,7 @@ export default function LandingPage() {
             <div className="md:col-span-2">
               <img src="/logoimocha.png" alt="iMocha" className="h-8 w-auto mb-4" style={{ filter: 'brightness(0) invert(1)' }} />
               <p className="text-sm text-blue-200/70 leading-relaxed max-w-xs mb-5">
-                The AI-powered skills intelligence platform for smarter workforce decisions — from day-one onboarding to continuous upskilling.
+                The AI-powered skills intelligence platform for smarter workforce decisions — continuous upskilling, skill visibility, and business agility.
               </p>
               <p className="text-xs font-bold uppercase tracking-widest" style={{ color: ORANGE }}>Skills Visibility. Business Agility.</p>
             </div>
