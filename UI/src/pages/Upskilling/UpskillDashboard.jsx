@@ -91,7 +91,7 @@ function RadarChart({ skillGaps }) {
   );
 }
 
-function downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPairs = [], learningGoals = null, interviewDate = null, courses = []) {
+async function downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPairs = [], learningGoals = null, interviewDate = null, courses = []) {
   const date = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const iDate = interviewDate ? new Date(interviewDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : null;
   const criticalGaps = skillGaps.filter(g => g.severity === 'High');
@@ -285,7 +285,12 @@ function downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPair
     ? `Mixed profile — strong in some areas, significant gaps in others. Prioritize <strong>${criticalGaps.slice(0, 2).map(g => esc(g.skill)).join('</strong> and <strong>') || 'critical skills'}</strong> first.`
     : `Several skills need significant development. A structured, course-by-course plan focused on critical areas will move the needle fastest.`;
 
-  const logoUrl = `${window.location.origin}/logoimocha.png`;
+  let logoUrl = `${window.location.origin}/logoimocha.png`;
+  try {
+    const resp = await fetch(logoUrl);
+    const blob = await resp.blob();
+    logoUrl = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+  } catch { /* keep URL as fallback */ }
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <title>Skill Gap Analysis — ${esc(user?.name)}</title>
@@ -569,7 +574,7 @@ export default function UpskillDashboard() {
               <Link to="/upskilling/interview" className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:shadow-sm transition-shadow">
                 <Bot className="w-3.5 h-3.5 text-violet-500" /> Retake Interview
               </Link>
-              <button onClick={() => downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPairs, learningGoals, interviewDate, courses.filter(c => c.status === 'recommended'))}
+              <button onClick={() => downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPairs, learningGoals, interviewDate, courses.filter(c => c.status === 'recommended')).catch(() => {})}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-white rounded-lg text-xs font-medium transition-colors"
                 style={{ background: '#F05A28' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}

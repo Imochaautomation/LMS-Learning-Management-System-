@@ -98,7 +98,7 @@ function RadarChart({ skillGaps }) {
 }
 
 // ── PDF download ──────────────────────────────────────────────────────────────
-function downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaPairs = [], learningGoals = null, interviewDate = null, courses = []) {
+async function downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaPairs = [], learningGoals = null, interviewDate = null, courses = []) {
   const date = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
   const iDate = interviewDate ? new Date(interviewDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : null;
   const criticalGaps = skillGaps.filter(g => g.severity === 'High');
@@ -301,7 +301,12 @@ function downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaP
     ? `Mixed profile — strong in some areas, significant gaps in others. Prioritize <strong>${criticalGaps.slice(0, 2).map(g => esc(g.skill)).join('</strong> and <strong>') || 'critical skills'}</strong> first — directly aligned with stated learning goals.`
     : `Several skills need significant development. A structured, course-by-course plan focused on critical areas will move the needle fastest.`;
 
-  const logoUrl = `${window.location.origin}/logoimocha.png`;
+  let logoUrl = `${window.location.origin}/logoimocha.png`;
+  try {
+    const resp = await fetch(logoUrl);
+    const blob = await resp.blob();
+    logoUrl = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+  } catch { /* keep URL as fallback */ }
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <title>Skill Gap Analysis — ${esc(learner?.name)}</title>
@@ -1202,7 +1207,7 @@ export default function LearnerDetail() {
                   {mediumGaps.length > 0 && <span className="flex items-center gap-1.5 text-amber-600 font-semibold"><span className="w-2 h-2 rounded-full bg-amber-500" />{mediumGaps.length} Growing</span>}
                   {lowGaps.length > 0 && <span className="flex items-center gap-1.5 text-emerald-600 font-semibold"><span className="w-2 h-2 rounded-full bg-emerald-500" />{lowGaps.length} Strong</span>}
                 </div>
-                <button onClick={() => downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaPairs, learningGoals, interviewDate, courses)}
+                <button onClick={() => downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaPairs, learningGoals, interviewDate, courses).catch(() => {})}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-medium rounded-lg"
                   style={{ background: '#F05A28' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
