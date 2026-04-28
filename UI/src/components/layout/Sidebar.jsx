@@ -2,23 +2,24 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Home, BookOpen, FileText, GraduationCap, Users, LogOut,
-  UserCircle, FolderOpen, UserPlus
+  UserCircle, FolderOpen, UserPlus, ChevronRight
 } from 'lucide-react';
+
+const NAVY = '#1E1040';
+const ORANGE = '#F05A28';
+
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   if (!user) return null;
 
-  // SME Kit is only for Content dept: managers check their own dept, new joiners check manager's dept
   const isContentManager = user.role === 'manager' && (user.department || '') === 'Content';
   const isContentNewJoiner = user.role === 'new_joiner' && (user.manager_department || '') === 'Content';
 
-  // Build nav dynamically based on role + department
   let items = [];
   if (user.role === 'new_joiner') {
     items = [
       { to: '/training', label: 'Dashboard', icon: Home },
-      // SME Kit only for new joiners whose manager is from Content dept
       ...(isContentNewJoiner ? [{ to: '/training/sme-kit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
       { to: '/training/assessments', label: 'Assessments', icon: FileText },
       { to: '/training/courses', label: 'Courses', icon: GraduationCap },
@@ -33,7 +34,6 @@ export default function Sidebar() {
     items = [
       { to: '/manager?tab=learners', label: 'Learners', icon: Users },
       { to: '/manager?tab=bank', label: 'Assessment Bank', icon: FileText },
-      // SME Kit only for Content dept managers
       ...(isContentManager ? [{ to: '/manager?tab=smekit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
       { to: '/manager?tab=team', label: 'Manage Team', icon: UserPlus },
     ];
@@ -45,54 +45,59 @@ export default function Sidebar() {
   }
 
   const roleBadge = {
-    new_joiner: { label: 'New Joiner', color: 'bg-emerald-100 text-emerald-700' },
-    employee:   { label: 'Employee',   color: 'bg-indigo-100 text-indigo-700' },
-    manager:    { label: 'Manager',    color: 'bg-amber-100 text-amber-700' },
-    admin:      { label: 'Admin',      color: 'bg-red-100 text-red-700' },
+    new_joiner: { label: 'New Joiner', bg: 'rgba(240,90,40,0.18)', color: '#FCA06A', border: 'rgba(240,90,40,0.35)' },
+    employee:   { label: 'Employee',   bg: 'rgba(99,102,241,0.18)', color: '#A5B4FC', border: 'rgba(99,102,241,0.35)' },
+    manager:    { label: 'Manager',    bg: 'rgba(245,158,11,0.18)', color: '#FCD34D', border: 'rgba(245,158,11,0.35)' },
+    admin:      { label: 'Admin',      bg: 'rgba(239,68,68,0.18)',  color: '#FCA5A5', border: 'rgba(239,68,68,0.35)' },
   }[user.role];
+
+  const avatarGradient = {
+    admin:      'linear-gradient(135deg,#ef4444,#e11d48)',
+    manager:    `linear-gradient(135deg,${ORANGE},#c2410c)`,
+    employee:   'linear-gradient(135deg,#6366f1,#7c3aed)',
+    new_joiner: 'linear-gradient(135deg,#10b981,#0d9488)',
+  }[user.role] || `linear-gradient(135deg,${ORANGE},#c2410c)`;
 
   const managerName = user.manager_name;
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
-      <div className="p-5 border-b border-gray-100">
-        <div className="flex items-center gap-2 mb-1">
-          <GraduationCap className="w-7 h-7 text-indigo-600" />
-          <span className="font-bold text-lg text-gray-900">AI Powered Learning Space</span>
-        </div>
-        <p className="text-xs text-gray-400">Upskill &middot; Reskill &middot; Train</p>
+    <aside className="w-64 flex flex-col h-screen sticky top-0 overflow-hidden" style={{ background: NAVY }}>
+
+      {/* Logo header */}
+      <div className="px-5 pt-6 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <img src="/logoimocha.png" alt="iMocha" className="h-8 w-auto mb-3" style={{ filter: 'brightness(0) invert(1)' }} />
+        <p className="text-xs font-medium tracking-wider uppercase" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>
+          AI Learning Space
+        </p>
       </div>
 
-      <div className="px-4 py-4 border-b border-gray-100">
+      {/* User card */}
+      <div className="px-4 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="flex items-center gap-3">
-          {/* Avatar with role-specific gradient */}
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white shadow-md shrink-0 ${
-            user.role === 'admin'    ? 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-200' :
-            user.role === 'manager'  ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-200' :
-            user.role === 'employee' ? 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-200' :
-            'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200'
-          }`}>
-            {user.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-lg"
+            style={{ background: avatarGradient }}>
+            {user.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-900 truncate">{user.name}</p>
-            <span className={`inline-flex items-center gap-1 mt-0.5 text-[11px] px-2 py-0.5 rounded-full font-semibold ${roleBadge.color}`}>
+            <p className="text-sm font-semibold text-white truncate">{user.name}</p>
+            <span className="inline-flex items-center mt-0.5 text-[11px] px-2 py-0.5 rounded-full font-semibold"
+              style={{ background: roleBadge.bg, color: roleBadge.color, border: `1px solid ${roleBadge.border}` }}>
               {roleBadge.label}
             </span>
           </div>
         </div>
-        {/* Department & Manager info */}
+
         {(user.department || managerName) && (
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+          <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             {user.department && (
-              <p className="text-xs text-gray-500 flex items-center gap-1.5">
-                <FolderOpen className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-xs flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                <FolderOpen className="w-3 h-3 shrink-0" />
                 <span className="truncate">{user.department}</span>
               </p>
             )}
             {managerName && (
-              <p className="text-xs text-gray-500 flex items-center gap-1.5">
-                <Users className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-xs flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                <Users className="w-3 h-3 shrink-0" />
                 <span className="truncate">Manager: {managerName}</span>
               </p>
             )}
@@ -100,41 +105,44 @@ export default function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {items.map((item, idx) => {
           const hasQueryParams = item.to.includes('?');
           return (
-          <NavLink
-            key={idx}
-            to={item.to}
-            end={!hasQueryParams && (item.to === '/training' || item.to === '/upskilling' || item.to === '/admin')}
-            className={({ isActive }) => {
-              // For query-param links, check if current URL search matches
-              let active = isActive;
-              if (hasQueryParams) {
-                const [path, query] = item.to.split('?');
-                const params = new URLSearchParams(query);
-                const currentParams = new URLSearchParams(window.location.search);
-                active = window.location.pathname === path && params.get('tab') === currentParams.get('tab');
-              }
-              return `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                active
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`;
-            }}
-          >
-            <item.icon className="w-4.5 h-4.5" />
-            {item.label}
-          </NavLink>
+            <NavLink
+              key={idx}
+              to={item.to}
+              end={!hasQueryParams && (item.to === '/training' || item.to === '/upskilling' || item.to === '/admin')}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group"
+              style={({ isActive }) => {
+                let active = isActive;
+                if (hasQueryParams) {
+                  const [path, query] = item.to.split('?');
+                  const params = new URLSearchParams(query);
+                  const currentParams = new URLSearchParams(window.location.search);
+                  active = window.location.pathname === path && params.get('tab') === currentParams.get('tab');
+                }
+                return active
+                  ? { background: ORANGE, color: '#fff', boxShadow: `0 2px 12px rgba(240,90,40,0.35)` }
+                  : { color: 'rgba(255,255,255,0.6)' };
+              }}
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              <span className="flex-1">{item.label}</span>
+            </NavLink>
           );
         })}
       </nav>
 
-      <div className="p-3 border-t border-gray-100 space-y-1">
+      {/* Sign out */}
+      <div className="p-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <button
           onClick={() => { logout(); navigate('/login'); }}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 w-full transition-colors"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-all"
+          style={{ color: 'rgba(255,255,255,0.45)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#fca5a5'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; }}
         >
           <LogOut className="w-4 h-4" />
           Sign Out

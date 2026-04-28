@@ -48,7 +48,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-lg md:text-xl text-blue-100/80 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Identify skill gaps, design personalised learning paths, and transform your workforce — from day-one onboarding to continuous upskilling.
+            Identify skill gaps, design personalized learning paths, and transform your workforce to continuous upskilling.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4 mb-20">
@@ -65,7 +65,7 @@ export default function LandingPage() {
             {[
               { value: 'AI Interview', sub: 'Adaptive 10-question engine' },
               { value: 'Skill Radar', sub: 'Visual gap analysis' },
-              { value: '4 Roles', sub: 'Admin · Manager · Employee · Joiner' },
+              { value: '3 Roles', sub: 'Admin · Manager · Employee' },
               { value: 'Auto-Courses', sub: 'AI-matched recommendations' },
             ].map(({ value, sub }) => (
               <div key={value} className="text-center px-3 py-2">
@@ -89,11 +89,10 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-5">
             {[
               { icon: Brain, color: ORANGE, bg: '#FFF4EE', border: '#FFD5C2', title: 'AI Interview Engine', desc: 'Adaptive 10-question interviews that dynamically follow up on answers — revealing true skill depth, not surface-level responses.', tags: ['Conversational AI', 'Adaptive Q&A', 'Auto-scoring'] },
-              { icon: BarChart3, color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', title: 'Skill Gap Analysis', desc: 'Visual radar charts, severity-ranked skill cards, and personalised learning roadmaps — generated automatically from interview data.', tags: ['Radar Charts', 'Severity Scoring', 'Learning Roadmap'] },
-              { icon: BookOpen, color: '#0EA5E9', bg: '#F0F9FF', border: '#BAE6FD', title: 'Dual Learning Tracks', desc: 'Separate flows for new joiners (SME kits, assessments) and existing employees (upskilling/reskilling) — each tailored to their journey.', tags: ['Onboarding', 'Upskilling', 'Reskilling'] },
-              { icon: Users, color: '#10B981', bg: '#F0FDF4', border: '#A7F3D0', title: 'Manager Intelligence', desc: 'Team-wide skill heatmaps, individual learner profiles, and content bank assignment — all from a single manager dashboard.', tags: ['Team Overview', 'Learner Profiles', 'Content Bank'] },
+              { icon: BarChart3, color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', title: 'Skill Gap Analysis', desc: 'Visual radar charts, severity-ranked skill cards, and personalized learning roadmaps — generated automatically from interview data.', tags: ['Radar Charts', 'Severity Scoring', 'Learning Roadmap'] },
+{ icon: Users, color: '#10B981', bg: '#F0FDF4', border: '#A7F3D0', title: 'Manager Intelligence', desc: 'Team-wide skill heatmaps, individual learner profiles, and content bank assignment — all from a single manager dashboard.', tags: ['Team Overview', 'Learner Profiles', 'Content Bank'] },
               { icon: TrendingUp, color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A', title: 'Course Recommendations', desc: 'AI matches skill gaps to real courses on Coursera, Udemy, LinkedIn Learning and more — with direct enrollment links.', tags: ['AI-Matched', 'Multi-platform', 'Gap-targeted'] },
-              { icon: Shield, color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', title: 'Role-Based Access', desc: 'Fine-grained access control for admins, managers, employees and new joiners — everyone sees exactly what they need, nothing more.', tags: ['4 Roles', 'Secure JWT', 'Route Guards'] },
+              { icon: Shield, color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', title: 'Role-Based Access', desc: 'Fine-grained access control for admins, managers, and employees — everyone sees exactly what they need, nothing more.', tags: ['3 Roles', 'Secure JWT', 'Route Guards'] },
             ].map(({ icon: Icon, color, bg, border, title, desc, tags }) => (
               <div key={title} className="bg-white rounded-2xl p-6 border hover:shadow-lg transition-all duration-200 group" style={{ borderColor: border }}>
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 transition-transform group-hover:scale-105" style={{ background: bg }}>
@@ -116,7 +115,7 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: ORANGE }}>Get Started in Minutes</p>
             <h2 className="text-3xl md:text-4xl font-black mb-4" style={{ color: NAVY }}>How it works</h2>
-            <p className="text-gray-400">Three steps from sign-in to a personalised learning roadmap</p>
+            <p className="text-gray-400">Three steps from sign-in to a personalized learning roadmap</p>
           </div>
 
           <div className="relative grid md:grid-cols-3 gap-10">
@@ -125,7 +124,7 @@ export default function LandingPage() {
             {[
               { step: '01', icon: Target, title: 'Set Your Profile', desc: 'Add your role, experience, and learning goals. Upload your resume for context-aware interview questions.', color: ORANGE },
               { step: '02', icon: Brain, title: 'Take the AI Interview', desc: 'Chat with our AI interviewer. 10 adaptive questions reveal your actual skill levels across key competencies.', color: '#7C3AED' },
-              { step: '03', icon: Award, title: 'Get Your Roadmap', desc: 'Instantly see your skill gap analysis, severity scores, and a personalised list of courses to close the gaps.', color: '#0EA5E9' },
+              { step: '03', icon: Award, title: 'Get Your Roadmap', desc: 'Instantly see your skill gap analysis, severity scores, and a personalized list of courses to close the gaps.', color: '#0EA5E9' },
             ].map(({ step, icon: Icon, title, desc, color }) => (
               <div key={step} className="text-center relative">
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg relative z-10" style={{ background: color }}>
@@ -145,11 +144,10 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
             <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: ORANGE }}>Built for Everyone</p>
-            <h2 className="text-3xl font-black" style={{ color: NAVY }}>One platform, four roles</h2>
+            <h2 className="text-3xl font-black" style={{ color: NAVY }}>One platform, three roles</h2>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
-              { emoji: '🎓', role: 'New Joiner', color: '#0EA5E9', bg: '#F0F9FF', border: '#BAE6FD', points: ['SME Kit & resources', 'Assigned assessments', 'Training courses', 'Onboarding progress'] },
               { emoji: '📈', role: 'Employee', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', points: ['AI skill interview', 'Gap analysis dashboard', 'Course recommendations', 'Skill radar chart'] },
               { emoji: '👩‍💼', role: 'Manager', color: ORANGE, bg: '#FFF4EE', border: '#FFD5C2', points: ['Team skill overview', 'Individual learner views', 'Assign content bank', 'Download skill reports'] },
               { emoji: '⚙️', role: 'Admin', color: '#10B981', bg: '#F0FDF4', border: '#A7F3D0', points: ['User management', 'Role assignment', 'System overview', 'Full data access'] },
@@ -173,7 +171,7 @@ export default function LandingPage() {
             <GraduationCap className="w-8 h-8" style={{ color: ORANGE }} />
           </div>
           <h2 className="text-3xl md:text-4xl font-black text-white mb-4">Ready to close your skill gaps?</h2>
-          <p className="text-blue-200/80 mb-8 text-lg max-w-xl mx-auto">Sign in and complete your first AI interview in under 10 minutes. Get a personalised skill report instantly.</p>
+          <p className="text-blue-200/80 mb-8 text-lg max-w-xl mx-auto">Sign in and complete your first AI interview in under 10 minutes. Get a personalized skill report instantly.</p>
           <Link to="/login" className="inline-flex items-center gap-2 px-10 py-4 rounded-xl font-bold text-white text-lg shadow-xl hover:opacity-90 transition-all" style={{ background: ORANGE }}>
             Get Started Now <ChevronRight className="w-5 h-5" />
           </Link>
@@ -211,7 +209,7 @@ export default function LandingPage() {
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4">For Roles</p>
               <ul className="space-y-2.5">
-                {['New Joiners', 'Employees', 'Managers', 'Admins'].map((item) => (
+                {['Employees', 'Managers', 'Admins'].map((item) => (
                   <li key={item}>
                     <Link to="/login" className="text-sm text-blue-200/60 hover:text-white transition-colors">{item}</Link>
                   </li>

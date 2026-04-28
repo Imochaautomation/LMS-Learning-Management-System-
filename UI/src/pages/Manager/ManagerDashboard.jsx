@@ -27,8 +27,9 @@ function Pagination({ current, total, onChange }) {
       {[...Array(total)].map((_, i) => (
         <button key={i} onClick={() => onChange(i + 1)}
           className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-            current === i + 1 ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-100'
-          }`}>{i + 1}</button>
+            current === i + 1 ? 'text-white' : 'text-gray-500 hover:bg-gray-100'
+          }`}
+          style={current === i + 1 ? { background: '#F05A28' } : {}}>{i + 1}</button>
       ))}
       <button disabled={current >= total} onClick={() => onChange(current + 1)}
         className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
@@ -300,7 +301,8 @@ export default function ManagerDashboard() {
                       l.role === 'new_joiner' ? 'from-teal-50 to-emerald-50 border-teal-200 hover:border-teal-400' : 'from-indigo-50 to-purple-50 border-indigo-200 hover:border-indigo-400'
                     }`}>
                     <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white ${l.role === 'new_joiner' ? 'bg-teal-600' : 'bg-indigo-600'}`}>
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white ${l.role === 'new_joiner' ? 'bg-teal-600' : ''}`}
+                        style={l.role !== 'new_joiner' ? { background: '#F05A28' } : {}}>
                         {l.name.split(' ').map(n => n[0]).join('')}
                       </div>
                       <div>
@@ -523,7 +525,10 @@ export default function ManagerDashboard() {
       {tab === 'team' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-gray-900">Manage Team</h2>
-            <button onClick={() => setShowCreateUser(!showCreateUser)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"><UserPlus className="w-4 h-4" /> Create Account</button></div>
+            <button onClick={() => setShowCreateUser(!showCreateUser)} className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg"
+              style={{ background: '#F05A28' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+              onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}><UserPlus className="w-4 h-4" /> Create Account</button></div>
           {showCreateUser && (
             <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
               <form onSubmit={createTeamUser} className="grid sm:grid-cols-2 gap-3">
@@ -556,7 +561,10 @@ export default function ManagerDashboard() {
                 </div>
                 <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => { setShowCreateUser(false); setUserFormErrors({}); }} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
-                  <button type="submit" disabled={creatingUser} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg disabled:opacity-50">{creatingUser && <Loader2 className="w-4 h-4 animate-spin" />} Create</button>
+                  <button type="submit" disabled={creatingUser} className="flex items-center gap-2 px-4 py-2 text-white text-sm rounded-lg disabled:opacity-50"
+                    style={{ background: '#F05A28' }}
+                    onMouseEnter={e => { if (!creatingUser) e.currentTarget.style.background = '#c2410c'; }}
+                    onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>{creatingUser && <Loader2 className="w-4 h-4 animate-spin" />} Create</button>
                 </div>
               </form>
             </div>
@@ -619,7 +627,10 @@ export default function ManagerDashboard() {
                   <div><label className="block text-xs font-medium text-gray-700 mb-1">Department</label><select value={editTeamForm.department} onChange={(e) => setEditTeamForm({ ...editTeamForm, department: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white"><option value="">Select Department</option><option value="Content">Content</option><option value="Customer Success">Customer Success</option><option value="Engineering">Engineering</option><option value="Finance">Finance</option><option value="Human Resources">Human Resources</option><option value="IT Services">IT Services</option><option value="Product Marketing">Product Marketing</option><option value="Sales">Sales</option><option value="Product">Product</option><option value="Channel Sales">Channel Sales</option><option value="Marketing">Marketing</option><option value="Marketing (Business Development)">Marketing (Business Development)</option><option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option></select></div>
                   <div className="flex justify-end gap-3 pt-2">
                     <button type="button" onClick={() => setEditTeamModal(null)} className="px-4 py-2.5 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
-                    <button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700">Save</button>
+                    <button type="submit" className="px-5 py-2.5 text-white text-sm font-medium rounded-xl"
+                      style={{ background: '#F05A28' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>Save</button>
                   </div>
                 </form>
               </div>

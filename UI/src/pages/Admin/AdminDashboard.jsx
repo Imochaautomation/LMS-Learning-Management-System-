@@ -36,7 +36,7 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Users', value: counts.total, icon: Users, color: 'bg-indigo-50 text-indigo-600' },
+          { label: 'Total Users', value: counts.total, icon: Users, color: '', iconStyle: { background: 'rgba(240,90,40,0.1)', color: '#F05A28' } },
           { label: 'Managers', value: counts.manager, icon: Shield, color: 'bg-amber-50 text-amber-600' },
           { label: 'New Joiners', value: counts.new_joiner, icon: UserPlus, color: 'bg-emerald-50 text-emerald-600' },
           { label: 'Employees', value: counts.employee, icon: BookOpen, color: 'bg-blue-50 text-blue-600' },
@@ -47,7 +47,7 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-500">{s.label}</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{s.value}</p>
               </div>
-              <div className={`p-2.5 rounded-lg ${s.color}`}><s.icon className="w-5 h-5" /></div>
+              <div className={`p-2.5 rounded-lg ${s.color}`} style={s.iconStyle || {}}><s.icon className="w-5 h-5" /></div>
             </div>
           </div>
         ))}
@@ -56,8 +56,8 @@ export default function AdminDashboard() {
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-5">Quick Actions</h2>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Link to="/admin/users" className="flex items-center gap-4 p-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 transition-colors">
-            <div className="p-3 bg-indigo-600 rounded-xl"><UserPlus className="w-5 h-5 text-white" /></div>
+          <Link to="/admin/users" className="flex items-center gap-4 p-4 rounded-xl hover:opacity-90 transition-colors" style={{ background: 'rgba(240,90,40,0.08)' }}>
+            <div className="p-3 rounded-xl" style={{ background: '#F05A28' }}><UserPlus className="w-5 h-5 text-white" /></div>
             <div>
               <p className="font-semibold text-gray-900">Create Account</p>
               <p className="text-sm text-gray-500">Add admin or manager accounts</p>

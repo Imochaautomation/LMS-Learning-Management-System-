@@ -61,7 +61,7 @@ export default function UpskillCourses() {
     const file = fileRef.current?.files?.[0];
     try {
       const formData = new FormData();
-      if (file) formData.append('proof', file);
+      if (file) formData.append('file', file);
       await api.put(`/courses/my/${courseId}/complete`, formData);
       setUploadingFor(null);
       const updated = await api.get('/courses/my');
@@ -122,27 +122,36 @@ export default function UpskillCourses() {
       <div className="flex items-center gap-2 flex-wrap">
         {course.link && (
           <button onClick={() => setRedirectModal({ title: course.title, link: course.link, provider: course.provider })}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 cursor-pointer">
+            className="flex items-center gap-1 px-3 py-1.5 text-xs border rounded-lg cursor-pointer"
+            style={{ color: '#F05A28', borderColor: 'rgba(240,90,40,0.4)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,90,40,0.07)'}
+            onMouseLeave={e => e.currentTarget.style.background = ''}>
             <ExternalLink className="w-3 h-3" /> View
           </button>
         )}
-        {showActions === 'recommend' && (
-          <>
-            {savedIds.has(course.id) ? (
-              <span className="flex items-center gap-1 px-3 py-1.5 text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg font-medium">
-                <CheckCircle className="w-3 h-3" /> Saved ✓
-              </span>
-            ) : (
-              <button onClick={() => saveCourse(course, 'saved')} disabled={savingId === course.id}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-50">
-                <Bookmark className="w-3 h-3" /> {savingId === course.id ? 'Saving...' : 'Save'}
+        {showActions === 'recommend' && (() => {
+          const isYT = (course.provider || '').toLowerCase().includes('youtube') ||
+                       (course.link || '').toLowerCase().includes('youtube.com');
+          return (
+            <>
+              {!isYT && (
+                savedIds.has(course.id) ? (
+                  <span className="flex items-center gap-1 px-3 py-1.5 text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg font-medium">
+                    <CheckCircle className="w-3 h-3" /> Saved ✓
+                  </span>
+                ) : (
+                  <button onClick={() => saveCourse(course, 'saved')} disabled={savingId === course.id}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 disabled:opacity-50">
+                    <Bookmark className="w-3 h-3" /> {savingId === course.id ? 'Saving...' : 'Save'}
+                  </button>
+                )
+              )}
+              <button onClick={() => notInterested(course.id)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 bg-orange-50/50">
+                <BookmarkX className="w-3 h-3" /> Not Interested
               </button>
-            )}
-            <button onClick={() => notInterested(course.id)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 bg-orange-50/50">
-              <BookmarkX className="w-3 h-3" /> Not Interested
-            </button>
-          </>
-        )}
+            </>
+          );
+        })()}
         {showActions === 'saved' && (
           <button onClick={() => startCourse(course)} className="flex items-center gap-1 px-3 py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">
             <Play className="w-3 h-3" /> Start Course
@@ -226,21 +235,21 @@ export default function UpskillCourses() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRedirectModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white">
+            <div className="px-6 py-5 text-white" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
                   <ExternalLink className="w-5 h-5" />
                 </div>
                 <h3 className="font-bold text-lg">Instructions</h3>
               </div>
-              <p className="text-indigo-200 text-sm">{redirectModal.title}</p>
+              <p className="text-orange-100 text-sm">{redirectModal.title}</p>
             </div>
 
             {/* Body */}
             <div className="px-6 py-5">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  You will now be redirected to <strong className="text-indigo-700">{getPlatformName(redirectModal.link)}</strong> where you will be shown multiple courses. You are <strong>free to choose any one</strong> as per your suitability.
+                  You will now be redirected to <strong style={{ color: '#c2410c' }}>{getPlatformName(redirectModal.link)}</strong> where you will be shown multiple courses. You are <strong>free to choose any one</strong> as per your suitability.
                 </p>
               </div>
               <div className="flex items-start gap-2 text-xs text-gray-500">

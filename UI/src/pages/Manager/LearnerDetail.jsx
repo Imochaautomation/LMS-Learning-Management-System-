@@ -134,7 +134,7 @@ function downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaP
     if (g.severity === 'Medium') return g.score >= 65
       ? `Practice ${esc(g.skill)} through advanced case studies — the gap is narrow (${70 - g.score} pts) and targeted exercise will close it quickly.${goal}`
       : `Assign a scenario-based ${esc(g.skill)} course to build consistency under varied conditions.${goal}`;
-    return `Continue applying ${esc(g.skill)} actively in day-to-day work. Consider mentoring peers or pursuing advanced specialisation.`;
+    return `Continue applying ${esc(g.skill)} actively in day-to-day work. Consider mentoring peers or pursuing advanced specialization.`;
   };
 
   const skillBlock = (g) => {
@@ -298,7 +298,7 @@ function downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaP
   const insightText = avgScore >= 75
     ? `Strong overall profile. Focus on eliminating remaining gaps in ${criticalGaps.map(g => esc(g.skill)).join(', ') || 'key areas'} to reach expert level.`
     : avgScore >= 55
-    ? `Mixed profile — strong in some areas, significant gaps in others. Prioritise <strong>${criticalGaps.slice(0, 2).map(g => esc(g.skill)).join('</strong> and <strong>') || 'critical skills'}</strong> first — directly aligned with stated learning goals.`
+    ? `Mixed profile — strong in some areas, significant gaps in others. Prioritize <strong>${criticalGaps.slice(0, 2).map(g => esc(g.skill)).join('</strong> and <strong>') || 'critical skills'}</strong> first — directly aligned with stated learning goals.`
     : `Several skills need significant development. A structured, course-by-course plan focused on critical areas will move the needle fastest.`;
 
   const logoUrl = `${window.location.origin}/logoimocha.png`;
@@ -443,7 +443,10 @@ function FeedbackModal({ a, onClose }) {
             <p className="text-xs text-gray-500 mt-0.5">{a.assessment_name}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+            <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white rounded-lg"
+              style={{ background: '#F05A28' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+              onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
               <Printer className="w-4 h-4" /> Print / PDF
             </button>
             <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"><X className="w-4 h-4" /></button>
@@ -472,7 +475,7 @@ function FeedbackModal({ a, onClose }) {
             {qAnswered != null && qTotal != null && (
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
                 <p className="text-xs text-gray-500">Qs Answered</p>
-                <p className="text-2xl font-bold mt-0.5 text-indigo-600">{qAnswered}/{qTotal}</p>
+                <p className="text-2xl font-bold mt-0.5" style={{ color: '#F05A28' }}>{qAnswered}/{qTotal}</p>
               </div>
             )}
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
@@ -523,8 +526,8 @@ function FeedbackModal({ a, onClose }) {
           </div>
 
           {/* AI Overall Summary */}
-          <div className="border border-indigo-100 rounded-xl p-5 bg-indigo-50">
-            <h3 className="font-bold text-indigo-800 mb-2 flex items-center gap-2">🤖 AI Overall Assessment</h3>
+          <div className="rounded-xl p-5 border" style={{ background: 'rgba(240,90,40,0.06)', borderColor: 'rgba(240,90,40,0.2)' }}>
+            <h3 className="font-bold mb-2 flex items-center gap-2" style={{ color: '#c2410c' }}>🤖 AI Overall Assessment</h3>
             <p className="text-sm text-gray-700 leading-relaxed">{sanitizeReview(parsed?.summary || '')}</p>
           </div>
 
@@ -854,7 +857,7 @@ export default function LearnerDetail() {
           })()}
         </div>
       ) : (
-        <div className="bg-gradient-to-r from-indigo-600 to-violet-700 rounded-2xl p-6 text-white relative overflow-hidden">
+        <div className="rounded-2xl p-6 text-white relative overflow-hidden" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-16 translate-x-16" />
           <div className="relative flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold shadow-lg">
@@ -991,7 +994,7 @@ export default function LearnerDetail() {
                         </div>
                         <div className="flex items-center gap-2">
                           {isInvalid && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium border border-red-200">⚠️ Mismatch</span>}
-                          {a.submission_file && <span className="text-xs text-indigo-600 font-medium">📎 Submitted</span>}
+                          {a.submission_file && <span className="text-xs font-medium" style={{ color: '#F05A28' }}>📎 Submitted</span>}
                           {a.score != null && <span className={`text-sm font-bold ${a.score >= 70 ? 'text-emerald-600' : a.score >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{Math.round(a.score)}/100</span>}
                           <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${a.status === 'reviewed' ? 'bg-emerald-50 text-emerald-700' : a.status === 'submitted' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{a.status}</span>
                         </div>
@@ -1000,19 +1003,22 @@ export default function LearnerDetail() {
                         <div className="px-4 pb-4 space-y-3 border-t border-gray-200 pt-3">
                           {a.submission_file && (
                             <div className="flex items-center gap-2">
-                              <FileText className="w-4 h-4 text-indigo-500" />
-                              <a href={a.submission_path ? `${API_HOST}${a.submission_path}` : '#'} target="_blank" className="text-sm text-indigo-600 hover:underline font-medium">{a.submission_file}</a>
+                              <FileText className="w-4 h-4" style={{ color: '#F05A28' }} />
+                              <a href={a.submission_path ? `${API_HOST}${a.submission_path}` : '#'} target="_blank" className="text-sm hover:underline font-medium" style={{ color: '#F05A28' }}>{a.submission_file}</a>
                               <span className="text-xs text-gray-400">— View submitted work</span>
                             </div>
                           )}
                           {a.ai_summary && (
-                            <div className="bg-white border border-indigo-100 rounded-lg p-3">
-                              <p className="text-xs font-semibold text-indigo-700 mb-1">🤖 AI Review Summary</p>
+                            <div className="bg-white rounded-lg p-3 border" style={{ borderColor: 'rgba(240,90,40,0.2)' }}>
+                              <p className="text-xs font-semibold mb-1" style={{ color: '#c2410c' }}>🤖 AI Review Summary</p>
                               <p className="text-sm text-gray-700 line-clamp-3">{sanitizeReview(parsed?.summary || a.ai_summary)}</p>
                             </div>
                           )}
                           {a.ai_summary && (
-                            <button onClick={() => setFeedbackModal(a)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100">
+                            <button onClick={() => setFeedbackModal(a)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border"
+                              style={{ color: '#F05A28', background: 'rgba(240,90,40,0.07)', borderColor: 'rgba(240,90,40,0.3)' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,90,40,0.14)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(240,90,40,0.07)'} >
                               <FileSearch className="w-3.5 h-3.5" /> View Full Detailed Report
                             </button>
                           )}
@@ -1128,7 +1134,10 @@ export default function LearnerDetail() {
                       <div className="flex items-center gap-2">
                         {a.file_path && (
                           <a href={`${API_HOST}${a.file_path}`} target="_blank" rel="noreferrer"
-                            className="px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 flex items-center gap-1">
+                            className="px-2.5 py-1 text-xs border rounded-lg flex items-center gap-1"
+                            style={{ color: '#F05A28', borderColor: 'rgba(240,90,40,0.4)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,90,40,0.07)'}
+                            onMouseLeave={e => e.currentTarget.style.background = ''}>
                             <ExternalLink className="w-3 h-3" /> View
                           </a>
                         )}
@@ -1157,8 +1166,8 @@ export default function LearnerDetail() {
               <div className="text-xs text-gray-500">Completed</div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm">
-              <BarChart3 className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-              <div className="text-xl font-bold text-indigo-600">{avgScore}%</div>
+              <BarChart3 className="w-5 h-5 mx-auto mb-1" style={{ color: '#F05A28' }} />
+              <div className="text-xl font-bold" style={{ color: '#F05A28' }}>{avgScore}%</div>
               <div className="text-xs text-gray-500">Avg Skill Score</div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm">
@@ -1194,7 +1203,10 @@ export default function LearnerDetail() {
                   {lowGaps.length > 0 && <span className="flex items-center gap-1.5 text-emerald-600 font-semibold"><span className="w-2 h-2 rounded-full bg-emerald-500" />{lowGaps.length} Strong</span>}
                 </div>
                 <button onClick={() => downloadSkillPDF(learner, skillGaps, strengths, areasOfImprovement, qaPairs, learningGoals, interviewDate, courses)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700">
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-medium rounded-lg"
+                  style={{ background: '#F05A28' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                   <Download className="w-3.5 h-3.5" /> Download Report
                 </button>
               </div>
@@ -1208,7 +1220,8 @@ export default function LearnerDetail() {
                     { id: 'strengths', label: '💪 Strengths & Next Steps' },
                   ].map(tab => (
                     <button key={tab.id} onClick={() => setActiveSkillTab(tab.id)}
-                      className={`px-5 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${activeSkillTab === tab.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50/60' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                      className={`px-5 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${activeSkillTab === tab.id ? 'border-transparent' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                      style={activeSkillTab === tab.id ? { borderBottomColor: '#F05A28', color: '#F05A28', background: 'rgba(240,90,40,0.06)' } : {}}>
                       {tab.label}
                     </button>
                   ))}
@@ -1265,8 +1278,8 @@ export default function LearnerDetail() {
                             </div>
                           )}
                         </div>
-                        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-                          <p className="text-xs text-indigo-800 leading-relaxed">
+                        <div className="rounded-xl p-4 border" style={{ background: 'rgba(240,90,40,0.06)', borderColor: 'rgba(240,90,40,0.18)' }}>
+                          <p className="text-xs leading-relaxed" style={{ color: '#7c2d12' }}>
                             {avgScore >= 75
                               ? `Strong overall profile. The remaining gaps in ${criticalGaps.map(g => g.skill).join(', ') || 'a few areas'} are worth addressing to reach expert level.`
                               : avgScore >= 55
@@ -1421,7 +1434,7 @@ export default function LearnerDetail() {
                       )}
                       {areasOfImprovement.length > 0 && (
                         <div>
-                          <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><Target className="w-4 h-4 text-indigo-500" /> Specific Areas to Develop</h3>
+                          <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><Target className="w-4 h-4" style={{ color: '#F05A28' }} /> Specific Areas to Develop</h3>
                           <ul className="space-y-2">
                             {areasOfImprovement.map((a, i) => (
                               <li key={i} className="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
@@ -1441,30 +1454,57 @@ export default function LearnerDetail() {
             </>
           )}
 
-          {/* Course Activity */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2"><GraduationCap className="w-4 h-4 text-purple-600" /> Course Activity</h2>
-              <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full font-medium">{courses.length} courses</span>
-            </div>
-            {courses.length === 0 ? <p className="text-sm text-gray-400">No courses yet.</p> : (
-              <div className="space-y-3">
-                {courses.map((c) => (
-                  <div key={c.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${c.status === 'completed' ? 'bg-emerald-50 border-emerald-200' : c.status === 'started' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold ${c.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : c.status === 'started' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {c.status === 'completed' ? '✅' : c.status === 'started' ? '▶️' : '📌'}
-                      </div>
-                      <div><p className="font-medium text-gray-900 text-sm">{c.course_title || c.title}</p><p className="text-xs text-gray-400 mt-0.5">{c.provider || ''}</p></div>
-                    </div>
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${c.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : c.status === 'started' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {c.status === 'completed' ? '✨ Completed' : c.status === 'started' ? '📖 In Progress' : '📌 Saved'}
-                    </span>
+          {/* Course Activity — completed courses with proof only */}
+          {(() => {
+            const completedCoursesList = courses.filter(c => c.status === 'completed');
+            return (
+              <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-emerald-600" /> Completed Courses
+                  </h2>
+                  <span className="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-semibold">
+                    {completedCoursesList.length} completed
+                  </span>
+                </div>
+                {completedCoursesList.length === 0 ? (
+                  <div className="text-center py-6">
+                    <GraduationCap className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400">No completed courses yet.</p>
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-3">
+                    {completedCoursesList.map((c) => (
+                      <div key={c.id} className="p-4 rounded-xl border bg-emerald-50 border-emerald-200">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold shrink-0">✅</div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 text-sm truncate">{c.course_title || c.title}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{c.provider || ''}{c.completed_at ? ` · ${new Date(c.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}</p>
+                            </div>
+                          </div>
+                          {c.proof_path ? (
+                            <a
+                              href={`${API_HOST}${c.proof_path}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border shrink-0 transition-colors"
+                              style={{ color: '#059669', borderColor: '#6ee7b7', background: '#fff' }}
+                            >
+                              <Download className="w-3 h-3" /> View Certificate
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic shrink-0">No proof uploaded</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
         </>
       )}
 

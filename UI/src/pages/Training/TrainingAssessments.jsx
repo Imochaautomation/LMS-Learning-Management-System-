@@ -404,7 +404,10 @@ export default function TrainingAssessments() {
 
                       <div className="flex gap-3 flex-wrap">
                         <button onClick={() => handleDownload(a)}
-                          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 shadow-sm">
+                          className="flex items-center gap-2 px-5 py-2.5 text-white text-sm font-semibold rounded-lg shadow-sm"
+                          style={{ background: '#F05A28' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                           <Download className="w-4 h-4" /> ⬇ Download {a.assessment_type === 'proofreading' ? 'Document to Proofread' : 'Quest File'}
                         </button>
                       </div>
@@ -414,7 +417,7 @@ export default function TrainingAssessments() {
                           📤 {a.assessment_type === 'proofreading' ? 'Submit Your Edited (Proofread) Version' : 'Submit Your Answer'}
                         </p>
                         <input ref={fileRef} type="file" accept=".doc,.docx,.xlsx,.xls,.pdf"
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-indigo-100 file:text-indigo-700" />
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-orange-100 file:text-orange-700" />
                         <button onClick={() => handleUpload(a)}
                           disabled={uploading === a.id}
                           className={`flex items-center gap-2 px-5 py-2.5 text-white text-sm font-semibold rounded-lg shadow-sm disabled:opacity-50 ${a.assessment_type === 'proofreading' ? 'bg-violet-600 hover:bg-violet-700' : 'bg-orange-500 hover:bg-orange-600'}`}>
@@ -458,7 +461,10 @@ export default function TrainingAssessments() {
                           </div>
                           <button
                             onClick={() => setFeedbackModal(a)}
-                            className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
+                            className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border"
+                            style={{ color: '#F05A28', background: 'rgba(240,90,40,0.07)', borderColor: 'rgba(240,90,40,0.3)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,90,40,0.14)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(240,90,40,0.07)'}>
                             <FileSearch className="w-3.5 h-3.5" /> View Detailed Feedback Report
                           </button>
                         </div>
@@ -499,7 +505,10 @@ export default function TrainingAssessments() {
                   <p className="text-xs text-gray-500 mt-0.5">{feedbackModal.assessment_name}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => printAssessmentReport(feedbackModal, parsed)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+                  <button onClick={() => printAssessmentReport(feedbackModal, parsed)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white rounded-lg"
+                    style={{ background: '#F05A28' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                     <Printer className="w-4 h-4" /> Print / PDF
                   </button>
                   <button onClick={() => setFeedbackModal(null)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
@@ -531,7 +540,7 @@ export default function TrainingAssessments() {
                   {qAnswered != null && qTotal != null && (
                     <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
                       <p className="text-xs text-gray-500">Questions Answered</p>
-                      <p className="text-2xl font-bold mt-0.5 text-indigo-600">{qAnswered}/{qTotal}</p>
+                      <p className="text-2xl font-bold mt-0.5" style={{ color: '#F05A28' }}>{qAnswered}/{qTotal}</p>
                     </div>
                   )}
                   <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">

@@ -118,7 +118,7 @@ function downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPair
     if (g.severity === 'Medium') return g.score >= 65
       ? `Practice ${esc(g.skill)} through advanced case studies — the gap is narrow (${70 - g.score} pts) and targeted effort will close it quickly.${goal}`
       : `Take a scenario-based ${esc(g.skill)} course to build consistency under varied conditions.${goal}`;
-    return `Continue applying ${esc(g.skill)} actively in day-to-day work. Consider mentoring peers or pursuing advanced specialisation.`;
+    return `Continue applying ${esc(g.skill)} actively in day-to-day work. Consider mentoring peers or pursuing advanced specialization.`;
   };
 
   const skillBlock = (g) => {
@@ -282,7 +282,7 @@ function downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPair
   const insightText = avgScore >= 75
     ? `Strong overall profile. Focus on eliminating remaining gaps in ${criticalGaps.map(g => esc(g.skill)).join(', ') || 'key areas'} to reach expert level.`
     : avgScore >= 55
-    ? `Mixed profile — strong in some areas, significant gaps in others. Prioritise <strong>${criticalGaps.slice(0, 2).map(g => esc(g.skill)).join('</strong> and <strong>') || 'critical skills'}</strong> first.`
+    ? `Mixed profile — strong in some areas, significant gaps in others. Prioritize <strong>${criticalGaps.slice(0, 2).map(g => esc(g.skill)).join('</strong> and <strong>') || 'critical skills'}</strong> first.`
     : `Several skills need significant development. A structured, course-by-course plan focused on critical areas will move the needle fastest.`;
 
   const logoUrl = `${window.location.origin}/logoimocha.png`;
@@ -454,7 +454,7 @@ export default function UpskillDashboard() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
-      <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+      <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#F05A28' }} />
       <span className="ml-3 text-gray-500">Loading your dashboard...</span>
     </div>
   );
@@ -462,15 +462,15 @@ export default function UpskillDashboard() {
   return (
     <div className="space-y-6">
       {/* Hero */}
-      <div className="bg-gradient-to-r from-indigo-600 to-violet-700 rounded-2xl p-6 text-white">
+      <div className="rounded-2xl p-6 text-white" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
         <div className="flex items-center gap-2 mb-2">
           <span className="text-2xl">{level.emoji}</span>
           <span className="text-sm font-medium bg-white/20 px-3 py-1 rounded-full">{level.title}</span>
           <span className="text-sm bg-amber-400/30 px-2 py-0.5 rounded-full">🏆 {completed.length} Trophies</span>
         </div>
         <h1 className="text-2xl font-bold">Welcome, {user?.name}! 🚀</h1>
-        <p className="text-indigo-200 text-sm mt-1">Your upskilling journey — follow the steps below to get started!</p>
-        {user?.manager_name && <p className="text-indigo-300 text-xs mt-2">Manager: {user.manager_name}</p>}
+        <p className="text-orange-100 text-sm mt-1">Your upskilling journey — follow the steps below to get started!</p>
+        {user?.manager_name && <p className="text-orange-200 text-xs mt-2">Manager: {user.manager_name}</p>}
       </div>
 
       {/* Step Progress */}
@@ -482,8 +482,10 @@ export default function UpskillDashboard() {
             const isActive = step.num === currentStep;
             return (
               <div key={step.num} className="flex items-center flex-1">
-                <div className={`flex items-center gap-3 flex-1 px-4 py-3 rounded-xl border-2 transition-all ${isDone ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : isActive ? 'bg-indigo-50 border-indigo-400 text-indigo-700 ring-2 ring-indigo-200 shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isDone ? 'bg-emerald-500 text-white' : isActive ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                <div className={`flex items-center gap-3 flex-1 px-4 py-3 rounded-xl border-2 transition-all ${isDone ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : isActive ? 'border-orange-400 text-orange-700 ring-2 ring-orange-200 shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
+                  style={isActive ? { background: 'rgba(240,90,40,0.08)' } : {}}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isDone ? 'bg-emerald-500 text-white' : isActive ? 'text-white' : 'bg-gray-200 text-gray-400'}`}
+                    style={isActive ? { background: '#F05A28' } : {}}>
                     {isDone ? <CheckCircle2 className="w-5 h-5" /> : step.num}
                   </div>
                   <div>
@@ -515,11 +517,14 @@ export default function UpskillDashboard() {
       </div>
 
       {currentStep === 1 && (
-        <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border-2 border-indigo-200 rounded-2xl p-8 text-center">
-          <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4"><UserCircle className="w-10 h-10 text-indigo-600" /></div>
+        <div className="border-2 rounded-2xl p-8 text-center" style={{ background: 'rgba(240,90,40,0.04)', borderColor: 'rgba(240,90,40,0.3)' }}>
+          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(240,90,40,0.12)' }}><UserCircle className="w-10 h-10" style={{ color: '#F05A28' }} /></div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Step 1: Complete Your Profile</h2>
           <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">Tell us about your background, designation, experience, and learning goals.</p>
-          <button onClick={() => navigate('/upskilling/profile')} className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
+          <button onClick={() => navigate('/upskilling/profile')} className="inline-flex items-center gap-2 px-6 py-3 text-white font-semibold rounded-xl shadow-lg transition-all"
+            style={{ background: '#F05A28' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+            onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
             <UserCircle className="w-5 h-5" /> Complete Profile →
           </button>
           <div className="mt-8 flex justify-center gap-4">
@@ -559,13 +564,16 @@ export default function UpskillDashboard() {
             </div>
             <div className="flex gap-2 flex-wrap">
               <Link to="/upskilling/profile" className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:shadow-sm transition-shadow">
-                <UserCircle className="w-3.5 h-3.5 text-indigo-500" /> Update Profile
+                <UserCircle className="w-3.5 h-3.5" style={{ color: '#F05A28' }} /> Update Profile
               </Link>
               <Link to="/upskilling/interview" className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:shadow-sm transition-shadow">
                 <Bot className="w-3.5 h-3.5 text-violet-500" /> Retake Interview
               </Link>
               <button onClick={() => downloadSkillPDF(user, skillGaps, strengths, areasOfImprovement, qaPairs, learningGoals, interviewDate, courses.filter(c => c.status === 'recommended'))}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition-colors">
+                className="flex items-center gap-1.5 px-3 py-1.5 text-white rounded-lg text-xs font-medium transition-colors"
+                style={{ background: '#F05A28' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                 <Download className="w-3.5 h-3.5" /> Download Report
               </button>
             </div>
@@ -582,7 +590,8 @@ export default function UpskillDashboard() {
                   { id: 'strengths', label: '💪 Strengths & Next Steps' },
                 ].map(tab => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                    className={`px-5 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${activeTab === tab.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50/60' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                    className={`px-5 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${activeTab === tab.id ? 'border-transparent text-gray-500 hover:text-gray-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    style={activeTab === tab.id ? { borderBottomColor: '#F05A28', color: '#F05A28', background: 'rgba(240,90,40,0.06)' } : {}}>
                     {tab.label}
                   </button>
                 ))}
@@ -639,8 +648,8 @@ export default function UpskillDashboard() {
                           </div>
                         )}
                       </div>
-                      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-                        <p className="text-xs text-indigo-800 leading-relaxed">
+                      <div className="rounded-xl p-4 border" style={{ background: 'rgba(240,90,40,0.06)', borderColor: 'rgba(240,90,40,0.18)' }}>
+                        <p className="text-xs leading-relaxed" style={{ color: '#7c2d12' }}>
                           {avgScore >= 75
                             ? `Strong overall profile. Your AI interview showed solid applied knowledge. The remaining gaps in ${criticalGaps.map(g => g.skill).join(', ') || 'a few areas'} are worth addressing to reach expert level.`
                             : avgScore >= 55
@@ -798,11 +807,11 @@ export default function UpskillDashboard() {
                     {/* Areas of improvement — specific, actionable, not a score rehash */}
                     {areasOfImprovement.length > 0 && (
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><Target className="w-4 h-4 text-indigo-500" /> Specific Areas to Develop</h3>
+                        <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"><Target className="w-4 h-4" style={{ color: '#F05A28' }} /> Specific Areas to Develop</h3>
                         <ul className="space-y-2">
                           {areasOfImprovement.map((a, i) => (
                             <li key={i} className="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                              <span className="text-indigo-400 shrink-0 mt-0.5">→</span> {a}
+                              <span className="shrink-0 mt-0.5" style={{ color: '#F05A28' }}>→</span> {a}
                             </li>
                           ))}
                         </ul>
@@ -832,11 +841,11 @@ export default function UpskillDashboard() {
               <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {courses.slice(0, 3).map((c) => (
                   <div key={c.id} className="bg-white rounded-lg border border-gray-200 p-3">
-                    {c.link ? <a href={c.link} target="_blank" rel="noreferrer" className="text-sm font-medium text-indigo-600 hover:underline truncate block">{c.title}</a> : <p className="text-sm font-medium text-gray-900 truncate">{c.title}</p>}
+                    {c.link ? <a href={c.link} target="_blank" rel="noreferrer" className="text-sm font-medium hover:underline truncate block" style={{ color: '#F05A28' }}>{c.title}</a> : <p className="text-sm font-medium text-gray-900 truncate">{c.title}</p>}
                     <p className="text-xs text-gray-400 mt-0.5">{c.provider}</p>
                     <div className="flex items-center justify-between mt-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : c.status === 'started' ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-500'}`}>{c.status}</span>
-                      {c.link && <a href={c.link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium">View <ExternalLink className="w-3 h-3" /></a>}
+                      {c.link && <a href={c.link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-medium hover:opacity-80" style={{ color: '#F05A28' }}>View <ExternalLink className="w-3 h-3" /></a>}
                     </div>
                   </div>
                 ))}

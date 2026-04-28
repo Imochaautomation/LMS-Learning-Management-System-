@@ -112,6 +112,21 @@ def remove_course(course_id: int, user: User = Depends(get_current_user), db: Se
     return {"ok": True}
 
 
+# ── Manager: view a specific user's courses ──
+
+@router.get("/user/{user_id}", response_model=list[UserCourseOut])
+def get_user_courses(
+    user_id: int,
+    manager: User = Depends(require_role("manager", "admin")),
+    db: Session = Depends(get_db),
+):
+    """Return all courses for a specific user (manager / admin view)."""
+    items = db.query(UserCourse).filter(
+        UserCourse.user_id == user_id
+    ).order_by(UserCourse.created_at.desc()).all()
+    return [UserCourseOut.model_validate(c) for c in items]
+
+
 # ── Course Assignments (manager → learner) ──
 
 

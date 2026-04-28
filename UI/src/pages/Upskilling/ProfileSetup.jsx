@@ -90,7 +90,7 @@ export default function ProfileSetup() {
       <BackButton to="/upskilling" label="Back to Dashboard" />
 
       {/* Hero Header */}
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-6 text-white relative overflow-hidden">
+      <div className="rounded-2xl p-6 text-white relative overflow-hidden" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-10 translate-x-10" />
         <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-8 -translate-x-8" />
         <div className="relative">
@@ -111,11 +111,12 @@ export default function ProfileSetup() {
         {stepLabels.map((label, i) => (
           <div key={i} className="flex items-center gap-2">
             <button onClick={() => setStep(i)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${step === i ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' :
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${step === i ? 'text-white shadow-lg' :
                   (i === 0 && step1Ok) || (i === 1 && step2Ok) || (i === 2 && allFilled)
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                     'bg-gray-100 text-gray-400'
-                }`}>
+                }`}
+              style={step === i ? { background: '#F05A28' } : {}}>
               {(i === 0 && step1Ok) || (i === 1 && step2Ok) || (i === 2 && allFilled)
                 ? <Check className="w-3.5 h-3.5" />
                 : <span className="w-5 h-5 rounded-full border-2 border-current flex items-center justify-center text-xs">{i + 1}</span>}
@@ -131,8 +132,8 @@ export default function ProfileSetup() {
         {step === 0 && (
           <div className="bg-white border border-gray-200 rounded-2xl p-8 space-y-6 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-                <UserCircle className="w-5 h-5 text-indigo-600" />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(240,90,40,0.1)' }}>
+                <UserCircle className="w-5 h-5" style={{ color: '#F05A28' }} />
               </div>
               <div>
                 <h2 className="font-bold text-gray-900">Basic Information</h2>
@@ -183,7 +184,10 @@ export default function ProfileSetup() {
             </div>
             <div className="flex justify-end pt-2">
               <button type="button" onClick={() => tryNextStep(0)}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200">
+                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all text-white shadow-lg"
+                style={{ background: '#F05A28' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                 Next: Background <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -205,7 +209,7 @@ export default function ProfileSetup() {
             <div>
               <textarea value={form.summary} onChange={update('summary')} rows={5}
                 className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 resize-none transition-all ${errors.summary ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
-                placeholder="Describe your background — roles held, responsibilities, skills, specialisations..." />
+                placeholder="Describe your background — roles held, responsibilities, skills, specializations..." />
               <div className="flex items-center justify-between mt-2">
                 {errors.summary
                   ? <p className="text-xs text-red-500">{errors.summary}</p>
@@ -218,7 +222,7 @@ export default function ProfileSetup() {
             <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
               <p className="text-xs text-purple-700 flex items-center gap-2">
                 <Brain className="w-4 h-4 shrink-0" />
-                <span><strong>Pro tip:</strong> Mention specific tools you've used, types of content you've edited, team sizes, and domains you've worked in. The more detail, the better AI can personalise your journey.</span>
+                <span><strong>Pro tip:</strong> Mention specific tools you've used, types of content you've edited, team sizes, and domains you've worked in. The more detail, the better AI can personalize your journey.</span>
               </p>
             </div>
             <div className="flex justify-between pt-2">
@@ -259,10 +263,10 @@ export default function ProfileSetup() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Upload Resume <span className="text-gray-400 font-normal">(Optional)</span></label>
               <input ref={fileRef} type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleResume} />
               <div onClick={() => fileRef.current.click()}
-                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all hover:shadow-sm ${resumePath ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all hover:shadow-sm ${resumePath ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-orange-300 hover:bg-orange-50/30'
                   }`}>
                 {uploading ? (
-                  <Loader2 className="w-8 h-8 text-indigo-400 mx-auto animate-spin" />
+                  <Loader2 className="w-8 h-8 mx-auto animate-spin" style={{ color: '#F05A28' }} />
                 ) : resumePath ? (
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
@@ -284,16 +288,16 @@ export default function ProfileSetup() {
             </div>
 
             {/* What happens next */}
-            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-indigo-800 mb-3 flex items-center gap-2"><Rocket className="w-4 h-4" /> What happens next?</h3>
-              <div className="flex items-center gap-3 text-xs text-indigo-700">
-                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-indigo-100">📝 Save Profile</div>
-                <ArrowRight className="w-3 h-3 text-indigo-300" />
-                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-indigo-100">🤖 AI Interview</div>
-                <ArrowRight className="w-3 h-3 text-indigo-300" />
-                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-indigo-100">📊 Skill Analysis</div>
-                <ArrowRight className="w-3 h-3 text-indigo-300" />
-                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-indigo-100">🎓 Course Recs</div>
+            <div className="rounded-xl p-5 border" style={{ background: 'rgba(240,90,40,0.05)', borderColor: 'rgba(240,90,40,0.2)' }}>
+              <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: '#c2410c' }}><Rocket className="w-4 h-4" /> What happens next?</h3>
+              <div className="flex items-center gap-3 text-xs" style={{ color: '#c2410c' }}>
+                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-orange-100">📝 Save Profile</div>
+                <ArrowRight className="w-3 h-3 text-orange-300" />
+                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-orange-100">🤖 AI Interview</div>
+                <ArrowRight className="w-3 h-3 text-orange-300" />
+                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-orange-100">📊 Skill Analysis</div>
+                <ArrowRight className="w-3 h-3 text-orange-300" />
+                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-orange-100">🎓 Course Recs</div>
               </div>
             </div>
 
@@ -301,9 +305,11 @@ export default function ProfileSetup() {
               <button type="button" onClick={() => setStep(1)} className="px-5 py-3 text-sm text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">← Back</button>
               <button type="submit" disabled={!allFilled || saving}
                 className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all ${saved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' :
-                    allFilled ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-200' :
-                      'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}>
+                    !allFilled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'text-white shadow-lg'
+                  }`}
+                style={allFilled && !saved ? { background: '#F05A28' } : {}}
+                onMouseEnter={e => { if (allFilled && !saved) e.currentTarget.style.background = '#c2410c'; }}
+                onMouseLeave={e => { if (allFilled && !saved) e.currentTarget.style.background = '#F05A28'; }}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
                 {saved ? 'Profile Saved! ✨' : 'Save & Start AI Journey'}
               </button>

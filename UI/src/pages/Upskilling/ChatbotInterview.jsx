@@ -105,13 +105,13 @@ export default function ChatbotInterview() {
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <BackButton to="/upskilling" label="Back to Dashboard" />
 
-      <div className="bg-gradient-to-r from-indigo-600 to-violet-700 rounded-2xl p-4 text-white">
+      <div className="rounded-2xl p-4 text-white" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Bot className="w-8 h-8" />
             <div>
               <h1 className="text-lg font-bold">Jarvis - AI Skill Interviewer</h1>
-              <p className="text-indigo-200 text-sm">
+              <p className="text-orange-100 text-sm">
                 Question {Math.min(questionIndex + 1, MAX_QUESTIONS)} · Min 5, Max 10
               </p>
             </div>
@@ -139,11 +139,12 @@ export default function ChatbotInterview() {
             {messages.map((msg, i) => (
               <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'bot' ? 'bg-indigo-100' : 'bg-emerald-100'}`}>
-                  {msg.role === 'bot' ? <Bot className="w-4 h-4 text-indigo-600" /> : <User className="w-4 h-4 text-emerald-600" />}
+                  {msg.role === 'bot' ? <Bot className="w-4 h-4" style={{ color: '#F05A28' }} /> : <User className="w-4 h-4 text-emerald-600" />}
                 </div>
                 <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap ${
-                  msg.role === 'bot' ? 'bg-gray-100 text-gray-800 rounded-tl-none' : 'bg-indigo-600 text-white rounded-tr-none'
-                }`}>
+                  msg.role === 'bot' ? 'bg-gray-100 text-gray-800 rounded-tl-none' : 'text-white rounded-tr-none'
+                }`}
+                style={msg.role !== 'bot' ? { background: '#F05A28' } : {}}>
                   {msg.text}
                 </div>
               </div>
@@ -175,11 +176,14 @@ export default function ChatbotInterview() {
                 placeholder="Type your answer... (Shift+Enter for new line)"
                 disabled={loading}
                 rows={1}
-                className="flex-1 px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50 resize-none overflow-y-auto"
+                className="flex-1 px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none overflow-y-auto"
                 style={{ minHeight: '44px', maxHeight: '140px' }}
               />
               <button onClick={sendMessage} disabled={!input.trim() || loading}
-                className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 shrink-0">
+                className="p-3 text-white rounded-xl disabled:opacity-50 shrink-0"
+                style={{ background: '#F05A28' }}
+                onMouseEnter={e => { if (!(!input.trim() || loading)) e.currentTarget.style.background = '#c2410c'; }}
+                onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                 <Send className="w-4 h-4" />
               </button>
             </div>
@@ -214,7 +218,10 @@ export default function ChatbotInterview() {
               </div>
               <div className="text-center">
                 <button onClick={() => navigate('/upskilling')}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-colors">
+                  className="inline-flex items-center gap-2 px-6 py-3 text-white font-medium rounded-xl transition-colors"
+                  style={{ background: '#F05A28' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                   Go to Dashboard →
                 </button>
               </div>

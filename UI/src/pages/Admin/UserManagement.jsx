@@ -162,7 +162,10 @@ export default function UserManagement() {
           <p className="text-sm text-gray-500 mt-1">Create and manage admin & manager accounts.</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors">
+          className="flex items-center gap-2 px-4 py-2.5 text-white text-sm font-medium rounded-xl transition-colors"
+          style={{ background: '#F05A28' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+          onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
           <UserPlus className="w-4 h-4" /> Create User
         </button>
       </div>
@@ -230,7 +233,10 @@ export default function UserManagement() {
             </div>
             <div className="sm:col-span-2 flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => { setShowForm(false); setFormErrors({}); }} className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
-              <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-60">
+              <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2.5 text-white text-sm font-medium rounded-xl disabled:opacity-60"
+                style={{ background: '#F05A28' }}
+                onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#c2410c'; }}
+                onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Create User
               </button>
             </div>
@@ -388,7 +394,10 @@ export default function UserManagement() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setEditModal(null)} className="px-4 py-2.5 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
-                <button type="submit" disabled={editSaving} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 disabled:opacity-60">
+                <button type="submit" disabled={editSaving} className="flex items-center gap-2 px-5 py-2.5 text-white text-sm font-medium rounded-xl disabled:opacity-60"
+                  style={{ background: '#F05A28' }}
+                  onMouseEnter={e => { if (!editSaving) e.currentTarget.style.background = '#c2410c'; }}
+                  onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                   {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save Changes
                 </button>
               </div>

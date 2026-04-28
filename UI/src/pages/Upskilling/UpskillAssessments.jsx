@@ -55,7 +55,10 @@ function FeedbackModal({ a, onClose }) {
             <p className="text-xs text-gray-500 mt-0.5">{a.assessment_name}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+            <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white rounded-lg"
+              style={{ background: '#F05A28' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+              onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
               <Printer className="w-4 h-4" /> Print / PDF
             </button>
             <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
@@ -86,7 +89,7 @@ function FeedbackModal({ a, onClose }) {
             {qAnswered != null && qTotal != null && (
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
                 <p className="text-xs text-gray-500">Questions Answered</p>
-                <p className="text-2xl font-bold mt-0.5 text-indigo-600">{qAnswered}/{qTotal}</p>
+                <p className="text-2xl font-bold mt-0.5" style={{ color: '#F05A28' }}>{qAnswered}/{qTotal}</p>
               </div>
             )}
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
@@ -338,13 +341,16 @@ export default function UpskillAssessments() {
                   <div className="border-t border-gray-100 px-5 py-5 space-y-4">
                     {a.note && <p className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">📌 Note: {a.note}</p>}
                     <button onClick={() => handleDownload(a)}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700">
+                      className="flex items-center gap-2 px-4 py-2.5 text-white text-sm font-medium rounded-lg"
+                      style={{ background: '#F05A28' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
                       <Download className="w-4 h-4" /> Download Assessment File
                     </button>
                     <div className="space-y-2">
                       <label className="block text-xs font-medium text-gray-600">Upload Your Completed Work</label>
                       <input ref={fileRef} type="file" accept=".doc,.docx,.xlsx,.xls,.pdf"
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-indigo-100 file:text-indigo-700" />
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-orange-100 file:text-orange-700" />
                       <button disabled={uploading === a.id} onClick={() => handleUpload(a)}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50">
                         {uploading === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
@@ -415,8 +421,8 @@ export default function UpskillAssessments() {
                             </div>
                           </div>
                           <div className="flex-1">
-                            <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-3">
-                              <p className="text-xs font-semibold text-indigo-700 mb-1">🤖 AI Summary</p>
+                            <div className="rounded-lg px-4 py-3 border" style={{ background: 'rgba(240,90,40,0.07)', borderColor: 'rgba(240,90,40,0.2)' }}>
+                              <p className="text-xs font-semibold mb-1" style={{ color: '#c2410c' }}>🤖 AI Summary</p>
                               <p className="text-sm text-gray-700 line-clamp-3">{sanitizeReview(parsed?.summary || a.ai_summary)}</p>
                             </div>
                           </div>
@@ -426,9 +432,9 @@ export default function UpskillAssessments() {
                       {/* Submission file link */}
                       {a.submission_file && (
                         <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-indigo-500" />
+                          <FileText className="w-4 h-4" style={{ color: '#F05A28' }} />
                           <a href={a.submission_path ? `${API_HOST}${a.submission_path}` : '#'} target="_blank"
-                            className="text-sm text-indigo-600 hover:underline font-medium">{a.submission_file}</a>
+                            className="text-sm hover:underline font-medium" style={{ color: '#F05A28' }}>{a.submission_file}</a>
                           <span className="text-xs text-gray-400">— View your submitted work</span>
                         </div>
                       )}
@@ -436,7 +442,10 @@ export default function UpskillAssessments() {
                       {/* View detailed report button */}
                       {a.ai_summary && (
                         <button onClick={() => setFeedbackModal(a)}
-                          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
+                          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors border"
+                          style={{ color: '#F05A28', background: 'rgba(240,90,40,0.07)', borderColor: 'rgba(240,90,40,0.3)' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,90,40,0.14)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(240,90,40,0.07)'}>
                           <FileSearch className="w-4 h-4" /> View Detailed Feedback Report
                         </button>
                       )}

@@ -92,10 +92,10 @@ export default function TrainingCourses() {
 
           {/* Motivation */}
           <div className="mt-6 flex justify-center w-full max-w-md">
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center px-8">
+            <div className="rounded-xl p-4 text-center px-8 border" style={{ background: 'rgba(240,90,40,0.08)', borderColor: 'rgba(240,90,40,0.3)' }}>
               <span className="text-lg block mb-0.5">🎓</span>
-              <p className="text-xs font-semibold text-indigo-700">Unlock Courses</p>
-              <p className="text-[10px] text-indigo-500">After all quests</p>
+              <p className="text-xs font-semibold" style={{ color: '#F05A28' }}>Unlock Courses</p>
+              <p className="text-[10px]" style={{ color: '#c2410c' }}>After all quests</p>
             </div>
           </div>
 
@@ -155,7 +155,7 @@ export default function TrainingCourses() {
                 <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium"><Check className="w-4 h-4" /> Completed — Certificate Uploaded</div>
               ) : (
                 <div className="flex items-center justify-between">
-                  <a href={c.link || '#'} target={c.link ? '_blank' : undefined} className="flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                  <a href={c.link || '#'} target={c.link ? '_blank' : undefined} className="flex items-center gap-1.5 text-sm font-medium hover:opacity-80" style={{ color: '#F05A28' }}>
                     Start <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                   <div className="relative group">

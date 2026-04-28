@@ -43,7 +43,6 @@ export default function LoginPage() {
 
   const triggerShake = () => { setShake(true); setTimeout(() => setShake(false), 600); };
 
-  const fillCreds = (em, pw) => { setEmail(em); setPassword(pw); setError(''); };
 
   return (
     <div className="min-h-screen flex" style={{ fontFamily: "'Segoe UI', system-ui, Arial, sans-serif" }}>
@@ -74,14 +73,14 @@ export default function LoginPage() {
             <span style={{ color: ORANGE }}>Business Agility.</span>
           </h1>
           <p className="text-blue-200/70 text-sm leading-relaxed max-w-sm mb-10">
-            Identify skill gaps with AI interviews, get visual gap analysis, and follow personalised learning paths — for every role in your organisation.
+            Identify skill gaps with AI interviews, get visual gap analysis, and follow personalized learning paths — for every role in your organization.
           </p>
 
           <div className="space-y-4">
             {[
               { icon: Brain,    color: ORANGE,    bg: 'rgba(240,90,40,0.15)',  label: 'AI Interview Engine',   sub: 'Adaptive 10-question skill assessment' },
               { icon: BarChart3, color: '#A78BFA', bg: 'rgba(167,139,250,0.15)', label: 'Skill Gap Analysis',    sub: 'Visual reports with learning roadmaps' },
-              { icon: BookOpen, color: '#38BDF8',  bg: 'rgba(56,189,248,0.15)', label: 'Personalised Courses',  sub: 'AI-matched to your specific gaps' },
+              { icon: BookOpen, color: '#38BDF8',  bg: 'rgba(56,189,248,0.15)', label: 'Personalized Courses',  sub: 'AI-matched to your specific gaps' },
             ].map(({ icon: Icon, color, bg, label, sub }) => (
               <div key={label} className="flex items-center gap-3.5">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg }}>
@@ -108,8 +107,8 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right panel — form ── */}
-      <div className="flex-1 flex flex-col justify-center items-center px-8 py-12 bg-white">
-        <div className="w-full max-w-sm">
+      <div className="flex-1 flex flex-col justify-center items-center px-10 py-16 bg-white">
+        <div className="w-full max-w-md">
 
           {/* Mobile logo */}
           <div className="lg:hidden mb-8 text-center">
@@ -117,12 +116,12 @@ export default function LoginPage() {
           </div>
 
           {/* Back link */}
-          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 mb-8 transition-colors group">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 mb-10 transition-colors group">
             <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" /> Back to home
           </Link>
 
-          <h2 className="text-2xl font-black mb-1" style={{ color: NAVY }}>Welcome back</h2>
-          <p className="text-sm text-gray-400 mb-8">Sign in to access your learning dashboard</p>
+          <h2 className="text-3xl font-black mb-2" style={{ color: NAVY }}>Welcome back</h2>
+          <p className="text-base text-gray-400 mb-10">Sign in to access your learning dashboard</p>
 
           {/* Error */}
           {error && (
@@ -132,7 +131,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className={`space-y-4 ${shake && !error ? 'animate-shake' : ''}`}>
+          <form onSubmit={handleSubmit} className={`space-y-5 ${shake && !error ? 'animate-shake' : ''}`}>
             {/* Email */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email address</label>
@@ -142,7 +141,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                  className="w-full pl-10 pr-4 py-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:bg-white transition-all"
+                  className="w-full pl-10 pr-4 py-4 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:bg-white transition-all"
                   style={{ '--tw-ring-color': ORANGE }}
                   onFocus={e => { e.target.style.borderColor = ORANGE; e.target.style.boxShadow = `0 0 0 3px rgba(240,90,40,0.12)`; }}
                   onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none'; }}
@@ -161,7 +160,7 @@ export default function LoginPage() {
                   type={showPw ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                  className="w-full pl-10 pr-10 py-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:bg-white transition-all"
+                  className="w-full pl-10 pr-10 py-4 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:bg-white transition-all"
                   onFocus={e => { e.target.style.borderColor = ORANGE; e.target.style.boxShadow = `0 0 0 3px rgba(240,90,40,0.12)`; }}
                   onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none'; }}
                   placeholder="Enter your password"
@@ -177,7 +176,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3.5 text-white text-sm font-bold rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2 shadow-md mt-2"
+              className="w-full py-4 text-white text-base font-bold rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2 shadow-md mt-2"
               style={{ background: ORANGE }}
               onMouseEnter={e => { if (!submitting) e.target.style.opacity = '0.9'; }}
               onMouseLeave={e => { e.target.style.opacity = '1'; }}
@@ -186,36 +185,8 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-xs text-gray-300 font-medium">test credentials</span>
-            <div className="flex-1 h-px bg-gray-100" />
-          </div>
-
-          {/* Test credentials */}
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { role: 'Admin',      email: 'admin@company.com',  pw: 'admin123',  color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
-              { role: 'Manager',    email: 'neha@company.com',   pw: 'neha123',   color: ORANGE,    bg: '#FFF4EE', border: '#FFD5C2' },
-              { role: 'New Joiner', email: 'priya@company.com',  pw: 'priya123',  color: '#0EA5E9', bg: '#F0F9FF', border: '#BAE6FD' },
-              { role: 'Employee',   email: 'arjun@company.com',  pw: 'arjun123',  color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
-            ].map(({ role, email: em, pw, color, bg, border }) => (
-              <button
-                key={role}
-                type="button"
-                onClick={() => fillCreds(em, pw)}
-                className="text-left px-3 py-2.5 rounded-xl border transition-all hover:shadow-sm"
-                style={{ background: bg, borderColor: border }}
-              >
-                <p className="text-xs font-bold" style={{ color }}>{role}</p>
-                <p className="text-[10px] text-gray-400 truncate mt-0.5">{em}</p>
-              </button>
-            ))}
-          </div>
-
-          <p className="text-center text-xs text-gray-300 mt-6">
-            Powered by <span className="font-semibold" style={{ color: ORANGE }}>iMocha</span> · AI Skills Intelligence
+          <p className="text-center text-sm text-gray-500 mt-10">
+            Powered by <span className="font-bold" style={{ color: ORANGE }}>iMocha</span> · AI Skills Intelligence
           </p>
         </div>
       </div>
