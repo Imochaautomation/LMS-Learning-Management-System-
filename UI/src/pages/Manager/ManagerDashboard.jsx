@@ -250,11 +250,7 @@ export default function ManagerDashboard() {
           ) : (
             <div className="space-y-3">
               {paginate(learners, learnerPage).map((l) => {
-                const titles = [{t:'New Learner',x:0,e:'🌱'},{t:'Rising Learner',x:100,e:'📗'},{t:'Active Learner',x:250,e:'⭐'},{t:'Skilled Learner',x:500,e:'🏆'},{t:'Expert Learner',x:900,e:'🧩'},{t:'Champion',x:1400,e:'🌟'}];
-                let title = titles[0]; for (const tt of titles) { if (0 >= tt.x) title = tt; }
                 const stage = l.role === 'new_joiner' ? 'Spellbook Stage' : 'Courses';
-                const bdg = l.role === 'new_joiner' ? 0 : 1;
-                const streak = l.role === 'new_joiner' ? 1 : 3;
                 return (
                   <div key={l.id} onClick={() => navigate(`/manager/learner/${l.id}`)}
                     className={`bg-gradient-to-r rounded-2xl px-5 py-4 flex items-center justify-between cursor-pointer hover:shadow-md transition-all border ${
@@ -269,13 +265,9 @@ export default function ManagerDashboard() {
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="font-bold text-gray-900">{l.name}</span>
                           <span className="text-xs text-gray-400 font-medium">({roleLabel[l.role]})</span>
-                          <span className="text-base">{title.e}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${l.role === 'new_joiner' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>{title.t}</span>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span>Last active: Yesterday</span>
-                          <span className="flex items-center gap-0.5 text-purple-600 font-bold bg-purple-50 px-1.5 py-0.5 rounded-full">🏅 {bdg} badges</span>
-                          <span className="flex items-center gap-0.5 text-orange-600 font-bold bg-orange-50 px-1.5 py-0.5 rounded-full">🔥 {streak}d</span>
+                          <span>{l.email}</span>
                         </div>
                       </div>
                     </div>
