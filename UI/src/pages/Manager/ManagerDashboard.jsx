@@ -4,9 +4,9 @@ import { useAuth } from '../../context/AuthContext';
 import api, { API_HOST } from '../../api/client';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
 import {
-  Users, Bell, GraduationCap, Loader2,
-  FileText, ExternalLink, Search, Plus, Trash2, Upload,
-  Clock, Link, UserPlus, RefreshCw, ChevronRight, Eye, EyeOff, Copy, Pencil, Check, AlertTriangle, X,
+  Users, Bell, Loader2,
+  ExternalLink, Search, Trash2, Upload,
+  ChevronRight, AlertTriangle,
   ChevronLeft, CheckSquare, Square, MailCheck
 } from 'lucide-react';
 
@@ -66,22 +66,12 @@ export default function ManagerDashboard() {
   const [smeUploadCategory, setSmeUploadCategory] = useState('Style Guide');
   const [smeFile, setSmeFile] = useState(null);
   const [uploadingSme, setUploadingSme] = useState(false);
-  const [teamUsers, setTeamUsers] = useState([]);
-  const [showCreateUser, setShowCreateUser] = useState(false);
-  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'new_joiner', department: '' });
-  const [creatingUser, setCreatingUser] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null);
-  const [visiblePwd, setVisiblePwd] = useState({});
-  const [copied, setCopied] = useState(null);
-  const [editTeamModal, setEditTeamModal] = useState(null);
-  const [editTeamForm, setEditTeamForm] = useState({});
-  const [deleteTeamModal, setDeleteTeamModal] = useState(null);
 
   // Pagination states
   const [learnerPage, setLearnerPage] = useState(1);
   const [notifPage, setNotifPage] = useState(1);
   const [bankPage, setBankPage] = useState(1);
-  const [teamPage, setTeamPage] = useState(1);
   const [smePage, setSmePage] = useState(1);
 
   // Notification multi-select
@@ -98,8 +88,8 @@ export default function ManagerDashboard() {
     Promise.all([
       api.get('/admin/users').then((all) => {
         const myTeam = all.filter((u) => u.manager_id === user?.id && (u.role === 'new_joiner' || u.role === 'employee'));
-        setLearners(myTeam); setTeamUsers(myTeam);
-      }).catch(() => { setLearners([]); setTeamUsers([]); }),
+        setLearners(myTeam);
+      }).catch(() => { setLearners([]); }),
       api.get('/notifications').then(setNotifications).catch(() => setNotifications([])),
       api.get('/banks/assessments').then(setBank).catch(() => {}),
       api.get('/banks/courses').then(setCourseBank).catch(() => {}),
@@ -156,37 +146,7 @@ export default function ManagerDashboard() {
     setSmeUploadName(''); setSmeFile(null); setUploadingSme(false);
   };
 
-  const isImochaEmail = (email) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
-    ['@imocha.co', '@imocha.io'].some((d) => email.toLowerCase().endsWith(d));
-
-  const [userFormErrors, setUserFormErrors] = useState({});
   const [courseFormErrors, setCourseFormErrors] = useState({});
-
-  const generatePwd = () => { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!'; let p = ''; for (let i = 0; i < 10; i++) p += c[Math.floor(Math.random() * c.length)]; setUserForm((f) => ({ ...f, password: p })); };
-
-  const createTeamUser = async (e) => {
-    e.preventDefault();
-    const errs = {};
-    if (!userForm.name.trim()) errs.name = 'Full name is required';
-    if (!userForm.email.trim()) errs.email = 'Email is required';
-    else if (!isImochaEmail(userForm.email)) errs.email = 'Must end with @imocha.co or @imocha.io';
-    if (!userForm.password.trim()) errs.password = 'Password is required';
-    else if (userForm.password.length < 8) errs.password = 'Minimum 8 characters';
-    if (!userForm.department) errs.department = 'Please select a department';
-    if (Object.keys(errs).length) { setUserFormErrors(errs); return; }
-    setUserFormErrors({});
-    setCreatingUser(true);
-    try {
-      await api.post('/admin/users', { ...userForm, manager_id: user.id });
-      setShowCreateUser(false); setUserForm({ name: '', email: '', password: '', role: 'new_joiner', department: '' });
-      const all = await api.get('/admin/users');
-      const myTeam = all.filter((u) => u.manager_id === user?.id && (u.role === 'new_joiner' || u.role === 'employee'));
-      setLearners(myTeam); setTeamUsers(myTeam);
-      toast.success(`Account created for "${userForm.name}"!`);
-    } catch (err) { toast.error(`Failed to create account: ${err.message}`); }
-    setCreatingUser(false);
-  };
 
   const confirmDelete = async () => {
     if (!deleteModal) return;
@@ -286,7 +246,7 @@ export default function ManagerDashboard() {
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-gray-900">My Team</h2>
           {learners.length === 0 ? (
-            <div className="text-center py-12 text-gray-400"><Users className="w-10 h-10 mx-auto mb-3 opacity-50" /><p className="font-medium">No team members yet</p><p className="text-sm mt-1">Go to "Manage Team" to create accounts</p></div>
+            <div className="text-center py-12 text-gray-400"><Users className="w-10 h-10 mx-auto mb-3 opacity-50" /><p className="font-medium">No team members yet</p><p className="text-sm mt-1">Ask your Admin to create employee accounts and assign them to you.</p></div>
           ) : (
             <div className="space-y-3">
               {paginate(learners, learnerPage).map((l) => {
@@ -521,141 +481,6 @@ export default function ManagerDashboard() {
         </div>
       )}
 
-      {/* MANAGE TEAM */}
-      {tab === 'team' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-gray-900">Manage Team</h2>
-            <button onClick={() => setShowCreateUser(!showCreateUser)} className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg"
-              style={{ background: '#F05A28' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
-              onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}><UserPlus className="w-4 h-4" /> Create Account</button></div>
-          {showCreateUser && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-              <form onSubmit={createTeamUser} className="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                  <input value={userForm.name} onChange={(e) => { setUserForm({ ...userForm, name: e.target.value }); setUserFormErrors((p) => ({ ...p, name: '' })); }} className={`w-full px-3 py-2.5 text-sm border rounded-lg ${userFormErrors.name ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
-                  {userFormErrors.name && <p className="text-xs text-red-500 mt-0.5">{userFormErrors.name}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email * <span className="text-gray-400 font-normal">(@imocha.co / @imocha.io)</span></label>
-                  <input type="email" value={userForm.email} onChange={(e) => { setUserForm({ ...userForm, email: e.target.value }); setUserFormErrors((p) => ({ ...p, email: '' })); }} className={`w-full px-3 py-2.5 text-sm border rounded-lg ${userFormErrors.email ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
-                  {userFormErrors.email && <p className="text-xs text-red-500 mt-0.5">{userFormErrors.email}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Password * <span className="text-gray-400 font-normal">(min 8)</span></label>
-                  <div className="flex gap-2">
-                    <input value={userForm.password} onChange={(e) => { setUserForm({ ...userForm, password: e.target.value }); setUserFormErrors((p) => ({ ...p, password: '' })); }} className={`flex-1 px-3 py-2.5 text-sm border rounded-lg ${userFormErrors.password ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
-                    <button type="button" onClick={generatePwd} className="flex items-center gap-1 px-3 py-2.5 bg-gray-100 text-xs rounded-lg hover:bg-gray-200 shrink-0"><RefreshCw className="w-3.5 h-3.5" /> Gen</button>
-                  </div>
-                  {userFormErrors.password && <p className="text-xs text-red-500 mt-0.5">{userFormErrors.password}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Role *</label>
-                  <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white"><option value="new_joiner">New Joiner</option><option value="employee">Employee</option></select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Department *</label>
-                  <select value={userForm.department} onChange={(e) => { setUserForm({ ...userForm, department: e.target.value }); setUserFormErrors((p) => ({ ...p, department: '' })); }} className={`w-full px-3 py-2.5 text-sm border rounded-lg bg-white ${userFormErrors.department ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}><option value="">Select Department</option><option value="Content">Content</option><option value="Customer Success">Customer Success</option><option value="Engineering">Engineering</option><option value="Finance">Finance</option><option value="Human Resources">Human Resources</option><option value="IT Services">IT Services</option><option value="Product Marketing">Product Marketing</option><option value="Sales">Sales</option><option value="Product">Product</option><option value="Channel Sales">Channel Sales</option><option value="Marketing">Marketing</option><option value="Marketing (Business Development)">Marketing (Business Development)</option><option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option></select>
-                  {userFormErrors.department && <p className="text-xs text-red-500 mt-0.5">{userFormErrors.department}</p>}
-                </div>
-                <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => { setShowCreateUser(false); setUserFormErrors({}); }} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
-                  <button type="submit" disabled={creatingUser} className="flex items-center gap-2 px-4 py-2 text-white text-sm rounded-lg disabled:opacity-50"
-                    style={{ background: '#F05A28' }}
-                    onMouseEnter={e => { if (!creatingUser) e.currentTarget.style.background = '#c2410c'; }}
-                    onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>{creatingUser && <Loader2 className="w-4 h-4 animate-spin" />} Create</button>
-                </div>
-              </form>
-            </div>
-          )}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50 border-b">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Name</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Email</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Password</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Role</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Dept</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-100">{paginate(teamUsers, teamPage).map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50">
-                  <td className="px-5 py-3.5 font-medium text-gray-900">{u.name}</td>
-                  <td className="px-5 py-3.5 text-gray-500">{u.email}</td>
-                  <td className="px-5 py-3.5">
-                    {u.plain_password ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs text-gray-600">{visiblePwd[u.id] ? u.plain_password : '••••••'}</span>
-                        <button onClick={() => setVisiblePwd((p) => ({ ...p, [u.id]: !p[u.id] }))} className="p-1 text-gray-400 hover:text-indigo-600 rounded">
-                          {visiblePwd[u.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    ) : <span className="text-xs text-gray-300">—</span>}
-                  </td>
-                  <td className="px-5 py-3.5"><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${roleBadge[u.role]}`}>{roleLabel[u.role]}</span></td>
-                  <td className="px-5 py-3.5 text-gray-500">{u.department || '—'}</td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => { const txt = `Name: ${u.name}\nEmail: ${u.email}\nPassword: ${u.plain_password || '-'}\nRole: ${roleLabel[u.role]}\nDept: ${u.department || '-'}`; navigator.clipboard.writeText(txt); setCopied(u.id); setTimeout(() => setCopied(null), 2000); }}
-                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Copy credentials">
-                        {copied === u.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                      <button onClick={() => { setEditTeamForm({ id: u.id, name: u.name, email: u.email, password: '', role: u.role, department: u.department || '' }); setEditTeamModal(true); }}
-                        className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Edit user"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => setDeleteTeamModal({ id: u.id, name: u.name })}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete user"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-            {teamUsers.length === 0 && <p className="text-center text-gray-400 py-6">No team members yet.</p>}
-          </div>
-          <Pagination current={teamPage} total={totalPages(teamUsers)} onChange={setTeamPage} />
-
-          {/* Edit Team User Modal */}
-          {editTeamModal && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setEditTeamModal(null)}>
-              <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-                <h3 className="font-semibold text-gray-900 mb-4">Edit Team Member</h3>
-                <form onSubmit={(e) => { e.preventDefault(); setTeamUsers((prev) => prev.map((u) => u.id === editTeamForm.id ? { ...u, name: editTeamForm.name, email: editTeamForm.email, role: editTeamForm.role, department: editTeamForm.department } : u)); setEditTeamModal(null); toast.success('Team member updated.'); }} className="space-y-3">
-                  <div><label className="block text-xs font-medium text-gray-700 mb-1">Name</label><input value={editTeamForm.name} onChange={(e) => setEditTeamForm({ ...editTeamForm, name: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl" /></div>
-                  <div><label className="block text-xs font-medium text-gray-700 mb-1">Email</label><input value={editTeamForm.email} onChange={(e) => setEditTeamForm({ ...editTeamForm, email: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl" /></div>
-                  <div><label className="block text-xs font-medium text-gray-700 mb-1">New Password (leave blank to keep)</label><input value={editTeamForm.password} onChange={(e) => setEditTeamForm({ ...editTeamForm, password: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl" /></div>
-                  <div><label className="block text-xs font-medium text-gray-700 mb-1">Role</label><select value={editTeamForm.role} onChange={(e) => setEditTeamForm({ ...editTeamForm, role: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white"><option value="new_joiner">New Joiner</option><option value="employee">Employee</option></select></div>
-                  <div><label className="block text-xs font-medium text-gray-700 mb-1">Department</label><select value={editTeamForm.department} onChange={(e) => setEditTeamForm({ ...editTeamForm, department: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white"><option value="">Select Department</option><option value="Content">Content</option><option value="Customer Success">Customer Success</option><option value="Engineering">Engineering</option><option value="Finance">Finance</option><option value="Human Resources">Human Resources</option><option value="IT Services">IT Services</option><option value="Product Marketing">Product Marketing</option><option value="Sales">Sales</option><option value="Product">Product</option><option value="Channel Sales">Channel Sales</option><option value="Marketing">Marketing</option><option value="Marketing (Business Development)">Marketing (Business Development)</option><option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option></select></div>
-                  <div className="flex justify-end gap-3 pt-2">
-                    <button type="button" onClick={() => setEditTeamModal(null)} className="px-4 py-2.5 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
-                    <button type="submit" className="px-5 py-2.5 text-white text-sm font-medium rounded-xl"
-                      style={{ background: '#F05A28' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>Save</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Delete Team User Modal */}
-          {deleteTeamModal && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setDeleteTeamModal(null)}>
-              <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center"><AlertTriangle className="w-5 h-5 text-red-600" /></div>
-                  <div><h3 className="font-semibold text-gray-900">Delete Team Member</h3><p className="text-sm text-gray-500">This cannot be undone.</p></div>
-                </div>
-                <p className="text-sm text-gray-600 mb-6">Delete <strong>{deleteTeamModal.name}</strong> from your team?</p>
-                <div className="flex justify-end gap-3">
-                  <button onClick={() => setDeleteTeamModal(null)} className="px-4 py-2.5 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
-                  <button onClick={() => { setTeamUsers((p) => p.filter((u) => u.id !== deleteTeamModal.id)); setLearners((p) => p.filter((u) => u.id !== deleteTeamModal.id)); setDeleteTeamModal(null); toast.success(`${deleteTeamModal.name} removed from team.`); }}
-                    className="px-4 py-2.5 text-sm text-white bg-red-600 rounded-xl hover:bg-red-700">Delete</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* DELETE MODAL */}
       {deleteModal && (

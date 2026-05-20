@@ -235,8 +235,9 @@ class CourseBankOut(BaseModel):
 class InterviewRequest(BaseModel):
     question_index: int
     answer: str
-    total_questions: int = 10
+    total_questions: int = 15
     force_complete: bool = False
+    is_clarification: bool = False
 
 class InterviewResponse(BaseModel):
     follow_up: str

@@ -72,28 +72,27 @@ The employee's stated learning goals are: "{learning_goals}"
 Tailor your questions to probe whether their current skills align with these goals.
 Identify gaps between where they are now and where they want to reach."""
 
-    return f"""You are Jarvis, an expert AI skill assessor for iMocha's Learning Management platform.
-You are interviewing {user.name}, a {designation or 'professional'} in the {dept or 'organisation'} with {experience or 'some'} of experience.
-Your job is to conduct a structured yet conversational skill assessment focused on the {domain}.
+    return f"""You are Jarvis, an expert AI skill interviewer for iMocha's Learning Management platform.
+You are interviewing {user.name}, currently working as a {designation or 'professional'} in {dept or 'the organisation'}.
+Your job is to conduct a friendly, conversational skill assessment focused on the {domain}.
 {profile_block}
 {goal_instruction}
 
-Your interview must:
-- Ask questions specifically relevant to {domain}
-- Probe skills in: {skill_areas}
-- Follow up intelligently based on their answers — if they mention a tool or technique, ask them to go deeper
-- Start with their current role and daily responsibilities, then move to specific skills
-- Ask about real scenarios they have faced, not theoretical knowledge
-- Explore both technical skills AND soft skills relevant to {domain}
-- Gauge depth of knowledge, not just surface awareness
+STRICT QUESTION RULES — follow these exactly:
+1. Each question must be MAX 2 sentences. Short, clear, one topic only.
+2. Ask about ONE thing at a time — never combine multiple questions.
+3. PLAIN TEXT ONLY — do not use **bold**, *italic*, bullet points, or any markdown. Write naturally.
+4. Stay focused on the employee's CURRENT role and present work. Do not reference or mix in their previous jobs or career history when asking about something new.
+5. Never repeat a topic already covered, even in different wording.
+6. If the employee says they prefer not to discuss a topic, acknowledge once and move to a completely different skill area.
+7. If the employee asks you to clarify or rephrase a question, explain it clearly in plain language. Do NOT ask a new question — re-ask the same one more simply.
+8. Vary your question types: scenario-based, tool-specific, challenge-focused, goal-oriented.
+9. After each answer, start with ONE brief specific acknowledgment (1 sentence referencing something they actually said), then ask your next question.
+10. Use the employee's first name occasionally (every 3-4 exchanges) to keep it personal.
 
-Rules:
-- Ask ONE question at a time
-- Be conversational, warm, and encouraging — this is an assessment, not an interrogation
-- Acknowledge their answer briefly before asking the next question
-- Do NOT ask generic questions like "Tell me about yourself" — start directly with role-specific questions
-- Vary question types: scenario-based, tool-specific, challenge-focused, goal-oriented
-- Your name is Jarvis — use it naturally at the start"""
+Your questions must probe: {skill_areas}
+
+Start with their current day-to-day work and responsibilities, then go deeper into specific skills and challenges."""
 
 
 def _build_analysis_prompt(user, profile=None) -> str:
@@ -163,16 +162,20 @@ Rules for areas_of_improvement:
 - Align improvement areas with their stated learning goals where possible
 
 Rules for course_recommendations:
-- Recommend MAXIMUM 10 courses
+- Recommend MAXIMUM 12 courses
 - Focus on weak areas (High/Medium severity)
 - Courses MUST be relevant to the employee's role ({designation or 'N/A'}) and department ({dept or 'N/A'})
 - If they have learning goals, prioritise courses that help achieve those goals
+- DIVERSITY RULE: At least 40% of courses must be FREE. Include free resources from: YouTube, freeCodeCamp, Google Digital Garage, Khan Academy, Coursera (audit/free tier), edX (audit), Anthropic docs, OpenAI cookbook, GitHub Learning Lab, MDN Web Docs, or any free industry resource.
+- Set "free": true for free courses, "free": false for paid ones.
 - CRITICAL: Every course MUST have a working "link" URL. Use SEARCH URLs (always valid) as your PRIMARY format:
   * Coursera: https://www.coursera.org/search?query=YOUR+COURSE+TOPIC
   * Udemy: https://www.udemy.com/courses/search/?q=YOUR+COURSE+TOPIC
   * LinkedIn Learning: https://www.linkedin.com/learning/search?keywords=YOUR+COURSE+TOPIC
   * edX: https://www.edx.org/search?q=YOUR+COURSE+TOPIC
-  * YouTube: https://www.youtube.com/results?search_query=YOUR+COURSE+TOPIC+full+course
+  * YouTube: https://www.youtube.com/results?search_query=YOUR+COURSE+TOPIC+tutorial
+  * freeCodeCamp: https://www.freecodecamp.org/news/search/?query=YOUR+TOPIC
+  * Google: https://learndigital.withgoogle.com/digitalgarage/courses
 - The link field must NEVER be empty or null.
 
 Interview conversation:
@@ -280,7 +283,7 @@ async def interview(
     messages = session.messages or []
     messages.append({"role": "user", "content": req.answer})
 
-    # If user wants to finish early (after minimum 5 questions)
+    # If user wants to finish early
     if req.force_complete:
         session.messages = messages
         session.question_index = req.question_index + 1
@@ -298,10 +301,12 @@ async def interview(
     llm_messages = [{"role": "system", "content": _build_system_prompt(user, profile)}]
 
     remaining = req.total_questions - req.question_index - 1
-    if remaining > 0:
-        llm_messages.append({"role": "system", "content": f"This is question {req.question_index + 1} of {req.total_questions}. {remaining} questions remaining. Ask the next question."})
+    if req.is_clarification:
+        llm_messages.append({"role": "system", "content": "The employee is asking for clarification on your last question. Explain it clearly in plain text (no markdown). Keep it to 2 sentences. Then re-ask the same question more simply. Do NOT move to a new topic."})
+    elif remaining > 0:
+        llm_messages.append({"role": "system", "content": f"This is question {req.question_index + 1} of {req.total_questions}. {remaining} questions remaining. Ask the next question. Keep it to 2 sentences max, plain text only."})
     else:
-        llm_messages.append({"role": "system", "content": "This is the LAST answer. Thank the employee warmly and tell them you'll now analyze their responses."})
+        llm_messages.append({"role": "system", "content": "This is the last answer. Thank the employee warmly in 1-2 sentences. Plain text only, no markdown."})
 
     # Add conversation history
     for msg in messages:
@@ -327,11 +332,14 @@ async def interview(
 
     messages.append({"role": "assistant", "content": follow_up})
     session.messages = messages
-    session.question_index = req.question_index + 1
 
-    if req.question_index + 1 >= req.total_questions:
-        session.status = "completed"
-        session.completed_at = datetime.utcnow()
+    if not req.is_clarification:
+        session.question_index = req.question_index + 1
+        if req.question_index + 1 >= req.total_questions:
+            session.status = "completed"
+            session.completed_at = datetime.utcnow()
+    else:
+        session.question_index = req.question_index  # don't advance on clarification
 
     db.commit()
 

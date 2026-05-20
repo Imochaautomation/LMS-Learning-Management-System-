@@ -33,9 +33,7 @@ export default function Sidebar() {
   } else if (user.role === 'manager') {
     items = [
       { to: '/manager?tab=learners', label: 'Learners', icon: Users },
-      { to: '/manager?tab=bank', label: 'Assessment Bank', icon: FileText },
       ...(isContentManager ? [{ to: '/manager?tab=smekit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
-      { to: '/manager?tab=team', label: 'Manage Team', icon: UserPlus },
     ];
   } else if (user.role === 'admin') {
     items = [

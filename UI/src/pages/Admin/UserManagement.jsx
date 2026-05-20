@@ -25,7 +25,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'manager', department: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'manager', department: '', manager_id: '' });
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -39,6 +39,7 @@ export default function UserManagement() {
   const [copied, setCopied] = useState(null);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [managers, setManagers] = useState([]);
 
   const generatePassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!';
@@ -48,7 +49,10 @@ export default function UserManagement() {
   };
 
   const loadUsers = () => {
-    api.get('/admin/users').then(setUsers).catch(() => setUsers([]));
+    api.get('/admin/users').then((all) => {
+      setUsers(all);
+      setManagers(all.filter((u) => u.role === 'manager'));
+    }).catch(() => setUsers([]));
   };
 
   useEffect(() => { loadUsers(); }, []);
@@ -72,6 +76,7 @@ export default function UserManagement() {
     if (!form.password.trim()) e.password = 'Password is required';
     else if (form.password.length < 8) e.password = 'Password must be at least 8 characters';
     if (!form.department) e.department = 'Please select a department';
+    if (form.role === 'employee' && !form.manager_id) e.manager_id = 'Please select a manager for this employee';
     return e;
   };
 
@@ -83,9 +88,12 @@ export default function UserManagement() {
     setFormErrors({});
     setSaving(true);
     try {
-      await api.post('/admin/users', form);
+      const payload = { ...form };
+      if (form.role !== 'employee') delete payload.manager_id;
+      if (payload.manager_id) payload.manager_id = parseInt(payload.manager_id);
+      await api.post('/admin/users', payload);
       setShowForm(false);
-      setForm({ name: '', email: '', password: '', role: 'manager', department: '' });
+      setForm({ name: '', email: '', password: '', role: 'manager', department: '', manager_id: '' });
       setPage(1);
       loadUsers();
     } catch (err) {
@@ -205,11 +213,23 @@ export default function UserManagement() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Role *</label>
-              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white">
+              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value, manager_id: '' })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white">
                 <option value="manager">Manager</option>
+                <option value="employee">Employee</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
+            {form.role === 'employee' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Assign Manager *</label>
+                <select value={form.manager_id} onChange={(e) => { setForm({ ...form, manager_id: e.target.value }); setFormErrors((p) => ({ ...p, manager_id: '' })); }}
+                  className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.manager_id ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
+                  <option value="">Select Manager</option>
+                  {managers.map((m) => <option key={m.id} value={m.id}>{m.name} — {m.department || 'No dept'}</option>)}
+                </select>
+                {formErrors.manager_id && <p className="text-xs text-red-500 mt-1">{formErrors.manager_id}</p>}
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Department *</label>
               <select value={form.department} onChange={(e) => { setForm({ ...form, department: e.target.value }); setFormErrors((p) => ({ ...p, department: '' })); }}
