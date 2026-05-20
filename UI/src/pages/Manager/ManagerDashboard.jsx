@@ -250,34 +250,37 @@ export default function ManagerDashboard() {
           ) : (
             <div className="space-y-3">
               {paginate(learners, learnerPage).map((l) => {
-                const stage = l.role === 'new_joiner' ? 'Spellbook Stage' : 'Courses';
+                const isNJ = l.role === 'new_joiner';
+                const initials = l.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                const dept = l.department || null;
                 return (
                   <div key={l.id} onClick={() => navigate(`/manager/learner/${l.id}`)}
-                    className={`bg-gradient-to-r rounded-2xl px-5 py-4 flex items-center justify-between cursor-pointer hover:shadow-md transition-all border ${
-                      l.role === 'new_joiner' ? 'from-teal-50 to-emerald-50 border-teal-200 hover:border-teal-400' : 'from-indigo-50 to-purple-50 border-indigo-200 hover:border-indigo-400'
-                    }`}>
+                    className="bg-white rounded-2xl px-5 py-4 flex items-center justify-between cursor-pointer hover:shadow-md transition-all border border-gray-100 hover:border-gray-300">
                     <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white ${l.role === 'new_joiner' ? 'bg-teal-600' : ''}`}
-                        style={l.role !== 'new_joiner' ? { background: '#F05A28' } : {}}>
-                        {l.name.split(' ').map(n => n[0]).join('')}
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-sm"
+                        style={{ background: isNJ ? '#0d9488' : '#F05A28' }}>
+                        {initials}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-bold text-gray-900">{l.name}</span>
-                          <span className="text-xs text-gray-400 font-medium">({roleLabel[l.role]})</span>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-900 text-sm">{l.name}</span>
+                          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${isNJ ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                            {roleLabel[l.role]}
+                          </span>
+                          {dept && (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
+                              {dept}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span>{l.email}</span>
-                        </div>
+                        <p className="text-xs text-gray-400">{l.email}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs px-3 py-1.5 rounded-lg font-semibold ${
-                        stage === 'Spellbook Stage' ? 'bg-teal-100 text-teal-700' : 'bg-blue-100 text-blue-700'
-                      }`}>{stage}</span>
-                      <button onClick={(e) => { e.stopPropagation(); navigate(`/manager/learner/${l.id}`); }}
-                        className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50">View</button>
-                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); navigate(`/manager/learner/${l.id}`); }}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl border transition-all"
+                      style={{ background: '#F05A28', color: '#fff', border: 'none' }}>
+                      View Profile <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 );
               })}
