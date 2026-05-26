@@ -25,8 +25,9 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const login = async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
+  const login = async (email, password, role = null) => {
+    const body = role ? { email, password, role } : { email, password };
+    const res = await api.post('/auth/login', body);
     localStorage.setItem('lms_token', res.token);
     localStorage.setItem('lms_user', JSON.stringify(res.user));
     setUser(res.user);

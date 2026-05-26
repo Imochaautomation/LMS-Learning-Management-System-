@@ -28,8 +28,8 @@ def list_users(db: Session = Depends(get_db)):
 
 @router.post("/users", response_model=UserOut)
 def create_user(req: UserCreate, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == req.email).first():
-        raise HTTPException(status_code=400, detail="Email already exists")
+    if db.query(User).filter(User.email == req.email, User.role == req.role).first():
+        raise HTTPException(status_code=400, detail=f"A {req.role} account with this email already exists")
     user = User(
         name=req.name,
         email=req.email,

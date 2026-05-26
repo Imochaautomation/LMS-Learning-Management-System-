@@ -9,6 +9,7 @@ const NAVY = '#1E1040';
 export default function LoginPage() {
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole]         = useState('');
   const [showPw, setShowPw]     = useState(false);
   const [error, setError]       = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +25,7 @@ export default function LoginPage() {
     if (!password.trim()) { setError('Please enter your password');      triggerShake(); return; }
     setSubmitting(true);
     try {
-      const user = await login(email, password);
+      const user = await login(email, password, role || null);
       navigate(roleRoute(user.role), { replace: true });
     } catch (err) {
       const msg = err.message || 'Invalid credentials';
@@ -170,6 +171,25 @@ export default function LoginPage() {
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            {/* Role selector — only needed for users with multiple accounts */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Account type <span className="text-gray-400 font-normal text-xs">(only if you have multiple accounts)</span>
+              </label>
+              <select
+                value={role}
+                onChange={(e) => { setRole(e.target.value); setError(''); }}
+                className="w-full px-4 py-3.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none text-gray-700"
+                onFocus={e => { e.target.style.borderColor = ORANGE; e.target.style.boxShadow = `0 0 0 3px rgba(240,90,40,0.12)`; }}
+                onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none'; }}
+              >
+                <option value="">Auto-detect (default)</option>
+                <option value="manager">Manager</option>
+                <option value="employee">Employee</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
 
             {/* Submit */}

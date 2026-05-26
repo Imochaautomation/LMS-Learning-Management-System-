@@ -81,7 +81,7 @@ Your job is to conduct a friendly, conversational skill assessment focused on th
 STRICT QUESTION RULES — follow these exactly:
 1. Each question must be MAX 2 sentences. Short, clear, one topic only.
 2. Ask about ONE thing at a time — never combine multiple questions.
-3. PLAIN TEXT ONLY — do not use **bold**, *italic*, bullet points, or any markdown. Write naturally.
+3. PLAIN TEXT ONLY — NEVER use asterisks (*) of any kind. No **bold**, no *italic*, no bullet points starting with *. No markdown whatsoever. Write in plain natural sentences only.
 4. Stay focused on the employee's CURRENT role and present work. Do not reference or mix in their previous jobs or career history when asking about something new.
 5. Never repeat a topic already covered, even in different wording.
 6. If the employee says they prefer not to discuss a topic, acknowledge once and move to a completely different skill area.
@@ -89,6 +89,7 @@ STRICT QUESTION RULES — follow these exactly:
 8. Vary your question types: scenario-based, tool-specific, challenge-focused, goal-oriented.
 9. After each answer, start with ONE brief specific acknowledgment (1 sentence referencing something they actually said), then ask your next question.
 10. Use the employee's first name occasionally (every 3-4 exchanges) to keep it personal.
+11. If the employee's response seems garbled, repetitive, or unclear (e.g. voice transcription errors), ask them to clarify in one sentence — do not repeat your previous question verbatim.
 
 Your questions must probe: {skill_areas}
 
@@ -125,7 +126,7 @@ Return ONLY valid JSON in this exact format:
       "severity": "Medium",
       "observation": "A specific 2-sentence observation referencing exactly what this employee said. Quote or paraphrase their actual answer. E.g. 'When asked about X, you described Y which shows Z. However, your response on Q revealed a gap in R.'",
       "question_asked": "The specific question from the interview that most revealed this skill level",
-      "answer_summary": "A concise 1-sentence summary of what the employee actually said that determined this score"
+      "answer_summary": "Copy the employee's EXACT words verbatim from their answer — do not paraphrase or summarize"
     }}
   ],
   "strengths": [
@@ -166,7 +167,7 @@ Rules for course_recommendations:
 - Focus on weak areas (High/Medium severity)
 - Courses MUST be relevant to the employee's role ({designation or 'N/A'}) and department ({dept or 'N/A'})
 - If they have learning goals, prioritise courses that help achieve those goals
-- DIVERSITY RULE: At least 40% of courses must be FREE. Include free resources from: YouTube, freeCodeCamp, Google Digital Garage, Khan Academy, Coursera (audit/free tier), edX (audit), Anthropic docs, OpenAI cookbook, GitHub Learning Lab, MDN Web Docs, or any free industry resource.
+- DIVERSITY RULE: At least 60% of courses MUST be FREE. Prioritise free resources: YouTube, freeCodeCamp, Google Digital Garage, Khan Academy, Coursera (audit/free tier), edX (audit), Anthropic docs, OpenAI cookbook, GitHub Learning Lab, MDN Web Docs, MIT OpenCourseWare, Harvard CS50, or any free industry resource. Only include paid courses (Udemy, LinkedIn Learning, Coursera paid) if no good free alternative exists for that topic.
 - Set "free": true for free courses, "free": false for paid ones.
 - CRITICAL: Every course MUST have a working "link" URL. Use SEARCH URLs (always valid) as your PRIMARY format:
   * Coursera: https://www.coursera.org/search?query=YOUR+COURSE+TOPIC
@@ -312,8 +313,12 @@ async def interview(
     for msg in messages:
         llm_messages.append(msg)
 
+    def _strip_md(t: str) -> str:
+        import re
+        return re.sub(r'\*+', '', t).strip()
+
     try:
-        follow_up = await _call_llm(llm_messages)
+        follow_up = _strip_md(await _call_llm(llm_messages))
     except Exception:
         dept_lower = (user.department or "").lower()
         desig_lower = (user.designation or "").lower()
@@ -330,7 +335,7 @@ async def interview(
         idx = min(req.question_index, len(fallback_topics) - 1)
         follow_up = f"That's helpful context! Tell me more about {fallback_topics[idx]}?"
 
-    messages.append({"role": "assistant", "content": follow_up})
+    messages.append({"role": "assistant", "content": _strip_md(follow_up)})
     session.messages = messages
 
     if not req.is_clarification:
@@ -351,14 +356,38 @@ async def reset_interview(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Reset interview session so user can retake."""
-    sessions = db.query(InterviewSession).filter(
-        InterviewSession.user_id == user.id
+    """Mark any in-progress session as abandoned so user can start a fresh interview.
+    Completed sessions are preserved so skill gap reports remain visible."""
+    in_progress = db.query(InterviewSession).filter(
+        InterviewSession.user_id == user.id,
+        InterviewSession.status == "in_progress",
     ).all()
-    for s in sessions:
-        db.delete(s)
+    for s in in_progress:
+        s.status = "abandoned"
     db.commit()
-    return {"ok": True, "message": "Interview reset. You can start a new interview."}
+    return {"ok": True, "message": "Ready for a new interview. Your previous results are preserved."}
+
+
+@router.get("/session")
+async def get_session(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return all past completed sessions + current in-progress session messages for the chat window."""
+    sessions = db.query(InterviewSession).filter(
+        InterviewSession.user_id == user.id,
+    ).order_by(InterviewSession.id.asc()).all()
+
+    result = []
+    for s in sessions:
+        result.append({
+            "id": s.id,
+            "status": s.status,
+            "question_index": s.question_index,
+            "messages": s.messages or [],
+            "completed_at": s.completed_at.isoformat() if s.completed_at else None,
+        })
+    return result
 
 
 @router.post("/generate-analysis")
@@ -447,7 +476,7 @@ async def generate_analysis(
             for idx, qa in enumerate(qa_pairs):
                 if idx not in used_qa_indices and (skill_lower in qa["question"].lower() or skill_lower in qa["answer"].lower()):
                     gap["question_asked"] = qa["question"].strip()
-                    gap["answer_summary"] = qa["answer"].strip()[:300]
+                    gap["answer_summary"] = qa["answer"].strip()  # verbatim
                     used_qa_indices.add(idx)
                     break
 
@@ -460,7 +489,7 @@ async def generate_analysis(
     db.commit()
 
     # Save recommended courses (max 10) — validate links first
-    courses = analysis.get("course_recommendations", [])[:10]
+    courses = analysis.get("course_recommendations", [])[:12]
     try:
         courses = await _validate_course_links(courses)
     except Exception:
@@ -526,7 +555,7 @@ def _build_analysis_response(session, profile):
             for idx, qa in enumerate(qa_pairs):
                 if idx not in used_qa_indices and (skill_lower in qa["question"].lower() or skill_lower in qa["answer"].lower()):
                     gap["question_asked"] = qa["question"].strip()
-                    gap["answer_summary"] = qa["answer"].strip()[:300]
+                    gap["answer_summary"] = qa["answer"].strip()  # verbatim
                     used_qa_indices.add(idx)
                     break
 

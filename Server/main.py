@@ -57,23 +57,46 @@ def health():
 
 @app.on_event("startup")
 def startup():
-    """Auto-seed if DB is empty. Also run lightweight column migrations."""
-    # Add is_ready column to users table if it doesn't exist yet
+    """Auto-seed if DB is empty. Also run lightweight column/constraint migrations."""
     from sqlalchemy import text
     db_url_str = str(engine.url)
     if "sqlite" in db_url_str:
-        # SQLite does not support IF NOT EXISTS on ALTER TABLE — catch duplicate error
         try:
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_ready BOOLEAN NOT NULL DEFAULT 0"))
                 conn.commit()
         except Exception:
-            pass  # Column already exists
+            pass
+        # Migrate email unique → (email, role) unique for SQLite
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("DROP INDEX IF EXISTS ix_users_email"))
+                conn.commit()
+        except Exception:
+            pass
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_role ON users(email, role)"))
+                conn.commit()
+        except Exception:
+            pass
     else:
-        # PostgreSQL supports ADD COLUMN IF NOT EXISTS
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_ready BOOLEAN NOT NULL DEFAULT FALSE"))
             conn.commit()
+        # Migrate email unique → (email, role) unique for PostgreSQL
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key"))
+                conn.commit()
+        except Exception:
+            pass
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_role ON users(email, role)"))
+                conn.commit()
+        except Exception:
+            pass
 
     from sqlalchemy.orm import Session
     from database import SessionLocal

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class LoginRequest(BaseModel):
     email: str
     password: str
+    role: Optional[str] = None  # if same email has multiple accounts, specify which role to log into
 
 class LoginResponse(BaseModel):
     token: str

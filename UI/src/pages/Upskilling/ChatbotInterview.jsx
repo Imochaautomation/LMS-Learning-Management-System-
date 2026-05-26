@@ -9,7 +9,7 @@ import { ToastContainer, useToast } from '../../components/shared/Toast';
 const MIN_QUESTIONS = 8;
 const MAX_QUESTIONS = 15;
 
-const cleanText = (t) => t.replace(/\*\*/g, '').replace(/\*/g, '');
+const cleanText = (t) => t.replace(/\*+/g, '').trim();
 
 const isClarification = (t) =>
   /\b(explain|clarify|what do you mean|rephrase|don't understand|elaborate|confusing|confused|unclear|can you repeat|what does that mean)\b/i.test(t);
@@ -24,39 +24,107 @@ function JarvisAvatar({ size = 'md' }) {
   );
 }
 
+function SessionDivider({ label }) {
+  return (
+    <div className="flex items-center gap-3 py-2">
+      <div className="flex-1 h-px bg-gray-200" />
+      <span className="text-xs text-gray-400 font-medium px-2 whitespace-nowrap">{label}</span>
+      <div className="flex-1 h-px bg-gray-200" />
+    </div>
+  );
+}
+
 export default function ChatbotInterview() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const textareaRef = useRef(null);
+  const generatingRef = useRef(false);
 
-  const [messages, setMessages] = useState([
-    {
-      role: 'bot',
-      text: `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI skill interviewer from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time. After ${MIN_QUESTIONS} questions you can wrap up early if you'd like.\n\nLet's get started!`
-    }
-  ]);
+  const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI skill interviewer from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time. After ${MIN_QUESTIONS} questions you can wrap up early.\n\nLet's get started!`;
+
+  // Each item: { type: 'session', label, messages: [{role,text}] } | { role, text }
+  const [chatBlocks, setChatBlocks] = useState([]);
   const [input, setInput] = useState('');
   const [questionIndex, setQuestionIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   const [finished, setFinished] = useState(false);
   const [awaitingWrapup, setAwaitingWrapup] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisError, setAnalysisError] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const { toasts, removeToast, toast } = useToast();
 
   const canFinishEarly = questionIndex >= MIN_QUESTIONS && !finished && !awaitingWrapup;
   const progress = Math.min((questionIndex / MAX_QUESTIONS) * 100, 100);
 
+  // Flatten chatBlocks into a flat list of messages for rendering
+  const allMessages = chatBlocks;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [chatBlocks, loading]);
+
+  // Load session history on mount
+  useEffect(() => {
+    api.get('/ai/session').then((sessions) => {
+      const blocks = [];
+      const inProgress = sessions.find(s => s.status === 'in_progress');
+      const completed = sessions.filter(s => s.status === 'completed');
+      const abandoned = sessions.filter(s => s.status === 'abandoned');
+
+      // Show all past sessions (completed + abandoned) as archived blocks
+      const past = [...completed, ...abandoned].sort((a, b) => a.id - b.id);
+      past.forEach((s, idx) => {
+        const date = s.completed_at ? new Date(s.completed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : `Session ${idx + 1}`;
+        const label = s.status === 'abandoned' ? `Interrupted session — ${date}` : `Interview session — ${date}`;
+        blocks.push({ type: 'divider', label });
+        (s.messages || []).forEach(m => {
+          blocks.push({ role: m.role === 'user' ? 'user' : 'bot', text: cleanText(m.content || '') });
+        });
+      });
+
+      // Current in-progress session
+      if (inProgress && (inProgress.messages || []).length > 0) {
+        blocks.push({ type: 'divider', label: 'Current session (in progress)' });
+        (inProgress.messages || []).forEach(m => {
+          blocks.push({ role: m.role === 'user' ? 'user' : 'bot', text: cleanText(m.content || '') });
+        });
+        setQuestionIndex(inProgress.question_index || 0);
+      } else if (past.length > 0) {
+        // Past sessions exist but no active session — show welcome for new retake
+        blocks.push({ type: 'divider', label: 'New interview' });
+        blocks.push({ role: 'bot', text: welcome });
+      } else {
+        // Brand new user
+        blocks.push({ role: 'bot', text: welcome });
+      }
+
+      setChatBlocks(blocks);
+    }).catch(() => {
+      setChatBlocks([{ role: 'bot', text: welcome }]);
+    }).finally(() => setSessionLoaded(true));
+  }, []);
+
+  const resetTextarea = () => {
+    setInput('');
+    if (textareaRef.current) textareaRef.current.style.height = '44px';
+  };
+
+  const appendMessage = (msg) => setChatBlocks(prev => [...prev, msg]);
 
   const startVoice = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) { toast.error('Voice input is not supported in this browser. Try Chrome or Edge.'); return; }
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      setIsListening(false);
+      return;
+    }
     const r = new SpeechRecognition();
     r.lang = 'en-US';
     r.continuous = true;
@@ -73,36 +141,23 @@ export default function ChatbotInterview() {
       });
     };
     r.onend = () => {
-      // restart if still supposed to be listening (continuous mode)
-      if (recognitionRef.current === r && isListening) {
-        try { r.start(); } catch {}
+      if (recognitionRef.current === r) {
+        try { r.start(); } catch { setIsListening(false); }
       } else {
         setIsListening(false);
       }
     };
     r.onerror = (e) => {
-      if (e.error !== 'no-speech') {
-        setIsListening(false);
-        toast.error('Voice input stopped. Please try again.');
-      }
+      if (e.error !== 'no-speech') { setIsListening(false); recognitionRef.current = null; toast.error('Voice input stopped.'); }
     };
     r.start();
     recognitionRef.current = r;
   };
 
-  const textareaRef = useRef(null);
-
-  const resetTextarea = () => {
-    setInput('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '44px';
-    }
-  };
-
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
     const userMsg = { role: 'user', text: input.trim() };
-    setMessages((prev) => [...prev, userMsg]);
+    appendMessage(userMsg);
     resetTextarea();
     setLoading(true);
 
@@ -123,21 +178,17 @@ export default function ChatbotInterview() {
         setQuestionIndex(nextQ);
 
         if (nextQ >= MAX_QUESTIONS) {
-          setMessages((prev) => [...prev, { role: 'bot', text: reply }]);
-          setMessages((prev) => [...prev, {
-            role: 'bot',
-            text: `That wraps up all ${MAX_QUESTIONS} questions! Before I generate your skill analysis, is there anything you'd like to add or clarify? Just type your response, or click "Finish & Generate Report" when you're ready.`
-          }]);
+          appendMessage({ role: 'bot', text: reply });
+          appendMessage({ role: 'bot', text: `That wraps up all ${MAX_QUESTIONS} questions! Before I generate your skill analysis, is there anything you'd like to add or clarify? Just type your response, or click "Finish & Generate Report" when you're ready.` });
           setAwaitingWrapup(true);
         } else {
           const earlyHint = nextQ === MIN_QUESTIONS
             ? '\n\n(You can now finish early and get your recommendations, or continue for a deeper analysis.)'
             : '';
-          setMessages((prev) => [...prev, { role: 'bot', text: reply + earlyHint }]);
+          appendMessage({ role: 'bot', text: reply + earlyHint });
         }
       } else {
-        // Clarification — don't increment index, just show Jarvis's explanation
-        setMessages((prev) => [...prev, { role: 'bot', text: reply }]);
+        appendMessage({ role: 'bot', text: reply });
       }
     } catch {
       const fallback = [
@@ -148,7 +199,7 @@ export default function ChatbotInterview() {
         'What area of your work would you most like to improve?',
       ];
       const msg = cleanText(fallback[questionIndex % fallback.length]);
-      setMessages((prev) => [...prev, { role: 'bot', text: msg }]);
+      appendMessage({ role: 'bot', text: msg });
       if (!isClarity) {
         const nextQ = questionIndex + 1;
         setQuestionIndex(nextQ);
@@ -168,10 +219,8 @@ export default function ChatbotInterview() {
         force_complete: true,
       });
     } catch {}
-    setMessages((prev) => [...prev,
-      { role: 'user', text: 'I am ready to finish.' },
-      { role: 'bot', text: 'All done! Generating your personalized skill gap analysis and course recommendations now. This takes a moment.' }
-    ]);
+    appendMessage({ role: 'user', text: 'I am ready to finish.' });
+    appendMessage({ role: 'bot', text: 'All done! Generating your personalized skill gap analysis and course recommendations now. This takes a moment.' });
     setAwaitingWrapup(false);
     setFinished(true);
     setLoading(false);
@@ -187,24 +236,29 @@ export default function ChatbotInterview() {
         force_complete: true,
       });
     } catch {}
-    setMessages((prev) => [...prev,
-      { role: 'user', text: "I'd like to finish now and get my recommendations." },
-      { role: 'bot', text: `You've answered ${questionIndex} questions — that's a solid foundation. Generating your skill analysis now!` }
-    ]);
+    appendMessage({ role: 'user', text: "I'd like to finish now and get my recommendations." });
+    appendMessage({ role: 'bot', text: `You've answered ${questionIndex} questions — that's a solid foundation. Generating your skill analysis now!` });
     setAwaitingWrapup(false);
     setFinished(true);
     setLoading(false);
   };
 
   const generateAnalysis = async () => {
+    if (generatingRef.current) return;
+    generatingRef.current = true;
     setGenerating(true);
+    setAnalysisError(false);
     try {
       await api.post('/ai/generate-analysis', { user_id: user.id });
       const courses = await api.get('/courses/recommended');
       setAnalysisResult(courses);
-      toast.success('Skill analysis complete! Check your recommended courses.');
-    } catch (err) { toast.error(`Failed to generate analysis: ${err.message}`); }
+      toast.success('Skill analysis complete!');
+    } catch (err) {
+      setAnalysisError(true);
+      toast.error('Analysis generation failed. You can retry below.');
+    }
     setGenerating(false);
+    generatingRef.current = false;
   };
 
   return (
@@ -245,24 +299,34 @@ export default function ChatbotInterview() {
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden" style={{ height: '65vh' }}>
         <div className="h-full flex flex-col">
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                {msg.role === 'bot'
-                  ? <JarvisAvatar size="sm" />
-                  : <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
-                      <User className="w-4 h-4 text-gray-500" />
-                    </div>
-                }
-                <div className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                  msg.role === 'bot'
-                    ? 'bg-gray-100 text-gray-800 rounded-tl-none'
-                    : 'text-white rounded-tr-none'
-                }`}
-                style={msg.role !== 'bot' ? { background: '#F05A28' } : {}}>
-                  {msg.text}
-                </div>
+            {!sessionLoaded && (
+              <div className="flex justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               </div>
-            ))}
+            )}
+            {allMessages.map((msg, i) => {
+              if (msg.type === 'divider') {
+                return <SessionDivider key={i} label={msg.label} />;
+              }
+              return (
+                <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  {msg.role === 'bot'
+                    ? <JarvisAvatar size="sm" />
+                    : <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4 text-gray-500" />
+                      </div>
+                  }
+                  <div className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                    msg.role === 'bot'
+                      ? 'bg-gray-100 text-gray-800 rounded-tl-none'
+                      : 'text-white rounded-tr-none'
+                  }`}
+                  style={msg.role !== 'bot' ? { background: '#F05A28' } : {}}>
+                    {msg.text}
+                  </div>
+                </div>
+              );
+            })}
             {loading && (
               <div className="flex gap-3">
                 <JarvisAvatar size="sm" />
@@ -277,7 +341,7 @@ export default function ChatbotInterview() {
           </div>
 
           {/* Input area */}
-          {!finished && !awaitingWrapup && (
+          {!finished && !awaitingWrapup && sessionLoaded && (
             <div className="border-t border-gray-200 p-3 flex gap-2 items-end">
               <textarea
                 ref={textareaRef}
@@ -296,10 +360,12 @@ export default function ChatbotInterview() {
                 className="flex-1 px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none overflow-y-auto"
                 style={{ minHeight: '44px', maxHeight: '140px' }}
               />
+              {/* Voice button: Mic icon when ON (listening), MicOff icon when OFF */}
               <button onClick={startVoice} disabled={loading}
-                className={`p-3 rounded-xl shrink-0 transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                title={isListening ? 'Stop listening' : 'Voice input'}>
-                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                className={`p-3 rounded-xl shrink-0 transition-all ${isListening ? 'text-white animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                style={isListening ? { background: '#16a34a' } : {}}
+                title={isListening ? 'Mic is ON — click to stop' : 'Click to start voice input'}>
+                {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
               </button>
               <button onClick={sendMessage} disabled={!input.trim() || loading}
                 className="p-3 text-white rounded-xl disabled:opacity-50 shrink-0 transition-colors"
@@ -343,12 +409,15 @@ export default function ChatbotInterview() {
 
           {/* Post-interview: generate analysis */}
           {finished && !analysisResult && (
-            <div className="border-t border-gray-200 p-4 text-center">
+            <div className="border-t border-gray-200 p-4 text-center space-y-2">
               <button onClick={generateAnalysis} disabled={generating}
-                className="flex items-center gap-2 mx-auto px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50">
+                className="flex items-center gap-2 mx-auto px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-60">
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                {generating ? 'Generating analysis...' : 'Generate My Skill Analysis & Course Recommendations'}
+                {generating ? 'Generating analysis… this may take a minute' : 'Generate My Skill Analysis & Course Recommendations'}
               </button>
+              {analysisError && (
+                <p className="text-xs text-red-500">Generation failed — please retry. If it keeps failing, try refreshing and coming back.</p>
+              )}
             </div>
           )}
 
