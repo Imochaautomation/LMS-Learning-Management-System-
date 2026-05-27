@@ -183,6 +183,12 @@ Interview conversation:
 """
 
 
+import re as _re
+def _strip_md(t: str) -> str:
+    """Remove all asterisk markdown from LLM output."""
+    return _re.sub(r'\*+', '', t).strip()
+
+
 async def _call_llm(messages: list[dict], timeout: int = 30) -> str:
     """Call OpenRouter LLM."""
     if not OPENROUTER_API_KEY:
@@ -313,10 +319,6 @@ async def interview(
     for msg in messages:
         llm_messages.append(msg)
 
-    def _strip_md(t: str) -> str:
-        import re
-        return re.sub(r'\*+', '', t).strip()
-
     try:
         follow_up = _strip_md(await _call_llm(llm_messages))
     except Exception:
@@ -348,7 +350,7 @@ async def interview(
 
     db.commit()
 
-    return InterviewResponse(follow_up=follow_up)
+    return InterviewResponse(follow_up=_strip_md(follow_up))
 
 
 @router.post("/reset-interview")
