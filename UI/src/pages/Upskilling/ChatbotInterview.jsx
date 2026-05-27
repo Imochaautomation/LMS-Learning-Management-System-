@@ -6,7 +6,7 @@ import BackButton from '../../components/shared/BackButton';
 import { Send, Loader2, User, CheckCircle, ExternalLink, Zap, Mic, MicOff } from 'lucide-react';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
 
-const MIN_QUESTIONS = 8;
+const MIN_QUESTIONS = 15;
 const MAX_QUESTIONS = 15;
 
 const cleanText = (t) => t.replace(/\*+/g, '').trim();
@@ -363,7 +363,7 @@ export default function ChatbotInterview() {
               {/* Voice button: Mic icon when ON (listening), MicOff icon when OFF */}
               <button onClick={startVoice} disabled={loading}
                 className={`p-3 rounded-xl shrink-0 transition-all ${isListening ? 'text-white animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                style={isListening ? { background: '#16a34a' } : {}}
+                style={isListening ? { background: '#F05A28' } : {}}
                 title={isListening ? 'Mic is ON — click to stop' : 'Click to start voice input'}>
                 {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
               </button>
