@@ -117,6 +117,13 @@ Designation: {designation or 'N/A'} | Department: {dept or 'N/A'} | Experience: 
 
 IMPORTANT: The skill gaps, observations, and course recommendations MUST be directly relevant to this employee's role ({designation or 'professional'}), department ({dept or 'N/A'}), and their stated learning goals. Do NOT generate generic or irrelevant skills.
 
+CRITICAL ANTI-FABRICATION RULE:
+- Analyze ONLY what is in the Interview Conversation section below.
+- The "Professional Background" and "Learning Goals" above are CONTEXT ONLY — they describe who this person is. Do NOT treat them as interview answers or cite them as evidence.
+- Every observation, question_asked, and answer_summary MUST come from an actual exchange in the Interview Conversation.
+- If the interview has fewer than 5 real Q&A exchanges, generate skill gaps based only on what IS there — do not invent questions or answers to fill gaps.
+- Never copy the employee profile or learning goals text into the answer_summary field.
+
 Return ONLY valid JSON in this exact format:
 {{
   "skill_gaps": [
@@ -308,10 +315,24 @@ async def interview(
     llm_messages = [{"role": "system", "content": _build_system_prompt(user, profile)}]
 
     remaining = req.total_questions - req.question_index - 1
+
+    # Build a hard list of already-asked questions to enforce topic diversity
+    prev_questions = [
+        m["content"] for m in messages
+        if m.get("role") == "assistant" and len(m.get("content", "")) > 15
+    ]
+
     if req.is_clarification:
         llm_messages.append({"role": "system", "content": "The employee is asking for clarification on your last question. Explain it clearly in plain text (no markdown). Keep it to 2 sentences. Then re-ask the same question more simply. Do NOT move to a new topic."})
     elif remaining > 0:
-        llm_messages.append({"role": "system", "content": f"This is question {req.question_index + 1} of {req.total_questions}. {remaining} questions remaining. Ask the next question. Keep it to 2 sentences max, plain text only."})
+        covered_note = ""
+        if prev_questions:
+            covered_note = (
+                f"\n\nQUESTIONS ALREADY ASKED (do NOT repeat or rephrase any of these topics):\n"
+                + "\n".join(f"- {q[:120]}" for q in prev_questions)
+                + "\n\nYour next question MUST cover a completely different skill area not listed above."
+            )
+        llm_messages.append({"role": "system", "content": f"This is question {req.question_index + 1} of {req.total_questions}. {remaining} questions remaining. Ask the next question. Keep it to 2 sentences max, plain text only.{covered_note}"})
     else:
         llm_messages.append({"role": "system", "content": "This is the last answer. Thank the employee warmly in 1-2 sentences. Plain text only, no markdown."})
 
@@ -398,10 +419,23 @@ async def generate_analysis(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    session = db.query(InterviewSession).filter(
+    # Pick the most complete session (highest question_index), not just most recent.
+    # This prevents a short "accidental" session from overriding the real 15-question one.
+    completed_sessions = db.query(InterviewSession).filter(
         InterviewSession.user_id == req.user_id,
         InterviewSession.status == "completed"
-    ).order_by(InterviewSession.completed_at.desc()).first()
+    ).order_by(InterviewSession.question_index.desc(), InterviewSession.completed_at.desc()).all()
+
+    # Find best session: most Q&A pairs in messages
+    session = None
+    for s in completed_sessions:
+        msgs = s.messages or []
+        qa_count = sum(1 for m in msgs if m.get("role") == "user")
+        if qa_count >= 5:
+            session = s
+            break
+    if not session and completed_sessions:
+        session = completed_sessions[0]  # fallback to highest question_index
 
     if not session:
         raise HTTPException(status_code=404, detail="No completed interview found")

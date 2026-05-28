@@ -211,16 +211,18 @@ export default function ChatbotInterview() {
 
   const handleWrapupConfirm = async () => {
     setLoading(true);
+    const finalNote = input.trim();
     try {
       await api.post('/ai/interview', {
         question_index: questionIndex,
-        answer: 'Ready to finish. Please generate my skill analysis.',
+        answer: finalNote ? `Final thoughts: ${finalNote}` : 'Ready to finish. Please generate my skill analysis.',
         total_questions: MAX_QUESTIONS,
         force_complete: true,
       });
     } catch {}
-    appendMessage({ role: 'user', text: 'I am ready to finish.' });
+    if (finalNote) appendMessage({ role: 'user', text: finalNote });
     appendMessage({ role: 'bot', text: 'All done! Generating your personalized skill gap analysis and course recommendations now. This takes a moment.' });
+    resetTextarea();
     setAwaitingWrapup(false);
     setFinished(true);
     setLoading(false);
@@ -380,23 +382,20 @@ export default function ChatbotInterview() {
           {/* Wrapup confirmation */}
           {awaitingWrapup && !finished && (
             <div className="border-t border-gray-200 p-4 space-y-3">
-              <div className="flex gap-2 items-end">
-                <textarea
-                  value={input}
-                  onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px'; }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  placeholder="Add any final thoughts... (optional)"
-                  disabled={loading}
-                  rows={1}
-                  className="flex-1 px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none"
-                  style={{ minHeight: '44px', maxHeight: '100px' }}
-                />
-                <button onClick={sendMessage} disabled={!input.trim() || loading}
-                  className="p-3 text-white rounded-xl disabled:opacity-50 shrink-0"
-                  style={{ background: '#F05A28' }}>
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = '44px';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
+                }}
+                placeholder="Any final thoughts to add? (optional — press the button below to finish)"
+                disabled={loading}
+                rows={1}
+                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none"
+                style={{ minHeight: '44px', maxHeight: '100px' }}
+              />
               <button onClick={handleWrapupConfirm} disabled={loading}
                 className="w-full flex items-center justify-center gap-2 py-3 text-white font-semibold rounded-xl transition-colors"
                 style={{ background: '#16a34a' }}
