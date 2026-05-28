@@ -177,7 +177,8 @@ export default function ChatbotInterview() {
         const nextQ = questionIndex + 1;
         setQuestionIndex(nextQ);
 
-        if (nextQ >= MAX_QUESTIONS) {
+        if (nextQ > MAX_QUESTIONS) {
+          // All MAX_QUESTIONS answers received — now show wrapup
           appendMessage({ role: 'bot', text: reply });
           appendMessage({ role: 'bot', text: `That wraps up all ${MAX_QUESTIONS} questions! Before I generate your skill analysis, is there anything you'd like to add or clarify? Just type your response, or click "Finish & Generate Report" when you're ready.` });
           setAwaitingWrapup(true);
@@ -203,7 +204,7 @@ export default function ChatbotInterview() {
       if (!isClarity) {
         const nextQ = questionIndex + 1;
         setQuestionIndex(nextQ);
-        if (nextQ >= MAX_QUESTIONS) setAwaitingWrapup(true);
+        if (nextQ > MAX_QUESTIONS) setAwaitingWrapup(true);
       }
     }
     setLoading(false);

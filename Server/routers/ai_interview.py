@@ -287,6 +287,31 @@ async def interview(
         InterviewSession.status == "in_progress"
     ).first()
 
+    # If user wants to finish (force_complete from wrapup confirm button)
+    if req.force_complete:
+        if not session:
+            # Main session already completed — find it and append final note to it
+            session = db.query(InterviewSession).filter(
+                InterviewSession.user_id == user.id,
+                InterviewSession.status == "completed"
+            ).order_by(InterviewSession.question_index.desc()).first()
+            if session and req.answer.strip() and req.answer.strip() not in ("Ready to finish. Please generate my skill analysis.", "I would like to finish the interview now."):
+                msgs = list(session.messages or [])
+                msgs.append({"role": "user", "content": req.answer})
+                session.messages = msgs
+                db.commit()
+        else:
+            msgs = list(session.messages or [])
+            msgs.append({"role": "user", "content": req.answer})
+            session.messages = msgs
+            session.question_index = req.question_index + 1
+            session.status = "completed"
+            session.completed_at = datetime.utcnow()
+            db.commit()
+        return InterviewResponse(
+            follow_up="Great! You've completed the interview — generating your skill breakdown and course recommendations now."
+        )
+
     if not session:
         session = InterviewSession(user_id=user.id, messages=[], question_index=0)
         db.add(session)
@@ -297,24 +322,16 @@ async def interview(
     messages = session.messages or []
     messages.append({"role": "user", "content": req.answer})
 
-    # If user wants to finish early
-    if req.force_complete:
-        session.messages = messages
-        session.question_index = req.question_index + 1
-        session.status = "completed"
-        session.completed_at = datetime.utcnow()
-        db.commit()
-        return InterviewResponse(
-            follow_up=f"Great! You've answered {req.question_index + 1} questions — that's enough for a solid analysis. Let me generate your skill breakdown and course recommendations now! 🎯"
-        )
-
     # Fetch profile for personalised context
     profile = db.query(Profile).filter(Profile.user_id == user.id).first()
 
     # Build LLM context using dynamic profile-aware prompt
     llm_messages = [{"role": "system", "content": _build_system_prompt(user, profile)}]
 
-    remaining = req.total_questions - req.question_index - 1
+    # remaining = questions still to be asked AFTER this current response
+    # question_index 0 = initial trigger ("yes go"), so real answers start at index 1
+    # We need all total_questions answered before wrapping up
+    remaining = req.total_questions - req.question_index
 
     # Build a hard list of already-asked questions to enforce topic diversity
     prev_questions = [
@@ -363,7 +380,8 @@ async def interview(
 
     if not req.is_clarification:
         session.question_index = req.question_index + 1
-        if req.question_index + 1 >= req.total_questions:
+        # Complete only after ALL answers received (index+1 > total means 15 real answers given)
+        if req.question_index + 1 > req.total_questions:
             session.status = "completed"
             session.completed_at = datetime.utcnow()
     else:
