@@ -331,6 +331,12 @@ async def interview(
                 db.commit()
         else:
             msgs = list(session.messages or [])
+            # Guard: don't complete a session with fewer than 8 real answers
+            real_answers = max(0, sum(1 for m in msgs if m.get("role") == "user") - 1)
+            if real_answers < 8:
+                return InterviewResponse(
+                    follow_up=f"You've answered {real_answers} questions so far — please continue the interview and answer at least 8 questions before finishing. Keep going!"
+                )
             msgs.append({"role": "user", "content": req.answer})
             session.messages = msgs
             session.question_index = req.question_index + 1
@@ -493,19 +499,26 @@ async def generate_analysis(
         InterviewSession.status == "completed"
     ).order_by(InterviewSession.question_index.desc(), InterviewSession.completed_at.desc()).all()
 
-    # Find best session: most Q&A pairs in messages
+    # Find best session: must have at least 8 real user answers (index 0 is just the initial trigger)
+    MIN_ANSWERS = 8
     session = None
     for s in completed_sessions:
         msgs = s.messages or []
-        qa_count = sum(1 for m in msgs if m.get("role") == "user")
-        if qa_count >= 5:
+        # Count real answers: subtract 1 for the initial "yes go" trigger message
+        real_answers = max(0, sum(1 for m in msgs if m.get("role") == "user") - 1)
+        if real_answers >= MIN_ANSWERS:
             session = s
             break
-    if not session and completed_sessions:
-        session = completed_sessions[0]  # fallback to highest question_index
 
     if not session:
-        raise HTTPException(status_code=404, detail="No completed interview found")
+        best = completed_sessions[0] if completed_sessions else None
+        if best:
+            real = max(0, sum(1 for m in (best.messages or []) if m.get("role") == "user") - 1)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Interview incomplete — only {real} real answers found. Please complete at least {MIN_ANSWERS} questions before generating your analysis."
+            )
+        raise HTTPException(status_code=404, detail="No completed interview found. Please complete the AI interview first.")
 
     # Fetch profile for personalised analysis
     target_user = db.query(User).filter(User.id == req.user_id).first()

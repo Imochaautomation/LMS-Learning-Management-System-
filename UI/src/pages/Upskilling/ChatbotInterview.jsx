@@ -91,11 +91,16 @@ export default function ChatbotInterview() {
 
       // Current in-progress session
       if (inProgress && (inProgress.messages || []).length > 0) {
+        const restoredIndex = inProgress.question_index || 0;
         blocks.push({ type: 'divider', label: 'Current session (in progress)' });
         (inProgress.messages || []).forEach(m => {
           blocks.push({ role: m.role === 'user' ? 'user' : 'bot', text: cleanText(m.content || '') });
         });
-        setQuestionIndex(inProgress.question_index || 0);
+        setQuestionIndex(restoredIndex);
+        // If session is at or past the last question, restore wrapup state
+        if (restoredIndex > MAX_QUESTIONS) {
+          setAwaitingWrapup(true);
+        }
       } else if (past.length > 0) {
         // Past sessions exist but no active session — show welcome for new retake
         blocks.push({ type: 'divider', label: 'New interview' });
@@ -235,12 +240,19 @@ export default function ChatbotInterview() {
     setLoading(true);
     const finalNote = input.trim();
     try {
-      await api.post('/ai/interview', {
+      const res = await api.post('/ai/interview', {
         question_index: questionIndex,
         answer: finalNote ? `Final thoughts: ${finalNote}` : 'Ready to finish. Please generate my skill analysis.',
         total_questions: MAX_QUESTIONS,
         force_complete: true,
       });
+      // If backend blocked due to insufficient answers, show the message and stay in interview
+      if (res?.follow_up && res.follow_up.includes('please continue')) {
+        appendMessage({ role: 'bot', text: res.follow_up });
+        setLoading(false);
+        setAwaitingWrapup(false);
+        return;
+      }
     } catch {}
     if (finalNote) appendMessage({ role: 'user', text: finalNote });
     appendMessage({ role: 'bot', text: 'All done! Generating your personalized skill gap analysis and course recommendations now. This takes a moment.' });
@@ -279,7 +291,15 @@ export default function ChatbotInterview() {
       toast.success('Skill analysis complete!');
     } catch (err) {
       setAnalysisError(true);
-      toast.error('Analysis generation failed. You can retry below.');
+      const msg = err.message || '';
+      if (msg.includes('incomplete') || msg.includes('400')) {
+        toast.error('Interview incomplete — please answer at least 8 questions before generating your report.');
+        // Push user back to active interview
+        setFinished(false);
+        setAwaitingWrapup(false);
+      } else {
+        toast.error('Analysis generation failed. Please retry in a moment.');
+      }
     }
     setGenerating(false);
     generatingRef.current = false;
