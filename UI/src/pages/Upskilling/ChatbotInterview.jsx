@@ -39,10 +39,12 @@ export default function ChatbotInterview() {
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const resultIndexRef = useRef(0);
+  const committedTranscriptRef = useRef('');
   const textareaRef = useRef(null);
   const generatingRef = useRef(false);
 
-  const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI skill interviewer from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time. After ${MIN_QUESTIONS} questions you can wrap up early.\n\nLet's get started!`;
+  const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI skill interviewer from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time.\n\nLet's get started!`;
 
   // Each item: { type: 'session', label, messages: [{role,text}] } | { role, text }
   const [chatBlocks, setChatBlocks] = useState([]);
@@ -125,20 +127,39 @@ export default function ChatbotInterview() {
       setIsListening(false);
       return;
     }
+    resultIndexRef.current = 0;
+    committedTranscriptRef.current = '';
     const r = new SpeechRecognition();
     r.lang = 'en-US';
     r.continuous = true;
     r.interimResults = true;
     r.onstart = () => setIsListening(true);
     r.onresult = (e) => {
-      let final = '';
-      for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript + ' ';
+      let newFinal = '';
+      let interim = '';
+      // Only process results we haven't finalized yet
+      for (let i = resultIndexRef.current; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          newFinal += e.results[i][0].transcript + ' ';
+        } else {
+          interim += e.results[i][0].transcript;
+        }
       }
-      if (final) setInput((prev) => {
-        const base = prev.trimEnd();
-        return base ? base + ' ' + final.trim() : final.trim();
-      });
+      if (newFinal) {
+        // Advance the finalized index so we never re-process these results
+        resultIndexRef.current = e.results.length;
+        const appended = committedTranscriptRef.current
+          ? committedTranscriptRef.current + ' ' + newFinal.trim()
+          : newFinal.trim();
+        committedTranscriptRef.current = appended;
+        setInput(appended);
+      } else if (interim) {
+        // Show the current interim text after the committed portion (real-time preview)
+        const preview = committedTranscriptRef.current
+          ? committedTranscriptRef.current + ' ' + interim
+          : interim;
+        setInput(preview);
+      }
     };
     r.onend = () => {
       if (recognitionRef.current === r) {
@@ -281,20 +302,12 @@ export default function ChatbotInterview() {
               </p>
             </div>
           </div>
-          {canFinishEarly && (
-            <button onClick={finishEarly}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl border border-white/30 transition-all">
-              <Zap className="w-3.5 h-3.5" /> Finish Early
-            </button>
-          )}
         </div>
         <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
           <div className="h-full bg-white/80 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
-        <div className="flex justify-between text-xs text-orange-200/80 mt-1">
-          <span>Min: {MIN_QUESTIONS} questions</span>
-          <span>{questionIndex}/{MAX_QUESTIONS} answered</span>
-          <span>Max: {MAX_QUESTIONS} questions</span>
+        <div className="flex justify-center text-xs text-orange-200/80 mt-1">
+          <span>{questionIndex} of {MAX_QUESTIONS} questions answered</span>
         </div>
       </div>
 

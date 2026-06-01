@@ -93,7 +93,13 @@ STRICT QUESTION RULES — follow these exactly:
 
 Your questions must probe: {skill_areas}
 
-Start with their current day-to-day work and responsibilities, then go deeper into specific skills and challenges."""
+QUESTION STRUCTURE — distribute your 15 questions across these areas:
+- Questions 1-5: Current day-to-day responsibilities, tools, and workflows
+- Questions 6-10: Specific skills, challenges faced, and how they were handled
+- Questions 11-13: Growth, accomplishments, and professional journey so far
+- Questions 14-15: Learning goals alignment — probe whether current skills match where they want to go
+
+Do NOT cluster questions in one area. If you have already asked 3+ questions about any single topic (e.g. SEO, brand positioning), move on permanently."""
 
 
 def _build_analysis_prompt(user, profile=None) -> str:
@@ -117,12 +123,13 @@ Designation: {designation or 'N/A'} | Department: {dept or 'N/A'} | Experience: 
 
 IMPORTANT: The skill gaps, observations, and course recommendations MUST be directly relevant to this employee's role ({designation or 'professional'}), department ({dept or 'N/A'}), and their stated learning goals. Do NOT generate generic or irrelevant skills.
 
-CRITICAL ANTI-FABRICATION RULE:
-- Analyze ONLY what is in the Interview Conversation section below.
-- The "Professional Background" and "Learning Goals" above are CONTEXT ONLY — they describe who this person is. Do NOT treat them as interview answers or cite them as evidence.
-- Every observation, question_asked, and answer_summary MUST come from an actual exchange in the Interview Conversation.
-- If the interview has fewer than 5 real Q&A exchanges, generate skill gaps based only on what IS there — do not invent questions or answers to fill gaps.
-- Never copy the employee profile or learning goals text into the answer_summary field.
+CRITICAL ANTI-FABRICATION RULES — these are absolute, non-negotiable:
+1. A skill gap entry is ONLY valid if there is a real question about that skill in the Interview Conversation below AND a real answer from the employee. If no question was asked about a skill, do NOT create a skill gap for it.
+2. Learning Goals are NOT evidence. If the employee's learning goal mentions "AI" or "SEO" but no interview question covered that topic, do NOT create a skill gap for AI or SEO.
+3. Professional Background is NOT evidence. Do not use the profile text as if it were an interview answer.
+4. answer_summary MUST be the employee's EXACT verbatim words from their actual interview answer — not paraphrased, not from the profile.
+5. question_asked MUST be copied from the actual Interviewer message in the conversation — not invented.
+6. If fewer than 5 real Q&A exchanges exist in the conversation, only generate skill gaps for topics actually covered — do not pad to 5.
 
 Return ONLY valid JSON in this exact format:
 {{
@@ -158,7 +165,7 @@ Rules for skill_gaps:
 - Include 5-8 skills — ALL must be relevant to the employee's role and department
 - observation MUST be personalized — reference specific things the employee said, NOT generic text
 - question_asked: copy or paraphrase the actual interview question
-- answer_summary: summarize what the employee specifically said (1 sentence)
+- answer_summary: paste the employee's EXACT verbatim words from their answer — do not paraphrase
 
 Rules for strengths:
 - List 3-5 concrete strengths observed from what they specifically said in the interview
@@ -183,7 +190,11 @@ Rules for course_recommendations:
   * edX: https://www.edx.org/search?q=YOUR+COURSE+TOPIC
   * YouTube: https://www.youtube.com/results?search_query=YOUR+COURSE+TOPIC+tutorial
   * freeCodeCamp: https://www.freecodecamp.org/news/search/?query=YOUR+TOPIC
-  * Google: https://learndigital.withgoogle.com/digitalgarage/courses
+  * Google Digital Garage: https://learndigital.withgoogle.com/digitalgarage/courses
+  * Cohere LLM University: https://docs.cohere.com/docs/llmu
+  * Anthropic: https://docs.anthropic.com/
+  * If provider is unknown or link is uncertain, use YouTube search: https://www.youtube.com/results?search_query=TOPIC+tutorial
+  * NEVER use google.com/search as a course link — users should land on the course platform, not Google.
 - The link field must NEVER be empty or null.
 
 Interview conversation:
@@ -231,9 +242,27 @@ def _build_search_url(title: str, provider: str) -> str:
         return f"https://www.edx.org/search?q={q}"
     elif "youtube" in provider_lower:
         return f"https://www.youtube.com/results?search_query={q}+full+course"
+    elif "freecodecamp" in provider_lower:
+        return f"https://www.freecodecamp.org/news/search/?query={q}"
+    elif "khan" in provider_lower:
+        return f"https://www.khanacademy.org/search?page_search_query={q}"
+    elif "mit" in provider_lower:
+        return f"https://ocw.mit.edu/search/?q={q}"
+    elif "harvard" in provider_lower or "cs50" in provider_lower:
+        return f"https://www.edx.org/search?q={q}"
+    elif "github" in provider_lower:
+        return f"https://github.com/search?q={q}&type=repositories"
+    elif "anthropic" in provider_lower:
+        return f"https://docs.anthropic.com/search?q={q}"
+    elif "openai" in provider_lower:
+        return f"https://platform.openai.com/docs/search?query={q}"
+    elif "google" in provider_lower or "digital garage" in provider_lower:
+        return f"https://learndigital.withgoogle.com/digitalgarage/courses"
+    elif "cohere" in provider_lower:
+        return f"https://docs.cohere.com/docs/llmu"
     else:
-        # Default to Google search for the course
-        return f"https://www.google.com/search?q={q}+online+course"
+        # Default to YouTube search — always free and accessible
+        return f"https://www.youtube.com/results?search_query={q}+tutorial+course"
 
 
 async def _validate_course_links(courses: list[dict]) -> list[dict]:
@@ -338,6 +367,26 @@ async def interview(
         m["content"] for m in messages
         if m.get("role") == "assistant" and len(m.get("content", "")) > 15
     ]
+
+    # Detect explicitly rejected topics from user answers
+    forbidden_topics = []
+    rejection_phrases = ["not part of my", "not my area", "i don't work on", "not included in my",
+                         "i never worked on", "not part of my team", "not my responsibility",
+                         "i have never worked", "i don't use", "we don't use", "not related to my",
+                         "isn't part of my", "is not part of my"]
+    for msg in messages:
+        if msg.get("role") == "user":
+            content_lower = msg.get("content", "").lower()
+            if any(phrase in content_lower for phrase in rejection_phrases):
+                forbidden_topics.append(msg["content"][:200])
+
+    if forbidden_topics and not req.is_clarification:
+        forbidden_note = (
+            "FORBIDDEN — the employee explicitly said these topics are NOT part of their role. "
+            "You MUST NOT ask about them again under any circumstances:\n"
+            + "\n".join(f"- Employee said: {t}" for t in forbidden_topics[-5:])
+        )
+        llm_messages.append({"role": "system", "content": forbidden_note})
 
     if req.is_clarification:
         llm_messages.append({"role": "system", "content": "The employee is asking for clarification on your last question. Explain it clearly in plain text (no markdown). Keep it to 2 sentences. Then re-ask the same question more simply. Do NOT move to a new topic."})

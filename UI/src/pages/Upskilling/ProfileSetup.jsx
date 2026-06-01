@@ -21,18 +21,21 @@ export default function ProfileSetup() {
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [step, setStep] = useState(0);
+  const [profileLoading, setProfileLoading] = useState(true);
   const fileRef = useRef();
 
   useEffect(() => {
-    api.get('/auth/me').then((user) => {
-      setForm((f) => ({ ...f, name: user.name || '', designation: user.designation || '', experience: user.experience || '', department: user.department || '' }));
-    }).catch(() => { });
-    api.get('/profile').then((profile) => {
-      if (profile) {
-        setForm((f) => ({ ...f, summary: profile.summary || '', goals: profile.learning_goals || '' }));
-        if (profile.resume_path) { setResumePath(profile.resume_path); setResumeName('Resume uploaded'); }
-      }
-    }).catch(() => { });
+    Promise.all([
+      api.get('/auth/me').then((user) => {
+        setForm((f) => ({ ...f, name: user.name || '', designation: user.designation || '', experience: user.experience || '', department: user.department || '' }));
+      }).catch(() => {}),
+      api.get('/profile').then((profile) => {
+        if (profile) {
+          setForm((f) => ({ ...f, summary: profile.summary || '', goals: profile.learning_goals || '' }));
+          if (profile.resume_path) { setResumePath(profile.resume_path); setResumeName('Resume uploaded'); }
+        }
+      }).catch(() => {}),
+    ]).finally(() => setProfileLoading(false));
   }, []);
 
   const [errors, setErrors] = useState({});
@@ -140,57 +143,63 @@ export default function ProfileSetup() {
                 <p className="text-xs text-gray-400">Tell us about your current role</p>
               </div>
             </div>
-            <div className="grid sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name <span className="text-red-400">*</span></label>
-                <input value={form.name} onChange={update('name')} placeholder="e.g. Arjun Nair"
-                  className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all ${errors.name ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
-                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Designation <span className="text-red-400">*</span></label>
-                <input value={form.designation} onChange={update('designation')} placeholder="e.g. Senior Editor"
-                  className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all ${errors.designation ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
-                {errors.designation && <p className="text-xs text-red-500 mt-1">{errors.designation}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Years of Experience <span className="text-red-400">*</span></label>
-                <select value={form.experience} onChange={update('experience')}
-                  className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all bg-white appearance-none cursor-pointer ${errors.experience ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
-                  <option value="">Select experience range</option>
-                  <option value="0-2 years">0-2 years</option>
-                  <option value="2-4 years">2-4 years</option>
-                  <option value="4-6 years">4-6 years</option>
-                  <option value="6-8 years">6-8 years</option>
-                  <option value="8-10 years">8-10 years</option>
-                  <option value="10-12 years">10-12 years</option>
-                  <option value="12-14 years">12-14 years</option>
-                  <option value="14-16 years">14-16 years</option>
-                  <option value="16-18 years">16-18 years</option>
-                  <option value="18-20 years">18-20 years</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                <select value={form.department} onChange={update('department')}
-                  className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all bg-white appearance-none cursor-pointer">
-                  <option value="">Select Department</option>
-                  {DEPARTMENTS.map((dept) => (
-                    <option key={dept} value={dept}>{dept}</option>
-                  ))}
-                </select>
-                {errors.experience && <p className="text-xs text-red-500 mt-1">{errors.experience}</p>}
-              </div>
-            </div>
-            <div className="flex justify-end pt-2">
-              <button type="button" onClick={() => tryNextStep(0)}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all text-white shadow-lg"
-                style={{ background: '#F05A28' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
-                onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
-                Next: Background <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
+            {profileLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-orange-400 mx-auto my-8" />
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name <span className="text-red-400">*</span></label>
+                    <input value={form.name} onChange={update('name')} placeholder="e.g. Arjun Nair"
+                      className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all ${errors.name ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                    {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Current Designation <span className="text-red-400">*</span></label>
+                    <input value={form.designation} onChange={update('designation')} placeholder="e.g. Senior Editor"
+                      className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all ${errors.designation ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+                    {errors.designation && <p className="text-xs text-red-500 mt-1">{errors.designation}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Years of Experience <span className="text-red-400">*</span></label>
+                    <select value={form.experience} onChange={update('experience')}
+                      className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all bg-white appearance-none cursor-pointer ${errors.experience ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
+                      <option value="">Select experience range</option>
+                      <option value="0-2 years">0-2 years</option>
+                      <option value="2-4 years">2-4 years</option>
+                      <option value="4-6 years">4-6 years</option>
+                      <option value="6-8 years">6-8 years</option>
+                      <option value="8-10 years">8-10 years</option>
+                      <option value="10-12 years">10-12 years</option>
+                      <option value="12-14 years">12-14 years</option>
+                      <option value="14-16 years">14-16 years</option>
+                      <option value="16-18 years">16-18 years</option>
+                      <option value="18-20 years">18-20 years</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                    <select value={form.department} onChange={update('department')}
+                      className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all bg-white appearance-none cursor-pointer">
+                      <option value="">Select Department</option>
+                      {DEPARTMENTS.map((dept) => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
+                    {errors.experience && <p className="text-xs text-red-500 mt-1">{errors.experience}</p>}
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <button type="button" onClick={() => tryNextStep(0)}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all text-white shadow-lg"
+                    style={{ background: '#F05A28' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
+                    Next: Background <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
