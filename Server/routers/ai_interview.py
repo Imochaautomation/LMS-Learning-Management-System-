@@ -324,6 +324,11 @@ async def interview(
                 InterviewSession.user_id == user.id,
                 InterviewSession.status == "completed"
             ).order_by(InterviewSession.question_index.desc()).first()
+            if session:
+                real = max(0, sum(1 for m in (session.messages or []) if m.get("role") == "user") - 1)
+                if real < 5:
+                    # Found a session but it doesn't have enough answers — don't accept it
+                    return InterviewResponse(follow_up="Your previous interview session was too short. Please complete a full interview first.")
             if session and req.answer.strip() and req.answer.strip() not in ("Ready to finish. Please generate my skill analysis.", "I would like to finish the interview now."):
                 msgs = list(session.messages or [])
                 msgs.append({"role": "user", "content": req.answer})
@@ -331,11 +336,11 @@ async def interview(
                 db.commit()
         else:
             msgs = list(session.messages or [])
-            # Guard: don't complete a session with fewer than 8 real answers
+            # Guard: don't complete a session with fewer than 5 real answers
             real_answers = max(0, sum(1 for m in msgs if m.get("role") == "user") - 1)
-            if real_answers < 8:
+            if real_answers < 5:
                 return InterviewResponse(
-                    follow_up=f"You've answered {real_answers} questions so far — please continue the interview and answer at least 8 questions before finishing. Keep going!"
+                    follow_up=f"You've only answered {real_answers} questions so far. Please answer at least 5 before finishing."
                 )
             msgs.append({"role": "user", "content": req.answer})
             session.messages = msgs
@@ -499,8 +504,8 @@ async def generate_analysis(
         InterviewSession.status == "completed"
     ).order_by(InterviewSession.question_index.desc(), InterviewSession.completed_at.desc()).all()
 
-    # Find best session: must have at least 8 real user answers (index 0 is just the initial trigger)
-    MIN_ANSWERS = 8
+    # Find best session: must have at least 5 real user answers (index 0 is just the initial trigger)
+    MIN_ANSWERS = 5
     session = None
     for s in completed_sessions:
         msgs = s.messages or []
@@ -509,6 +514,22 @@ async def generate_analysis(
         if real_answers >= MIN_ANSWERS:
             session = s
             break
+
+    # Also check the most recent in_progress session as last resort
+    if not session:
+        in_progress_session = db.query(InterviewSession).filter(
+            InterviewSession.user_id == req.user_id,
+            InterviewSession.status == "in_progress"
+        ).order_by(InterviewSession.question_index.desc()).first()
+        if in_progress_session:
+            msgs = in_progress_session.messages or []
+            real_answers = max(0, sum(1 for m in msgs if m.get("role") == "user") - 1)
+            if real_answers >= MIN_ANSWERS:
+                # Complete this session now and use it
+                in_progress_session.status = "completed"
+                in_progress_session.completed_at = datetime.utcnow()
+                db.commit()
+                session = in_progress_session
 
     if not session:
         best = completed_sessions[0] if completed_sessions else None
