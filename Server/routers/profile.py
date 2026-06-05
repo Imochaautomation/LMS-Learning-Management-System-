@@ -66,6 +66,36 @@ def upload_resume(file: UploadFile = File(...), user: User = Depends(get_current
     return {"resume_path": f"/uploads/resumes/{fname}"}
 
 
+@router.post("/avatar")
+def upload_avatar(file: UploadFile = File(...), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Validate image type
+    allowed = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed:
+        raise HTTPException(status_code=400, detail="Only image files are allowed (jpg, png, gif, webp)")
+
+    os.makedirs(os.path.join(UPLOAD_DIR, "avatars"), exist_ok=True)
+    fname = f"{user.id}_{uuid.uuid4().hex[:8]}{ext}"
+    path = os.path.join(UPLOAD_DIR, "avatars", fname)
+    with open(path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    profile = db.query(Profile).filter(Profile.user_id == user.id).first()
+    if not profile:
+        profile = Profile(user_id=user.id, avatar_path=f"/uploads/avatars/{fname}")
+        db.add(profile)
+    else:
+        profile.avatar_path = f"/uploads/avatars/{fname}"
+    db.commit()
+    return {"avatar_path": f"/uploads/avatars/{fname}"}
+
+
+@router.get("/avatar")
+def get_avatar(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = db.query(Profile).filter(Profile.user_id == user.id).first()
+    return {"avatar_path": profile.avatar_path if profile else None}
+
+
 @router.get("/me/skill-gaps", response_model=list[SkillGapOut])
 def my_skill_gaps(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = db.query(InterviewSession).filter(

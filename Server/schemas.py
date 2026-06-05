@@ -65,6 +65,7 @@ class ProfileOut(BaseModel):
     summary: Optional[str] = None
     learning_goals: Optional[str] = None
     resume_path: Optional[str] = None
+    avatar_path: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

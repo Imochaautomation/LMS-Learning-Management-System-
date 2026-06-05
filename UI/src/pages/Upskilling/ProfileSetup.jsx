@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import BackButton from '../../components/shared/BackButton';
 import { UserCircle, Briefcase, Target, Upload, FileText, Check, Loader2, Sparkles, Rocket, Brain, ArrowRight } from 'lucide-react';
 
@@ -14,6 +15,7 @@ const DEPARTMENTS = [
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
+  const { setAvatarUrl } = useAuth();
   const [form, setForm] = useState({ name: '', designation: '', experience: '', department: '', summary: '', goals: '' });
   const [resumeName, setResumeName] = useState('');
   const [resumePath, setResumePath] = useState('');
@@ -22,7 +24,10 @@ export default function ProfileSetup() {
   const [uploading, setUploading] = useState(false);
   const [step, setStep] = useState(0);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileRef = useRef();
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     Promise.all([
@@ -36,6 +41,12 @@ export default function ProfileSetup() {
         }
       }).catch(() => {}),
     ]).finally(() => setProfileLoading(false));
+    api.get('/profile/avatar').then(r => {
+      if (r.avatar_path) {
+        const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        setAvatarPreview(`${base}${r.avatar_path}`);
+      }
+    }).catch(() => {});
   }, []);
 
   const [errors, setErrors] = useState({});
@@ -86,6 +97,24 @@ export default function ProfileSetup() {
     try { const res = await api.upload('/profile/resume', fd); setResumePath(res.resume_path); setResumeName(file.name); }
     catch (err) { console.error(err.message); }
     finally { setUploading(false); }
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    // Show local preview immediately
+    setAvatarPreview(URL.createObjectURL(file));
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await api.upload('/profile/avatar', fd);
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      setAvatarPreview(`${base}${res.avatar_path}`);
+      // Update context
+      if (typeof setAvatarUrl === 'function') setAvatarUrl(`${base}${res.avatar_path}`);
+    } catch (err) { console.error(err); }
+    finally { setUploadingAvatar(false); }
   };
 
   return (
@@ -147,6 +176,28 @@ export default function ProfileSetup() {
               <Loader2 className="w-6 h-6 animate-spin text-orange-400 mx-auto my-8" />
             ) : (
               <>
+                {/* Profile Photo */}
+                <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300 cursor-pointer hover:border-orange-400 transition-colors"
+                      onClick={() => avatarInputRef.current?.click()}>
+                      {avatarPreview
+                        ? <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
+                        : <UserCircle className="w-8 h-8 text-gray-300" />
+                      }
+                      {uploadingAvatar && <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-2xl"><Loader2 className="w-5 h-5 text-white animate-spin" /></div>}
+                    </div>
+                    <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700">Profile Photo</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Click to upload (JPG, PNG)</p>
+                    <button type="button" onClick={() => avatarInputRef.current?.click()}
+                      className="mt-2 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                      {avatarPreview ? 'Change Photo' : 'Upload Photo'}
+                    </button>
+                  </div>
+                </div>
                 <div className="grid sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Full Name <span className="text-red-400">*</span></label>

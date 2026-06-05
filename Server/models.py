@@ -35,6 +35,7 @@ class Profile(Base):
     summary = Column(Text, nullable=True)
     learning_goals = Column(Text, nullable=True)
     resume_path = Column(String(500), nullable=True)
+    avatar_path = Column(String(500), nullable=True)
     created_at = Column(DateTime, server_default=_now)
     updated_at = Column(DateTime, server_default=_now, server_onupdate=_now)
 

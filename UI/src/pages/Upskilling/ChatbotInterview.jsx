@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/client';
-import BackButton from '../../components/shared/BackButton';
-import { Send, Loader2, User, CheckCircle, ExternalLink, Zap, Mic, MicOff } from 'lucide-react';
+import { Send, Loader2, User, CheckCircle, ExternalLink, Mic, MicOff, ArrowLeft } from 'lucide-react';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
 
 const MIN_QUESTIONS = 15;
@@ -24,18 +23,8 @@ function JarvisAvatar({ size = 'md' }) {
   );
 }
 
-function SessionDivider({ label }) {
-  return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="flex-1 h-px bg-gray-200" />
-      <span className="text-xs text-gray-400 font-medium px-2 whitespace-nowrap">{label}</span>
-      <div className="flex-1 h-px bg-gray-200" />
-    </div>
-  );
-}
-
 export default function ChatbotInterview() {
-  const { user } = useAuth();
+  const { user, avatarUrl } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -46,7 +35,6 @@ export default function ChatbotInterview() {
 
   const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI skill interviewer from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time.\n\nLet's get started!`;
 
-  // Each item: { type: 'session', label, messages: [{role,text}] } | { role, text }
   const [chatBlocks, setChatBlocks] = useState([]);
   const [input, setInput] = useState('');
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -58,13 +46,20 @@ export default function ChatbotInterview() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisError, setAnalysisError] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [previousSessions, setPreviousSessions] = useState([]);
+  const [viewingSession, setViewingSession] = useState(null);
   const { toasts, removeToast, toast } = useToast();
 
   const canFinishEarly = questionIndex >= MIN_QUESTIONS && !finished && !awaitingWrapup;
   const progress = Math.min((questionIndex / MAX_QUESTIONS) * 100, 100);
 
-  // Flatten chatBlocks into a flat list of messages for rendering
-  const allMessages = chatBlocks;
+  // Auto-resize textarea when input changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '44px';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 140) + 'px';
+    }
+  }, [input]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,43 +68,23 @@ export default function ChatbotInterview() {
   // Load session history on mount
   useEffect(() => {
     api.get('/ai/session').then((sessions) => {
-      const blocks = [];
       const inProgress = sessions.find(s => s.status === 'in_progress');
-      const completed = sessions.filter(s => s.status === 'completed');
-      const abandoned = sessions.filter(s => s.status === 'abandoned');
+      const past = sessions.filter(s => s.status !== 'in_progress').sort((a, b) => b.id - a.id);
 
-      // Show all past sessions (completed + abandoned) as archived blocks
-      const past = [...completed, ...abandoned].sort((a, b) => a.id - b.id);
-      past.forEach((s, idx) => {
-        const date = s.completed_at ? new Date(s.completed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : `Session ${idx + 1}`;
-        const label = s.status === 'abandoned' ? `Interrupted session — ${date}` : `Interview session — ${date}`;
-        blocks.push({ type: 'divider', label });
-        (s.messages || []).forEach(m => {
-          blocks.push({ role: m.role === 'user' ? 'user' : 'bot', text: cleanText(m.content || '') });
-        });
-      });
+      // Store past sessions for the history panel
+      setPreviousSessions(past);
 
-      // Current in-progress session
+      // Main chat: only current session or fresh welcome
+      const blocks = [];
       if (inProgress && (inProgress.messages || []).length > 0) {
-        const restoredIndex = inProgress.question_index || 0;
-        blocks.push({ type: 'divider', label: 'Current session (in progress)' });
         (inProgress.messages || []).forEach(m => {
           blocks.push({ role: m.role === 'user' ? 'user' : 'bot', text: cleanText(m.content || '') });
         });
-        setQuestionIndex(restoredIndex);
-        // If session is at or past the last question, restore wrapup state
-        if (restoredIndex > MAX_QUESTIONS) {
-          setAwaitingWrapup(true);
-        }
-      } else if (past.length > 0) {
-        // Past sessions exist but no active session — show welcome for new retake
-        blocks.push({ type: 'divider', label: 'New interview' });
-        blocks.push({ role: 'bot', text: welcome });
+        setQuestionIndex(inProgress.question_index || 0);
+        if ((inProgress.question_index || 0) > MAX_QUESTIONS) setAwaitingWrapup(true);
       } else {
-        // Brand new user
         blocks.push({ role: 'bot', text: welcome });
       }
-
       setChatBlocks(blocks);
     }).catch(() => {
       setChatBlocks([{ role: 'bot', text: welcome }]);
@@ -142,7 +117,6 @@ export default function ChatbotInterview() {
     r.onresult = (e) => {
       let newFinal = '';
       let interim = '';
-      // Only process results we haven't finalized yet
       for (let i = resultIndexRef.current; i < e.results.length; i++) {
         if (e.results[i].isFinal) {
           newFinal += e.results[i][0].transcript + ' ';
@@ -151,7 +125,6 @@ export default function ChatbotInterview() {
         }
       }
       if (newFinal) {
-        // Advance the finalized index so we never re-process these results
         resultIndexRef.current = e.results.length;
         const appended = committedTranscriptRef.current
           ? committedTranscriptRef.current + ' ' + newFinal.trim()
@@ -159,7 +132,6 @@ export default function ChatbotInterview() {
         committedTranscriptRef.current = appended;
         setInput(appended);
       } else if (interim) {
-        // Show the current interim text after the committed portion (real-time preview)
         const preview = committedTranscriptRef.current
           ? committedTranscriptRef.current + ' ' + interim
           : interim;
@@ -204,7 +176,6 @@ export default function ChatbotInterview() {
         setQuestionIndex(nextQ);
 
         if (nextQ > MAX_QUESTIONS) {
-          // All MAX_QUESTIONS answers received — now show wrapup
           appendMessage({ role: 'bot', text: reply });
           appendMessage({ role: 'bot', text: `That wraps up all ${MAX_QUESTIONS} questions! Before I generate your skill analysis, is there anything you'd like to add or clarify? Just type your response, or click "Finish & Generate Report" when you're ready.` });
           setAwaitingWrapup(true);
@@ -246,7 +217,6 @@ export default function ChatbotInterview() {
         total_questions: MAX_QUESTIONS,
         force_complete: true,
       });
-      // If backend blocked due to insufficient answers, show the message and stay in interview
       if (res?.follow_up && res.follow_up.includes('please continue')) {
         appendMessage({ role: 'bot', text: res.follow_up });
         setLoading(false);
@@ -294,7 +264,6 @@ export default function ChatbotInterview() {
       const msg = err.message || '';
       if (msg.includes('incomplete') || msg.includes('400')) {
         toast.error('Interview incomplete — please answer at least 8 questions before generating your report.');
-        // Push user back to active interview
         setFinished(false);
         setAwaitingWrapup(false);
       } else {
@@ -306,14 +275,77 @@ export default function ChatbotInterview() {
   };
 
   return (
-    <div className="space-y-4 max-w-3xl mx-auto">
+    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-      <BackButton to="/upskilling" label="Back to Dashboard" />
 
-      {/* Header */}
-      <div className="rounded-2xl p-4 text-white" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
+      {/* Session transcript modal */}
+      {viewingSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setViewingSession(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h3 className="font-bold text-gray-900">Interview Transcript</h3>
+                <p className="text-xs text-gray-400">
+                  {viewingSession.completed_at
+                    ? new Date(viewingSession.completed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                    : 'Past session'}
+                  {' · '}{(viewingSession.messages || []).filter(m => m.role === 'user').length} answers
+                </p>
+              </div>
+              <button onClick={() => setViewingSession(null)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {(() => {
+                const msgs = viewingSession.messages || [];
+                const pairs = [];
+                for (let i = 0; i < msgs.length; i++) {
+                  if (msgs[i].role === 'assistant' && i + 1 < msgs.length && msgs[i + 1].role === 'user') {
+                    pairs.push({ q: cleanText(msgs[i].content || ''), a: cleanText(msgs[i + 1].content || '') });
+                  }
+                }
+                return pairs.map((pair, i) => (
+                  <div key={i} className="border border-gray-100 rounded-xl p-4">
+                    <p className="text-xs font-bold text-orange-600 mb-1">Q{i + 1}. {pair.q}</p>
+                    <p className="text-sm text-gray-700">{pair.a}</p>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Past sessions bar */}
+      {previousSessions.length > 0 && (
+        <div className="px-4 py-2 flex items-center gap-2 flex-wrap border-b border-gray-100 bg-gray-50 flex-shrink-0">
+          <span className="text-xs font-semibold text-gray-400 mr-1">Past interviews:</span>
+          {previousSessions.slice(0, 5).map((s, i) => {
+            const date = s.completed_at
+              ? new Date(s.completed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+              : `Session ${i + 1}`;
+            const qCount = (s.messages || []).filter(m => m.role === 'user').length;
+            return (
+              <button key={s.id} onClick={() => setViewingSession(s)}
+                className="text-xs px-3 py-1 rounded-full border border-gray-200 bg-white hover:bg-orange-50 hover:border-orange-300 text-gray-600 transition-all">
+                {date} · {qCount} answers
+              </button>
+            );
+          })}
+          {previousSessions.length > 5 && (
+            <span className="text-xs text-gray-400 italic">+{previousSessions.length - 5} older</span>
+          )}
+        </div>
+      )}
+
+      {/* Orange header */}
+      <div className="px-6 py-4 text-white flex-shrink-0" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/upskilling')}
+              className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors mr-1"
+              title="Back to Dashboard">
+              <ArrowLeft className="w-4 h-4 text-white" />
+            </button>
             <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center font-black text-2xl shadow-inner">J</div>
             <div>
               <h1 className="text-lg font-bold">Jarvis · AI Skill Interviewer</h1>
@@ -322,6 +354,12 @@ export default function ChatbotInterview() {
               </p>
             </div>
           </div>
+          {canFinishEarly && (
+            <button onClick={finishEarly}
+              className="text-xs px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors font-medium">
+              Finish Early
+            </button>
+          )}
         </div>
         <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
           <div className="h-full bg-white/80 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
@@ -331,163 +369,150 @@ export default function ChatbotInterview() {
         </div>
       </div>
 
-      {/* Chat window */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden" style={{ height: '65vh' }}>
-        <div className="h-full flex flex-col">
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {!sessionLoaded && (
-              <div className="flex justify-center py-6">
-                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-              </div>
-            )}
-            {allMessages.map((msg, i) => {
-              if (msg.type === 'divider') {
-                return <SessionDivider key={i} label={msg.label} />;
-              }
-              return (
-                <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  {msg.role === 'bot'
-                    ? <JarvisAvatar size="sm" />
-                    : <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4 text-gray-500" />
-                      </div>
-                  }
-                  <div className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === 'bot'
-                      ? 'bg-gray-100 text-gray-800 rounded-tl-none'
-                      : 'text-white rounded-tr-none'
-                  }`}
-                  style={msg.role !== 'bot' ? { background: '#F05A28' } : {}}>
-                    {msg.text}
-                  </div>
-                </div>
-              );
-            })}
-            {loading && (
-              <div className="flex gap-3">
-                <JarvisAvatar size="sm" />
-                <div className="bg-gray-100 px-4 py-3 rounded-2xl rounded-tl-none flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input area */}
-          {!finished && !awaitingWrapup && sessionLoaded && (
-            <div className="border-t border-gray-200 p-3 flex gap-2 items-end">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  e.target.style.height = '44px';
-                  e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px';
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-                }}
-                placeholder={isListening ? '🎙 Listening... speak now' : 'Type your answer or use the mic... (Shift+Enter for new line)'}
-                disabled={loading}
-                rows={1}
-                className="flex-1 px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none overflow-y-auto"
-                style={{ minHeight: '44px', maxHeight: '140px' }}
-              />
-              {/* Voice button: Mic icon when ON (listening), MicOff icon when OFF */}
-              <button onClick={startVoice} disabled={loading}
-                className={`p-3 rounded-xl shrink-0 transition-all ${isListening ? 'text-white animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                style={isListening ? { background: '#F05A28' } : {}}
-                title={isListening ? 'Mic is ON — click to stop' : 'Click to start voice input'}>
-                {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-              </button>
-              <button onClick={sendMessage} disabled={!input.trim() || loading}
-                className="p-3 text-white rounded-xl disabled:opacity-50 shrink-0 transition-colors"
-                style={{ background: '#F05A28' }}
-                onMouseEnter={e => { if (!(!input.trim() || loading)) e.currentTarget.style.background = '#c2410c'; }}
-                onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
-                <Send className="w-4 h-4" />
-              </button>
+      {/* Chat window — fills remaining height */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-white">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {!sessionLoaded && (
+            <div className="flex justify-center py-6">
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
             </div>
           )}
-
-          {/* Wrapup confirmation */}
-          {awaitingWrapup && !finished && (
-            <div className="border-t border-gray-200 p-4 space-y-3">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  e.target.style.height = '44px';
-                  e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
-                }}
-                placeholder="Any final thoughts to add? (optional — press the button below to finish)"
-                disabled={loading}
-                rows={1}
-                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none"
-                style={{ minHeight: '44px', maxHeight: '100px' }}
-              />
-              <button onClick={handleWrapupConfirm} disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3 text-white font-semibold rounded-xl transition-colors"
-                style={{ background: '#16a34a' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
-                onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}>
-                <CheckCircle className="w-4 h-4" /> Finish & Generate My Report
-              </button>
-            </div>
-          )}
-
-          {/* Post-interview: generate analysis */}
-          {finished && !analysisResult && (
-            <div className="border-t border-gray-200 p-4 text-center space-y-2">
-              <button onClick={generateAnalysis} disabled={generating}
-                className="flex items-center gap-2 mx-auto px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-60">
-                {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                {generating ? 'Generating analysis… this may take a minute' : 'Generate My Skill Analysis & Course Recommendations'}
-              </button>
-              {analysisError && (
-                <p className="text-xs text-red-500">Generation failed — please retry. If it keeps failing, try refreshing and coming back.</p>
-              )}
-            </div>
-          )}
-
-          {/* Results */}
-          {finished && analysisResult && (
-            <div className="border-t border-gray-200 p-4 space-y-4">
-              <p className="text-sm font-semibold text-emerald-700 flex items-center justify-center gap-2">
-                <CheckCircle className="w-4 h-4" /> Analysis complete! Here are your recommended courses:
-              </p>
-              <div className="max-h-48 overflow-y-auto space-y-2">
-                {analysisResult.map((c, i) => (
-                  <div key={c.id || i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900 truncate">{c.title}</p>
-                      <p className="text-xs text-gray-400">{c.provider}{c.duration ? ` · ${c.duration}` : ''}{c.free ? ' · Free' : ''}</p>
+          {chatBlocks.map((msg, i) => (
+            <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              {msg.role === 'bot'
+                ? <JarvisAvatar size="sm" />
+                : avatarUrl
+                  ? <img src={avatarUrl} alt="You" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                  : <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
+                      <User className="w-4 h-4 text-gray-500" />
                     </div>
-                    {c.link && (
-                      <a href={c.link} target="_blank" rel="noreferrer"
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 shrink-0 ml-2 font-medium">
-                        View <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                  </div>
-                ))}
+              }
+              <div className={`max-w-[78%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                msg.role === 'bot'
+                  ? 'bg-gray-100 text-gray-800 rounded-tl-none'
+                  : 'text-white rounded-tr-none'
+              }`}
+              style={msg.role !== 'bot' ? { background: '#F05A28' } : {}}>
+                {msg.text}
               </div>
-              <div className="text-center">
-                <button onClick={() => navigate('/upskilling')}
-                  className="inline-flex items-center gap-2 px-6 py-3 text-white font-medium rounded-xl"
-                  style={{ background: '#F05A28' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
-                  Go to Dashboard →
-                </button>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex gap-3">
+              <JarvisAvatar size="sm" />
+              <div className="bg-gray-100 px-4 py-3 rounded-2xl rounded-tl-none flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
+
+        {/* Input area */}
+        {!finished && !awaitingWrapup && sessionLoaded && (
+          <div className="border-t border-gray-200 p-3 flex gap-2 items-end flex-shrink-0">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+              }}
+              placeholder={isListening ? '🎙 Listening... speak now' : 'Type your answer or use the mic... (Shift+Enter for new line)'}
+              disabled={loading}
+              rows={1}
+              className="flex-1 px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none overflow-y-auto"
+              style={{ minHeight: '44px', maxHeight: '140px' }}
+            />
+            {/* Voice button */}
+            <button onClick={startVoice} disabled={loading}
+              className={`p-3 rounded-xl shrink-0 transition-all ${isListening ? 'text-white animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              style={isListening ? { background: '#F05A28' } : {}}
+              title={isListening ? 'Mic is ON — click to stop' : 'Click to start voice input'}>
+              {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+            </button>
+            <button onClick={sendMessage} disabled={!input.trim() || loading}
+              className="p-3 text-white rounded-xl disabled:opacity-50 shrink-0 transition-colors"
+              style={{ background: '#F05A28' }}
+              onMouseEnter={e => { if (!(!input.trim() || loading)) e.currentTarget.style.background = '#c2410c'; }}
+              onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Wrapup confirmation */}
+        {awaitingWrapup && !finished && (
+          <div className="border-t border-gray-200 p-4 space-y-3 flex-shrink-0">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Any final thoughts to add? (optional — press the button below to finish)"
+              disabled={loading}
+              rows={1}
+              className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none"
+              style={{ minHeight: '44px', maxHeight: '100px' }}
+            />
+            <button onClick={handleWrapupConfirm} disabled={loading}
+              className="w-full flex items-center justify-center gap-2 py-3 text-white font-semibold rounded-xl transition-colors"
+              style={{ background: '#16a34a' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
+              onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}>
+              <CheckCircle className="w-4 h-4" /> Finish & Generate My Report
+            </button>
+          </div>
+        )}
+
+        {/* Post-interview: generate analysis */}
+        {finished && !analysisResult && (
+          <div className="border-t border-gray-200 p-4 text-center space-y-2 flex-shrink-0">
+            <button onClick={generateAnalysis} disabled={generating}
+              className="flex items-center gap-2 mx-auto px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-60">
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              {generating ? 'Generating analysis… this may take a minute' : 'Generate My Skill Analysis & Course Recommendations'}
+            </button>
+            {analysisError && (
+              <p className="text-xs text-red-500">Generation failed — please retry. If it keeps failing, try refreshing and coming back.</p>
+            )}
+          </div>
+        )}
+
+        {/* Results */}
+        {finished && analysisResult && (
+          <div className="border-t border-gray-200 p-4 space-y-4 flex-shrink-0">
+            <p className="text-sm font-semibold text-emerald-700 flex items-center justify-center gap-2">
+              <CheckCircle className="w-4 h-4" /> Analysis complete! Here are your recommended courses:
+            </p>
+            <div className="max-h-48 overflow-y-auto space-y-2">
+              {analysisResult.map((c, i) => (
+                <div key={c.id || i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{c.title}</p>
+                    <p className="text-xs text-gray-400">{c.provider}{c.duration ? ` · ${c.duration}` : ''}{c.free ? ' · Free' : ''}</p>
+                  </div>
+                  {c.link && (
+                    <a href={c.link} target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 shrink-0 ml-2 font-medium">
+                      View <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="text-center">
+              <button onClick={() => navigate('/upskilling')}
+                className="inline-flex items-center gap-2 px-6 py-3 text-white font-medium rounded-xl"
+                style={{ background: '#F05A28' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
+                onMouseLeave={e => e.currentTarget.style.background = '#F05A28'}>
+                Go to Dashboard →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

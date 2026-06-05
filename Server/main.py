@@ -98,6 +98,19 @@ def startup():
         except Exception:
             pass
 
+    # Add avatar_path to profiles table if not exists
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE profiles ADD COLUMN avatar_path VARCHAR(500)"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(500)"))
+            conn.commit()
+
     from sqlalchemy.orm import Session
     from database import SessionLocal
     from models import User

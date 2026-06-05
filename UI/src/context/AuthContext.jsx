@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem('lms_avatar') || null);
 
   useEffect(() => {
     const token = localStorage.getItem('lms_token');
@@ -15,6 +16,11 @@ export function AuthProvider({ children }) {
       api.get('/auth/me').then((u) => {
         setUser(u);
         localStorage.setItem('lms_user', JSON.stringify(u));
+        api.get('/profile/avatar').then(r => {
+          const url = r.avatar_path ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${r.avatar_path}` : null;
+          setAvatarUrl(url);
+          if (url) localStorage.setItem('lms_avatar', url);
+        }).catch(() => {});
       }).catch(() => {
         localStorage.removeItem('lms_token');
         localStorage.removeItem('lms_user');
@@ -37,7 +43,9 @@ export function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem('lms_token');
     localStorage.removeItem('lms_user');
+    localStorage.removeItem('lms_avatar');
     setUser(null);
+    setAvatarUrl(null);
   };
 
   const roleRoute = (role) => {
@@ -51,7 +59,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, roleRoute }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, roleRoute, avatarUrl, setAvatarUrl }}>
       {children}
     </AuthContext.Provider>
   );
