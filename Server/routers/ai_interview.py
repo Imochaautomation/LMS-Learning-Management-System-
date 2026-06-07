@@ -491,6 +491,30 @@ async def get_session(
     return result
 
 
+@router.get("/debug-sessions")
+async def debug_sessions(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Temporary debug: show session summary for current user."""
+    import os as _os
+    all_s = db.query(InterviewSession).filter(InterviewSession.user_id == user.id).all()
+    return {
+        "user_id": user.id,
+        "db_url_type": "sqlite" if "sqlite" in str(db.bind.url) else "postgres",
+        "session_count": len(all_s),
+        "sessions": [
+            {
+                "id": s.id,
+                "status": s.status,
+                "question_index": s.question_index,
+                "user_message_count": sum(1 for m in (s.messages or []) if m.get("role") == "user"),
+            }
+            for s in all_s
+        ],
+    }
+
+
 @router.post("/generate-analysis")
 async def generate_analysis(
     req: AnalysisRequest,
