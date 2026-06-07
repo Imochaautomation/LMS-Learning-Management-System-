@@ -497,66 +497,62 @@ async def generate_analysis(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Pick the most complete session (highest question_index), not just most recent.
-    # This prevents a short "accidental" session from overriding the real 15-question one.
-    completed_sessions = db.query(InterviewSession).filter(
-        InterviewSession.user_id == req.user_id,
-        InterviewSession.status == "completed"
-    ).order_by(InterviewSession.question_index.desc(), InterviewSession.completed_at.desc()).all()
+    # Always use the JWT-authenticated user's ID — sessions are always created under user.id.
+    # req.user_id is kept for backwards compatibility but user.id is authoritative.
+    lookup_id = user.id
 
-    # Find best completed session: at least 3 real user answers
-    MIN_ANSWERS = 3
-    session = None
-    for s in completed_sessions:
-        msgs = s.messages or []
-        real_answers = max(0, sum(1 for m in msgs if m.get("role") == "user") - 1)
-        if real_answers >= MIN_ANSWERS:
-            session = s
-            break
+    def _count_real(s):
+        return max(0, sum(1 for m in (s.messages or []) if m.get("role") == "user") - 1)
 
-    # Also check the most recent in_progress session
-    if not session:
-        in_progress_session = db.query(InterviewSession).filter(
-            InterviewSession.user_id == req.user_id,
+    def _best_session(uid):
+        """Return the best session for a given user_id, or None."""
+        completed = db.query(InterviewSession).filter(
+            InterviewSession.user_id == uid,
+            InterviewSession.status == "completed"
+        ).order_by(InterviewSession.question_index.desc(), InterviewSession.completed_at.desc()).all()
+
+        MIN_ANSWERS = 3
+        # First pass: sessions with enough answers
+        for s in completed:
+            if _count_real(s) >= MIN_ANSWERS:
+                return s
+
+        # Fallback: promote best in_progress session
+        ip = db.query(InterviewSession).filter(
+            InterviewSession.user_id == uid,
             InterviewSession.status == "in_progress"
         ).order_by(InterviewSession.question_index.desc()).first()
-        if in_progress_session:
-            msgs = in_progress_session.messages or []
-            real_answers = max(0, sum(1 for m in msgs if m.get("role") == "user") - 1)
-            if real_answers >= MIN_ANSWERS:
-                in_progress_session.status = "completed"
-                in_progress_session.completed_at = datetime.utcnow()
-                db.commit()
-                session = in_progress_session
+        if ip and _count_real(ip) >= MIN_ANSWERS:
+            ip.status = "completed"
+            ip.completed_at = datetime.utcnow()
+            db.commit()
+            return ip
 
-    # Last resort: use whichever session has the most real answers, even if below MIN_ANSWERS
+        # Last resort: pick whichever has the most answers (completed or in_progress)
+        candidates = list(completed)
+        if ip:
+            candidates.append(ip)
+        if candidates:
+            best = max(candidates, key=_count_real)
+            if _count_real(best) >= 1:
+                if best.status == "in_progress":
+                    best.status = "completed"
+                    best.completed_at = datetime.utcnow()
+                    db.commit()
+                return best
+        return None
+
+    session = _best_session(lookup_id)
+    # Also try req.user_id in case there's a mismatch (shouldn't happen but safe)
+    if not session and req.user_id != lookup_id:
+        session = _best_session(req.user_id)
+
     if not session:
-        all_sessions = completed_sessions[:]
-        if not all_sessions:
-            # Also grab in_progress as absolute last resort
-            fallback_ip = db.query(InterviewSession).filter(
-                InterviewSession.user_id == req.user_id,
-                InterviewSession.status == "in_progress"
-            ).order_by(InterviewSession.question_index.desc()).first()
-            if fallback_ip:
-                fallback_ip.status = "completed"
-                fallback_ip.completed_at = datetime.utcnow()
-                db.commit()
-                all_sessions = [fallback_ip]
-        if all_sessions:
-            # Pick the session with the most real answers
-            def _count_real(s):
-                return max(0, sum(1 for m in (s.messages or []) if m.get("role") == "user") - 1)
-            session = max(all_sessions, key=_count_real)
-            real_count = _count_real(session)
-            if real_count < 1:
-                raise HTTPException(status_code=404, detail="No completed interview found. Please complete the AI interview first.")
-        else:
-            raise HTTPException(status_code=404, detail="No completed interview found. Please complete the AI interview first.")
+        raise HTTPException(status_code=404, detail="No completed interview found. Please complete the AI interview first.")
 
     # Fetch profile for personalised analysis
-    target_user = db.query(User).filter(User.id == req.user_id).first()
-    profile = db.query(Profile).filter(Profile.user_id == req.user_id).first()
+    target_user = db.query(User).filter(User.id == lookup_id).first() or user
+    profile = db.query(Profile).filter(Profile.user_id == lookup_id).first()
 
     # Build conversation text
     conversation = "\n".join([
@@ -646,12 +642,12 @@ async def generate_analysis(
         pass  # If validation fails, save courses as-is
     for c in courses:
         existing = db.query(UserCourse).filter(
-            UserCourse.user_id == req.user_id,
+            UserCourse.user_id == lookup_id,
             UserCourse.title == c["title"],
         ).first()
         if not existing:
             db.add(UserCourse(
-                user_id=req.user_id,
+                user_id=lookup_id,
                 title=c["title"],
                 provider=c.get("provider"),
                 link=c.get("link"),
