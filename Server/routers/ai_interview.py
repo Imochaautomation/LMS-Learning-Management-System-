@@ -504,18 +504,17 @@ async def generate_analysis(
         InterviewSession.status == "completed"
     ).order_by(InterviewSession.question_index.desc(), InterviewSession.completed_at.desc()).all()
 
-    # Find best session: must have at least 5 real user answers (index 0 is just the initial trigger)
-    MIN_ANSWERS = 5
+    # Find best completed session: at least 3 real user answers
+    MIN_ANSWERS = 3
     session = None
     for s in completed_sessions:
         msgs = s.messages or []
-        # Count real answers: subtract 1 for the initial "yes go" trigger message
         real_answers = max(0, sum(1 for m in msgs if m.get("role") == "user") - 1)
         if real_answers >= MIN_ANSWERS:
             session = s
             break
 
-    # Also check the most recent in_progress session as last resort
+    # Also check the most recent in_progress session
     if not session:
         in_progress_session = db.query(InterviewSession).filter(
             InterviewSession.user_id == req.user_id,
@@ -525,21 +524,35 @@ async def generate_analysis(
             msgs = in_progress_session.messages or []
             real_answers = max(0, sum(1 for m in msgs if m.get("role") == "user") - 1)
             if real_answers >= MIN_ANSWERS:
-                # Complete this session now and use it
                 in_progress_session.status = "completed"
                 in_progress_session.completed_at = datetime.utcnow()
                 db.commit()
                 session = in_progress_session
 
+    # Last resort: use whichever session has the most real answers, even if below MIN_ANSWERS
     if not session:
-        best = completed_sessions[0] if completed_sessions else None
-        if best:
-            real = max(0, sum(1 for m in (best.messages or []) if m.get("role") == "user") - 1)
-            raise HTTPException(
-                status_code=400,
-                detail=f"Interview incomplete — only {real} real answers found. Please complete at least {MIN_ANSWERS} questions before generating your analysis."
-            )
-        raise HTTPException(status_code=404, detail="No completed interview found. Please complete the AI interview first.")
+        all_sessions = completed_sessions[:]
+        if not all_sessions:
+            # Also grab in_progress as absolute last resort
+            fallback_ip = db.query(InterviewSession).filter(
+                InterviewSession.user_id == req.user_id,
+                InterviewSession.status == "in_progress"
+            ).order_by(InterviewSession.question_index.desc()).first()
+            if fallback_ip:
+                fallback_ip.status = "completed"
+                fallback_ip.completed_at = datetime.utcnow()
+                db.commit()
+                all_sessions = [fallback_ip]
+        if all_sessions:
+            # Pick the session with the most real answers
+            def _count_real(s):
+                return max(0, sum(1 for m in (s.messages or []) if m.get("role") == "user") - 1)
+            session = max(all_sessions, key=_count_real)
+            real_count = _count_real(session)
+            if real_count < 1:
+                raise HTTPException(status_code=404, detail="No completed interview found. Please complete the AI interview first.")
+        else:
+            raise HTTPException(status_code=404, detail="No completed interview found. Please complete the AI interview first.")
 
     # Fetch profile for personalised analysis
     target_user = db.query(User).filter(User.id == req.user_id).first()

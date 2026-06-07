@@ -255,20 +255,22 @@ export default function ChatbotInterview() {
     setGenerating(true);
     setAnalysisError(false);
     try {
+      // Always ensure session is closed before generating analysis
+      try {
+        await api.post('/ai/interview', {
+          question_index: questionIndex,
+          answer: 'Ready to finish. Please generate my skill analysis.',
+          total_questions: MAX_QUESTIONS,
+          force_complete: true,
+        });
+      } catch {}
       await api.post('/ai/generate-analysis', { user_id: user.id });
       const courses = await api.get('/courses/recommended');
       setAnalysisResult(courses);
       toast.success('Skill analysis complete!');
     } catch (err) {
       setAnalysisError(true);
-      const msg = err.message || '';
-      if (msg.includes('incomplete') || msg.includes('400')) {
-        toast.error('Interview incomplete — please answer at least 8 questions before generating your report.');
-        setFinished(false);
-        setAwaitingWrapup(false);
-      } else {
-        toast.error('Analysis generation failed. Please retry in a moment.');
-      }
+      toast.error('Analysis generation failed. Please retry in a moment.');
     }
     setGenerating(false);
     generatingRef.current = false;
