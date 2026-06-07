@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import httpx, json
+from sqlalchemy.orm.attributes import flag_modified
 
 from database import get_db
 from models import User, InterviewSession, UserCourse, CourseBankItem, Profile
@@ -358,8 +359,8 @@ async def interview(
         db.commit()
         db.refresh(session)
 
-    # Add user's answer to history
-    messages = session.messages or []
+    # Always copy the list — SQLAlchemy won't detect mutations to the same JSON object reference
+    messages = list(session.messages or [])
     messages.append({"role": "user", "content": req.answer})
 
     # Fetch profile for personalised context
@@ -437,6 +438,7 @@ async def interview(
 
     messages.append({"role": "assistant", "content": _strip_md(follow_up)})
     session.messages = messages
+    flag_modified(session, "messages")  # Force SQLAlchemy to detect the JSON mutation
 
     if not req.is_clarification:
         session.question_index = req.question_index + 1
