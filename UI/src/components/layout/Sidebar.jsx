@@ -73,12 +73,20 @@ export default function Sidebar() {
       <div className="px-4 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="flex items-center gap-3">
           {avatarUrl
-            ? <img src={avatarUrl} alt={user.name} className="w-11 h-11 rounded-xl object-cover shadow-lg" />
-            : <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-lg"
-                style={{ background: avatarGradient }}>
-                {user.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
-              </div>
-          }
+            ? <img
+                src={avatarUrl}
+                alt={user.name}
+                className="w-11 h-11 rounded-xl object-cover shadow-lg"
+                onError={e => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextSibling.style.display = 'flex';
+                }}
+              />
+            : null}
+          <div className="w-11 h-11 rounded-xl items-center justify-center text-sm font-bold text-white shrink-0 shadow-lg"
+            style={{ background: avatarGradient, display: avatarUrl ? 'none' : 'flex' }}>
+            {user.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
+          </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-white truncate">{user.name}</p>
             <span className="inline-flex items-center mt-0.5 text-[11px] px-2 py-0.5 rounded-full font-semibold"

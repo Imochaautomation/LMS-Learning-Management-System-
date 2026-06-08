@@ -18,8 +18,15 @@ export function AuthProvider({ children }) {
         localStorage.setItem('lms_user', JSON.stringify(u));
         api.get('/profile/avatar').then(r => {
           const url = r.avatar_path ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${r.avatar_path}` : null;
-          setAvatarUrl(url);
-          if (url) localStorage.setItem('lms_avatar', url);
+          if (url) {
+            const probe = new Image();
+            probe.onload = () => { setAvatarUrl(url); localStorage.setItem('lms_avatar', url); };
+            probe.onerror = () => { setAvatarUrl(null); localStorage.removeItem('lms_avatar'); };
+            probe.src = url;
+          } else {
+            setAvatarUrl(null);
+            localStorage.removeItem('lms_avatar');
+          }
         }).catch(() => {});
       }).catch(() => {
         localStorage.removeItem('lms_token');
