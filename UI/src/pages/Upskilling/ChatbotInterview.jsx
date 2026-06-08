@@ -14,12 +14,13 @@ const isClarification = (t) =>
   /\b(explain|clarify|what do you mean|rephrase|don't understand|elaborate|confusing|confused|unclear|can you repeat|what does that mean)\b/i.test(t);
 
 function JarvisAvatar({ size = 'md' }) {
-  const s = size === 'sm' ? 'w-8 h-8 text-sm' : 'w-10 h-10 text-base';
+  const s = size === 'sm' ? 'w-8 h-8' : 'w-10 h-10';
   return (
-    <div className={`${s} rounded-full flex items-center justify-center shrink-0 font-black text-white shadow-md`}
-      style={{ background: 'linear-gradient(135deg, #F05A28 0%, #c2410c 100%)' }}>
-      J
-    </div>
+    <img
+      src="/jarvis-avatar.png"
+      alt="Jarvis"
+      className={`${s} rounded-full object-cover shrink-0 shadow-md`}
+    />
   );
 }
 
@@ -348,7 +349,7 @@ export default function ChatbotInterview() {
               title="Back to Dashboard">
               <ArrowLeft className="w-4 h-4 text-white" />
             </button>
-            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center font-black text-2xl shadow-inner">J</div>
+            <img src="/jarvis-avatar.png" alt="Jarvis" className="w-12 h-12 rounded-2xl object-cover shadow-inner" />
             <div>
               <h1 className="text-lg font-bold">Jarvis · AI Skill Interviewer</h1>
               <p className="text-orange-100 text-sm">
