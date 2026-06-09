@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import BackButton from '../../components/shared/BackButton';
 import {
   Search, ExternalLink, Bookmark, BookmarkX, Play, CheckCircle, Upload, Clock, GraduationCap, Bot, RefreshCw, Loader2
@@ -11,12 +12,14 @@ const tagColor = { 'Gap-Fill': 'bg-red-50 text-red-600', Growth: 'bg-emerald-50 
 
 export default function UpskillCourses() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [courses, setCourses] = useState([]);
   const [recommended, setRecommended] = useState([]);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('recommended');
   const [uploadingFor, setUploadingFor] = useState(null);
   const [retaking, setRetaking] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [redirectModal, setRedirectModal] = useState(null);
   const fileRef = useRef();
   const { toasts, removeToast, toast } = useToast();
@@ -68,6 +71,19 @@ export default function UpskillCourses() {
       setCourses(updated);
       toast.success('Course marked as complete! 🏆');
     } catch (err) { toast.error(`Failed to complete course: ${err.message}`); }
+  };
+
+  const refreshRecommendations = async () => {
+    setRefreshing(true);
+    try {
+      await api.post('/ai/generate-analysis', { user_id: user?.id || 0 });
+      const updated = await api.get('/courses/recommended');
+      setRecommended(updated);
+      toast.success('Recommendations refreshed!');
+    } catch {
+      toast.error('Could not refresh recommendations. Complete your AI interview first.');
+    }
+    setRefreshing(false);
   };
 
   const notInterested = async (courseId) => {
@@ -188,20 +204,32 @@ export default function UpskillCourses() {
     <div className="space-y-6">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <BackButton to="/upskilling" label="Back to Dashboard" />
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">My Courses</h1>
-        <button
-          onClick={async () => {
-            setRetaking(true);
-            try { await api.post('/ai/reset-interview', {}); } catch {}
-            setRetaking(false);
-            navigate('/upskilling/interview');
-          }}
-          disabled={retaking}
-          className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 disabled:opacity-60 transition-colors">
-          {retaking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-          Retake Interview
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refreshRecommendations}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-orange-300 disabled:opacity-60 transition-colors"
+            style={{ color: '#F05A28', background: 'rgba(240,90,40,0.07)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,90,40,0.14)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(240,90,40,0.07)'}>
+            {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            Refresh Recommendations
+          </button>
+          <button
+            onClick={async () => {
+              setRetaking(true);
+              try { await api.post('/ai/reset-interview', {}); } catch {}
+              setRetaking(false);
+              navigate('/upskilling/interview');
+            }}
+            disabled={retaking}
+            className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 disabled:opacity-60 transition-colors">
+            {retaking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
+            Retake Interview
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">

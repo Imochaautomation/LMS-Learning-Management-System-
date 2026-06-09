@@ -43,8 +43,11 @@ export default function ProfileSetup() {
     ]).finally(() => setProfileLoading(false));
     api.get('/profile/avatar').then(r => {
       if (r.avatar_path) {
-        const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-        setAvatarPreview(`${base}${r.avatar_path}`);
+        const url = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${r.avatar_path}`;
+        const probe = new Image();
+        probe.onload = () => setAvatarPreview(url);
+        probe.onerror = () => setAvatarPreview(null);
+        probe.src = url;
       }
     }).catch(() => {});
   }, []);
@@ -83,7 +86,13 @@ export default function ProfileSetup() {
     setErrors({});
     setSaving(true);
     try {
-      await api.post('/profile', { summary: form.summary, learning_goals: form.goals });
+      await api.post('/profile', {
+        summary: form.summary,
+        learning_goals: form.goals,
+        designation: form.designation,
+        experience: form.experience,
+        department: form.department,
+      });
       setSaved(true);
       setTimeout(() => navigate('/upskilling/interview'), 800);
     }
@@ -182,7 +191,8 @@ export default function ProfileSetup() {
                     <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300 cursor-pointer hover:border-orange-400 transition-colors"
                       onClick={() => avatarInputRef.current?.click()}>
                       {avatarPreview
-                        ? <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
+                        ? <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover"
+                            onError={() => setAvatarPreview(null)} />
                         : <UserCircle className="w-8 h-8 text-gray-300" />
                       }
                       {uploadingAvatar && <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-2xl"><Loader2 className="w-5 h-5 text-white animate-spin" /></div>}

@@ -58,6 +58,9 @@ class UserOut(BaseModel):
 class ProfileCreate(BaseModel):
     summary: Optional[str] = None
     learning_goals: Optional[str] = None
+    designation: Optional[str] = None
+    experience: Optional[str] = None
+    department: Optional[str] = None
 
 class ProfileOut(BaseModel):
     id: int

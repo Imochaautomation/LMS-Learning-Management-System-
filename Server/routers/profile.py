@@ -37,6 +37,14 @@ def get_profile_alt(user: User = Depends(get_current_user), db: Session = Depend
 
 @router.post("", response_model=ProfileOut)
 def create_or_update_profile(req: ProfileCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Save user-level fields (designation, experience, department) onto the User record
+    if req.designation is not None:
+        user.designation = req.designation
+    if req.experience is not None:
+        user.experience = req.experience
+    if req.department is not None:
+        user.department = req.department
+
     profile = db.query(Profile).filter(Profile.user_id == user.id).first()
     if profile:
         if req.summary is not None:
