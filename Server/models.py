@@ -80,6 +80,8 @@ class UserCourse(Base):
     category = Column(String(100), nullable=True)
     tag = Column(String(50), nullable=True)
     duration = Column(String(100), nullable=True)
+    free = Column(Boolean, nullable=True)
+    course_type = Column(String(30), nullable=True)  # video_free_cert, video_freemium, video_paid_cert, youtube, doc
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=_now)

@@ -132,6 +132,8 @@ class UserCourseOut(BaseModel):
     category: Optional[str] = None
     tag: Optional[str] = None
     duration: Optional[str] = None
+    free: Optional[bool] = None
+    course_type: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None

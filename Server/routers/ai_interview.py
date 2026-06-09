@@ -153,7 +153,7 @@ Return ONLY valid JSON in this exact format:
     "Specific area 2"
   ],
   "course_recommendations": [
-    {{"title": "Course Title", "provider": "Coursera", "category": "Category", "tag": "Gap-Fill", "link": "https://www.coursera.org/search?query=TOPIC", "duration": "4 weeks"}},
+    {{"title": "Course Title", "provider": "Coursera", "category": "Category", "tag": "Gap-Fill", "link": "https://www.coursera.org/search?query=TOPIC", "duration": "4 weeks", "course_type": "video_freemium", "free": true}},
     "..."
   ]
 }}
@@ -178,24 +178,38 @@ Rules for areas_of_improvement:
 - Align improvement areas with their stated learning goals where possible
 
 Rules for course_recommendations:
-- Recommend MAXIMUM 12 courses
-- Focus on weak areas (High/Medium severity)
-- Courses MUST be relevant to the employee's role ({designation or 'N/A'}) and department ({dept or 'N/A'})
-- If they have learning goals, prioritise courses that help achieve those goals
-- DIVERSITY RULE: At least 60% of courses MUST be FREE. Prioritise free resources: YouTube, freeCodeCamp, Google Digital Garage, Khan Academy, Coursera (audit/free tier), edX (audit), Anthropic docs, OpenAI cookbook, GitHub Learning Lab, MDN Web Docs, MIT OpenCourseWare, Harvard CS50, or any free industry resource. Only include paid courses (Udemy, LinkedIn Learning, Coursera paid) if no good free alternative exists for that topic.
-- Set "free": true for free courses, "free": false for paid ones.
-- CRITICAL: Every course MUST have a working "link" URL. Use SEARCH URLs (always valid) as your PRIMARY format:
+- Recommend MAXIMUM 12 courses. Focus on weak areas (High/Medium severity).
+- Courses MUST be relevant to the employee's role ({designation or 'N/A'}) and department ({dept or 'N/A'}).
+- If they have learning goals, prioritise courses that help achieve those goals.
+
+COURSE TYPE — set "course_type" for every course using EXACTLY one of these values, in PRIORITY ORDER (recommend higher-priority types first, they should appear earlier in the list):
+  1. "video_free_cert"  — Video course with certificate, completely FREE (Google Digital Garage, freeCodeCamp with cert, Khan Academy, Harvard CS50, Coursera fully-free-with-cert). Set "free": true.
+  2. "video_freemium"   — Video FREE to watch, certificate requires payment (Coursera Professional Certificate audit, edX audit track, Alison free courses). Set "free": true.
+  3. "video_paid_cert"  — Video course + certificate, fully PAID (Udemy, LinkedIn Learning, Skillshare, Pluralsight). Set "free": false.
+  4. "youtube"          — YouTube video course / playlist, FREE, no certificate. Set "free": true.
+  5. "doc"              — Documentation or reading-only material. Lowest priority, only if no video alternative exists.
+
+TARGET MIX (in order they appear in the list):
+  - Recommend at least 2 "video_free_cert" courses first
+  - Then at least 2 "video_freemium" courses
+  - Then 2-3 "video_paid_cert" courses
+  - Then 1-2 "youtube" courses
+  - "doc" only as a last resort
+
+CRITICAL — VIDEO COURSES ONLY: Do NOT recommend documentation pages, official API docs, GitHub repos, research papers, or blog posts. Specifically NEVER use: MDN Web Docs, docs.anthropic.com, platform.openai.com/docs, docs.cohere.com, GitHub repositories, or any URL that is purely a reading/reference resource. Every recommended course must be a structured VIDEO learning experience with a clear curriculum.
+
+LINKS — Use SEARCH URLs (always valid):
   * Coursera: https://www.coursera.org/search?query=YOUR+COURSE+TOPIC
   * Udemy: https://www.udemy.com/courses/search/?q=YOUR+COURSE+TOPIC
   * LinkedIn Learning: https://www.linkedin.com/learning/search?keywords=YOUR+COURSE+TOPIC
   * edX: https://www.edx.org/search?q=YOUR+COURSE+TOPIC
-  * YouTube: https://www.youtube.com/results?search_query=YOUR+COURSE+TOPIC+tutorial
+  * YouTube: https://www.youtube.com/results?search_query=YOUR+COURSE+TOPIC+full+course
   * freeCodeCamp: https://www.freecodecamp.org/news/search/?query=YOUR+TOPIC
   * Google Digital Garage: https://learndigital.withgoogle.com/digitalgarage/courses
-  * Cohere LLM University: https://docs.cohere.com/docs/llmu
-  * Anthropic: https://docs.anthropic.com/
-  * If provider is unknown or link is uncertain, use YouTube search: https://www.youtube.com/results?search_query=TOPIC+tutorial
-  * NEVER use google.com/search as a course link — users should land on the course platform, not Google.
+  * Khan Academy: https://www.khanacademy.org/search?page_search_query=YOUR+TOPIC
+  * Skillshare: https://www.skillshare.com/en/search?query=YOUR+TOPIC
+  * Alison: https://alison.com/courses?query=YOUR+TOPIC
+  * NEVER use google.com/search — users must land on the course platform.
 - The link field must NEVER be empty or null.
 
 Interview conversation:
@@ -660,28 +674,37 @@ async def generate_analysis(
     session.areas_of_improvement = analysis.get("areas_of_improvement", [])
     db.commit()
 
-    # Save recommended courses (max 10) — validate links first
+    # Save recommended courses — clear stale recommendations first, then save sorted by priority
     courses = analysis.get("course_recommendations", [])[:12]
     try:
         courses = await _validate_course_links(courses)
     except Exception:
         pass  # If validation fails, save courses as-is
+
+    # Sort by course_type priority before saving
+    _COURSE_PRIORITY = {"video_free_cert": 0, "video_freemium": 1, "video_paid_cert": 2, "youtube": 3, "doc": 4}
+    courses.sort(key=lambda c: _COURSE_PRIORITY.get(c.get("course_type", "doc"), 5))
+
+    # Remove old stale recommendations (not yet acted on) before inserting fresh ones
+    db.query(UserCourse).filter(
+        UserCourse.user_id == lookup_id,
+        UserCourse.status == "recommended",
+    ).delete(synchronize_session=False)
+    db.flush()
+
     for c in courses:
-        existing = db.query(UserCourse).filter(
-            UserCourse.user_id == lookup_id,
-            UserCourse.title == c["title"],
-        ).first()
-        if not existing:
-            db.add(UserCourse(
-                user_id=lookup_id,
-                title=c["title"],
-                provider=c.get("provider"),
-                link=c.get("link"),
-                category=c.get("category"),
-                tag=c.get("tag", "Gap-Fill"),
-                duration=c.get("duration"),
-                status="recommended",
-            ))
+        db.add(UserCourse(
+            user_id=lookup_id,
+            title=c["title"],
+            provider=c.get("provider"),
+            link=c.get("link"),
+            category=c.get("category"),
+            tag=c.get("tag", "Gap-Fill"),
+            duration=c.get("duration"),
+            free=c.get("free"),
+            course_type=c.get("course_type"),
+            status="recommended",
+        ))
     db.commit()
 
     return {"ok": True, "skill_gaps": analysis.get("skill_gaps"), "courses": len(courses)}

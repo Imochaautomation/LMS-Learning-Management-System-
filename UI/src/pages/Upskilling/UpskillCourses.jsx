@@ -10,6 +10,14 @@ import { ToastContainer, useToast } from '../../components/shared/Toast';
 
 const tagColor = { 'Gap-Fill': 'bg-red-50 text-red-600', Growth: 'bg-emerald-50 text-emerald-600' };
 
+const COURSE_TYPE_BADGE = {
+  video_free_cert:  { label: '🎓 Free + Certificate', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  video_freemium:   { label: '🎓 Freemium',           cls: 'bg-teal-50 text-teal-700 border border-teal-200' },
+  video_paid_cert:  { label: '🎓 Paid + Certificate', cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  youtube:          { label: '▶ YouTube',             cls: 'bg-red-50 text-red-600 border border-red-200' },
+  doc:              { label: '📄 Docs',               cls: 'bg-gray-100 text-gray-500 border border-gray-200' },
+};
+
 export default function UpskillCourses() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -126,8 +134,13 @@ export default function UpskillCourses() {
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2 flex-wrap">
           {course.tag && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tagColor[course.tag] || 'bg-gray-100 text-gray-600'}`}>{course.tag}</span>}
-          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{course.category}</span>
-          {course.free !== undefined && (course.free ? <span className="text-xs text-emerald-600 font-medium">Free</span> : <span className="text-xs text-gray-400">Paid</span>)}
+          {course.category && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{course.category}</span>}
+          {course.course_type && COURSE_TYPE_BADGE[course.course_type]
+            ? <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COURSE_TYPE_BADGE[course.course_type].cls}`}>{COURSE_TYPE_BADGE[course.course_type].label}</span>
+            : course.free !== undefined && (course.free
+                ? <span className="text-xs text-emerald-600 font-medium">Free</span>
+                : <span className="text-xs text-gray-400">Paid</span>)
+          }
         </div>
       </div>
       <h3 className="font-semibold text-gray-900 text-sm mb-1">{course.title}</h3>
