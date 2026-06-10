@@ -113,6 +113,42 @@ def startup():
             conn.execute(text("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(500)"))
             conn.commit()
 
+    # Add free + course_type columns to user_courses (added in v2.1)
+    if "sqlite" in db_url_str:
+        for col_sql in [
+            "ALTER TABLE user_courses ADD COLUMN free BOOLEAN",
+            "ALTER TABLE user_courses ADD COLUMN course_type VARCHAR(30)",
+        ]:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(col_sql))
+                    conn.commit()
+            except Exception:
+                pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS free BOOLEAN"))
+            conn.execute(text("ALTER TABLE user_courses ADD COLUMN IF NOT EXISTS course_type VARCHAR(30)"))
+            conn.commit()
+
+    # Add designation + experience + department to users (added in v2.1 profile-save fix)
+    if "sqlite" in db_url_str:
+        for col_sql in [
+            "ALTER TABLE users ADD COLUMN designation VARCHAR(100)",
+            "ALTER TABLE users ADD COLUMN experience VARCHAR(50)",
+        ]:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(col_sql))
+                    conn.commit()
+            except Exception:
+                pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS designation VARCHAR(100)"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS experience VARCHAR(50)"))
+            conn.commit()
+
     from sqlalchemy.orm import Session
     from database import SessionLocal
     from models import User
