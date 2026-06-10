@@ -20,11 +20,13 @@ origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://127.0.0.1:5173",
+    "https://ailearningspace.up.railway.app",  # production frontend
 ]
-# Add production frontend URL from env
-frontend_url = os.getenv("FRONTEND_URL", "")
-if frontend_url:
-    origins.append(frontend_url.rstrip("/"))
+# Also allow any extra origins set via FRONTEND_URL env var (comma-separated)
+for _url in os.getenv("FRONTEND_URL", "").split(","):
+    _url = _url.strip().rstrip("/")
+    if _url and _url not in origins:
+        origins.append(_url)
 
 app.add_middleware(
     CORSMiddleware,
