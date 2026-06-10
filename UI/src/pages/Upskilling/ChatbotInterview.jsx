@@ -78,6 +78,7 @@ export default function ChatbotInterview() {
       // Main chat: only current session or fresh welcome
       const blocks = [];
       if (inProgress && (inProgress.messages || []).length > 0) {
+        blocks.push({ role: 'bot', text: welcome }); // always show welcome, even on reload
         (inProgress.messages || []).forEach(m => {
           blocks.push({ role: m.role === 'user' ? 'user' : 'bot', text: cleanText(m.content || '') });
         });
