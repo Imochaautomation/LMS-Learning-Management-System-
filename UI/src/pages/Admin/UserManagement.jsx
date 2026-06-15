@@ -76,7 +76,7 @@ export default function UserManagement() {
     if (!form.password.trim()) e.password = 'Password is required';
     else if (form.password.length < 8) e.password = 'Password must be at least 8 characters';
     if (!form.department) e.department = 'Please select a department';
-    if (form.role === 'employee' && !form.manager_id) e.manager_id = 'Please select a manager for this employee';
+    if ((form.role === 'employee' || form.role === 'new_joiner') && !form.manager_id) e.manager_id = 'Please select a manager';
     return e;
   };
 
@@ -89,7 +89,7 @@ export default function UserManagement() {
     setSaving(true);
     try {
       const payload = { ...form };
-      if (form.role !== 'employee') delete payload.manager_id;
+      if (form.role !== 'employee' && form.role !== 'new_joiner') delete payload.manager_id;
       if (payload.manager_id) payload.manager_id = parseInt(payload.manager_id);
       await api.post('/admin/users', payload);
       setShowForm(false);
@@ -214,12 +214,13 @@ export default function UserManagement() {
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Role *</label>
               <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value, manager_id: '' })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white">
-                <option value="manager">Manager</option>
+                <option value="new_joiner">New Joiner</option>
                 <option value="employee">Employee</option>
+                <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
-            {form.role === 'employee' && (
+            {(form.role === 'employee' || form.role === 'new_joiner') && (
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Assign Manager *</label>
                 <select value={form.manager_id} onChange={(e) => { setForm({ ...form, manager_id: e.target.value }); setFormErrors((p) => ({ ...p, manager_id: '' })); }}

@@ -76,40 +76,50 @@ def _build_content_context(files: List[SmeKitFileV2]) -> str:
     return "\n\n---\n\n".join(parts) if parts else "No content available."
 
 
-def _generate_questions(content: str, mcq_count: int, written_count: int) -> List[dict]:
-    prompt = f"""You are an expert trainer creating an assessment based on learning materials.
+def _generate_questions(content: str, easy_count: int, medium_count: int, hard_count: int) -> List[dict]:
+    total = easy_count + medium_count + hard_count
+    prompt = f"""You are an expert trainer creating a training assessment strictly based on the provided SME Kit content below.
 
-CONTENT:
-{content[:8000]}
+STRICT RULES — read carefully before generating:
+1. Every question MUST be answerable using ONLY the content provided below. Do NOT draw from general knowledge or external sources.
+2. If a concept in the content is technical or complex, include a brief real-world example in the question text to make it concrete (e.g. "For example, ...").
+3. Easy questions test recall of specific facts from the content. Use MCQ format.
+4. Medium questions test understanding of concepts from the content. Use MCQ format.
+5. Hard questions test application or analysis of concepts from the content. Use written/open-ended format.
+6. Do NOT generate questions about topics not covered in the content below.
 
-Generate exactly {mcq_count} MCQ questions and {written_count} written/open-ended questions.
+SME KIT CONTENT:
+{content[:10000]}
 
-Return ONLY valid JSON in this exact format (no explanation, no markdown):
+Generate exactly {easy_count} Easy + {medium_count} Medium + {hard_count} Hard questions ({total} total).
+
+Return ONLY valid JSON (no markdown, no explanation):
 {{
   "questions": [
     {{
       "order_index": 1,
+      "difficulty": "easy",
       "question_type": "mcq",
-      "question_text": "...",
+      "question_text": "Question text here. If technical, add: For example, ...",
       "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
       "correct_answer": "A"
     }},
     {{
-      "order_index": 2,
+      "order_index": 4,
+      "difficulty": "hard",
       "question_type": "written",
-      "question_text": "...",
+      "question_text": "Question text here. For example, ...",
       "options": null,
       "correct_answer": "Model answer: ..."
     }}
   ]
 }}
 
-Rules:
-- MCQ must have exactly 4 options labeled A-D
-- correct_answer for MCQ is the letter (A/B/C/D)
-- correct_answer for written is a model answer starting with "Model answer:"
-- Questions must be based on the provided content
-- Number questions sequentially starting from 1, MCQs first then written"""
+Format rules:
+- MCQ: exactly 4 options labeled A. B. C. D.; correct_answer is the single letter (A/B/C/D)
+- Written: options is null; correct_answer starts with "Model answer:"
+- Order: Easy questions first (indices 1–{easy_count}), then Medium ({easy_count+1}–{easy_count+medium_count}), then Hard ({easy_count+medium_count+1}–{total})
+- Include difficulty field for every question"""
 
     raw = _call_ai(prompt)
     data = _extract_json(raw)
@@ -174,6 +184,9 @@ def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=F
         "total_questions": a.total_questions,
         "mcq_count": a.mcq_count,
         "written_count": a.written_count,
+        "easy_count": a.easy_count or 0,
+        "medium_count": a.medium_count or 0,
+        "hard_count": a.hard_count or 0,
         "pass_threshold": a.pass_threshold,
         "status": a.status,
         "created_at": a.created_at,
@@ -189,6 +202,7 @@ def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=F
                 "assessment_id": q.assessment_id,
                 "order_index": q.order_index,
                 "question_type": q.question_type,
+                "difficulty": q.difficulty,
                 "question_text": q.question_text,
                 "options": q.options,
             }
@@ -251,7 +265,12 @@ def generate_assessment(
         raise HTTPException(400, "No valid files found in kit for given IDs")
 
     content = _build_content_context(files)
-    questions_data = _generate_questions(content, payload.mcq_count, payload.written_count)
+    questions_data = _generate_questions(content, payload.easy_count, payload.medium_count, payload.hard_count)
+
+    total = payload.easy_count + payload.medium_count + payload.hard_count
+    # MCQ = easy + medium (recall/understanding), Written = hard (application/analysis)
+    mcq_count = payload.easy_count + payload.medium_count
+    written_count = payload.hard_count
 
     assessment = TrainingAssessment(
         title=payload.title,
@@ -259,9 +278,12 @@ def generate_assessment(
         created_by=current_user.id,
         sme_kit_id=payload.sme_kit_id,
         source_file_ids=payload.source_file_ids,
-        total_questions=payload.mcq_count + payload.written_count,
-        mcq_count=payload.mcq_count,
-        written_count=payload.written_count,
+        total_questions=total,
+        mcq_count=mcq_count,
+        written_count=written_count,
+        easy_count=payload.easy_count,
+        medium_count=payload.medium_count,
+        hard_count=payload.hard_count,
         pass_threshold=payload.pass_threshold,
         status="active",
     )
@@ -273,6 +295,7 @@ def generate_assessment(
             assessment_id=assessment.id,
             order_index=qd.get("order_index", 0),
             question_type=qd.get("question_type", "written"),
+            difficulty=qd.get("difficulty"),
             question_text=qd.get("question_text", ""),
             options=qd.get("options"),
             correct_answer=qd.get("correct_answer"),
@@ -293,7 +316,18 @@ def list_assessments_manager(
     if current_user.role == "manager":
         q = q.filter(TrainingAssessment.created_by == current_user.id)
     assessments = q.order_by(TrainingAssessment.created_at.desc()).all()
-    return [_assessment_out(a) for a in assessments]
+    result = []
+    for a in assessments:
+        d = _assessment_out(a, include_questions=True, for_joiner=False)
+        attempts = db.query(TrainingAttempt).filter(
+            TrainingAttempt.assessment_id == a.id,
+        ).order_by(TrainingAttempt.attempt_number.desc()).all()
+        d["attempt_count"] = len(attempts)
+        d["best_score"] = max((at.score for at in attempts if at.score is not None), default=None)
+        d["passed"] = any(at.passed for at in attempts)
+        d["attempts"] = [_attempt_out(at) for at in attempts]
+        result.append(d)
+    return result
 
 
 @router.get("/assessments/mine", response_model=List[dict])

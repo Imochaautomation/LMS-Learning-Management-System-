@@ -7,7 +7,7 @@ import {
   FileText, GraduationCap, BarChart3, ExternalLink, Send, Search, Plus,
   Trophy, Flame, Award, ArrowRight, FileSearch, Printer, X,
   CheckCircle2, AlertTriangle, TrendingUp, Target, Zap, Download, Loader2, ShieldCheck,
-  BookOpen, Square, CheckSquare
+  BookOpen, Square, CheckSquare, ChevronDown, ChevronRight
 } from 'lucide-react';
 
 const JOURNEY_LEVELS = [
@@ -727,8 +727,11 @@ export default function LearnerDetail() {
   const [trainingAssessments, setTrainingAssessments] = useState([]);
   const [myKits, setMyKits] = useState([]);
   const [showCreateTraining, setShowCreateTraining] = useState(false);
-  const [trainingForm, setTrainingForm] = useState({ title: '', sme_kit_id: '', source_file_ids: [], mcq_count: 5, written_count: 5, pass_threshold: 70 });
+  const [trainingForm, setTrainingForm] = useState({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, medium_count: 4, hard_count: 3, pass_threshold: 70 });
   const [generatingTraining, setGeneratingTraining] = useState(false);
+  // Separate expand state for training assessment cards (avoid conflict with old expandedAssess)
+  const [expandedTA, setExpandedTA] = useState(null);       // which assessment card is open
+  const [expandedAttempt, setExpandedAttempt] = useState(null); // which attempt row is open
 
   useEffect(() => {
     api.get('/admin/users').then((all) => {
@@ -821,13 +824,14 @@ export default function LearnerDetail() {
         sme_kit_id: parseInt(trainingForm.sme_kit_id),
         title: trainingForm.title.trim(),
         source_file_ids: trainingForm.source_file_ids,
-        mcq_count: parseInt(trainingForm.mcq_count),
-        written_count: parseInt(trainingForm.written_count),
+        easy_count: parseInt(trainingForm.easy_count) || 0,
+        medium_count: parseInt(trainingForm.medium_count) || 0,
+        hard_count: parseInt(trainingForm.hard_count) || 0,
         pass_threshold: parseInt(trainingForm.pass_threshold),
       });
       setTrainingAssessments((p) => [res, ...p]);
       setShowCreateTraining(false);
-      setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], mcq_count: 5, written_count: 5, pass_threshold: 70 });
+      setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, medium_count: 4, hard_count: 3, pass_threshold: 70 });
     } catch (e) {
       alert(`Failed to generate assessment: ${e.message}`);
     } finally {
@@ -867,7 +871,7 @@ export default function LearnerDetail() {
             const badgesCount = completedAssess.filter(a => a.score >= 90).length;
             const trophiesCount = completedAssess.filter(a => a.score >= 95).length;
             const steps = [
-              { label: '📚 Spellbook', done: true, desc: 'Training kit studied' },
+              { label: '📚 SME Kit', done: true, desc: 'Training kit studied' },
               ...assessments.map((a, i) => ({
                 label: `⚔️ Quest ${i + 1}`, done: a.status === 'reviewed' || a.status === 'submitted',
                 active: a.status === 'pending' || a.status === 'downloaded', desc: a.assessment_name,
@@ -964,125 +968,6 @@ export default function LearnerDetail() {
             </div>
           </div>
 
-          {/* Assign Assessment */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2"><FileText className="w-4 h-4" /> Assessments</h2>
-              <button onClick={() => setShowAssign(!showAssign)} className="flex items-center gap-1.5 px-3 py-2 bg-orange-100 text-orange-700 text-sm font-medium rounded-lg hover:bg-orange-200">
-                <Plus className="w-4 h-4" /> Assign Assessment
-              </button>
-            </div>
-
-            {showAssign && (
-              <div className="mb-4 border border-orange-200 bg-orange-50 rounded-xl p-4">
-                <p className="text-sm font-medium text-gray-700 mb-3">Select from Assessment Bank:</p>
-                {/* Assessment Type Toggle */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-medium text-gray-600">Type:</span>
-                  <button
-                    onClick={() => setAssignType('full')}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${assignType === 'full' ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-500 border-gray-200 hover:border-orange-300'}`}>
-                    📝 Answer Questions
-                  </button>
-                  <button
-                    onClick={() => setAssignType('proofreading')}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${assignType === 'proofreading' ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-gray-500 border-gray-200 hover:border-violet-300'}`}>
-                    ✏️ Proofreading
-                  </button>
-                </div>
-                {assignType === 'proofreading' && (
-                  <div className="mb-3 px-3 py-2 bg-violet-50 border border-violet-200 rounded-lg text-xs text-violet-700">
-                    Proofreading task — learner must edit &amp; correct the document using US English standards. AI will evaluate their edits against the original.
-                  </div>
-                )}
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input placeholder="Search assessments..." value={assignSearch} onChange={(e) => setAssignSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg" />
-                </div>
-                <div className="max-h-48 overflow-y-auto space-y-1 mb-3">
-                  {filteredBank.map((a) => (
-                    <label key={a.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-orange-100 ${selectedAssess.includes(a.id) ? 'bg-orange-100' : ''}`}>
-                      <input type="checkbox" checked={selectedAssess.includes(a.id)} onChange={() => toggleAssess(a.id)} className="rounded" />
-                      <span className="text-sm text-gray-700">{a.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <button disabled={selectedAssess.length === 0} onClick={assignAssessments} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50">
-                    <Send className="w-3.5 h-3.5" /> Assign ({selectedAssess.length})
-                  </button>
-                  <button onClick={() => { setShowAssign(false); setSelectedAssess([]); }} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
-                </div>
-              </div>
-            )}
-
-            {assessments.length === 0 ? <p className="text-sm text-gray-400">No assessments assigned yet.</p> : (
-              <div className="space-y-3">
-                {assessments.map((a) => {
-                  const parsed = parseAiSummary(a.ai_summary);
-                  const isInvalid = parsed?.authentic === false;
-                  return (
-                    <div key={a.id} className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
-                      <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-100" onClick={() => setExpandedAssess(expandedAssess === a.id ? null : a.id)}>
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">{a.assessment_name || a.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <p className="text-xs text-gray-400">{a.assigned_at?.split('T')[0] || ''}</p>
-                            {a.assessment_type === 'proofreading' && (
-                              <span className="text-xs px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded font-medium">✏️ Proofreading</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {isInvalid && <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium border border-red-200">⚠️ Mismatch</span>}
-                          {a.submission_file && <span className="text-xs font-medium" style={{ color: '#F05A28' }}>📎 Submitted</span>}
-                          {a.score != null && <span className={`text-sm font-bold ${a.score >= 70 ? 'text-emerald-600' : a.score >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{Math.round(a.score)}/100</span>}
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${a.status === 'reviewed' ? 'bg-emerald-50 text-emerald-700' : a.status === 'submitted' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>{a.status}</span>
-                        </div>
-                      </div>
-                      {expandedAssess === a.id && (a.status === 'submitted' || a.status === 'reviewed') && (
-                        <div className="px-4 pb-4 space-y-3 border-t border-gray-200 pt-3">
-                          {a.submission_file && (
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-4 h-4" style={{ color: '#F05A28' }} />
-                              <a href={a.submission_path ? `${API_HOST}${a.submission_path}` : '#'} target="_blank" className="text-sm hover:underline font-medium" style={{ color: '#F05A28' }}>{a.submission_file}</a>
-                              <span className="text-xs text-gray-400">— View submitted work</span>
-                            </div>
-                          )}
-                          {a.ai_summary && (
-                            <div className="bg-white rounded-lg p-3 border" style={{ borderColor: 'rgba(240,90,40,0.2)' }}>
-                              <p className="text-xs font-semibold mb-1" style={{ color: '#c2410c' }}>🤖 AI Review Summary</p>
-                              <p className="text-sm text-gray-700 line-clamp-3">{sanitizeReview(parsed?.summary || a.ai_summary)}</p>
-                            </div>
-                          )}
-                          {a.ai_summary && (
-                            <button onClick={() => setFeedbackModal(a)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border"
-                              style={{ color: '#F05A28', background: 'rgba(240,90,40,0.07)', borderColor: 'rgba(240,90,40,0.3)' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,90,40,0.14)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(240,90,40,0.07)'} >
-                              <FileSearch className="w-3.5 h-3.5" /> View Full Detailed Report
-                            </button>
-                          )}
-                          {!a.submission_file && <p className="text-xs text-gray-400">No file submitted yet.</p>}
-                        </div>
-                      )}
-                      {expandedAssess === a.id && a.status === 'pending' && (
-                        <div className="px-4 pb-3 border-t border-gray-200 pt-2">
-                          <p className="text-xs text-gray-400">⏳ Waiting for learner to download and submit this assessment.</p>
-                        </div>
-                      )}
-                      {expandedAssess === a.id && a.status === 'downloaded' && (
-                        <div className="px-4 pb-3 border-t border-gray-200 pt-2">
-                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">📥 Learner has downloaded — awaiting submission.</p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           {/* ── Training Assessments (V2 AI-generated) ── */}
           <div className="bg-white border border-gray-200 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
@@ -1090,7 +975,7 @@ export default function LearnerDetail() {
                 <BookOpen className="w-4 h-4 text-teal-600" /> AI Training Assessments
               </h2>
               <button
-                onClick={() => { setShowCreateTraining(!showCreateTraining); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], mcq_count: 5, written_count: 5, pass_threshold: 70 }); }}
+                onClick={() => { setShowCreateTraining(!showCreateTraining); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, medium_count: 4, hard_count: 3, pass_threshold: 70 }); }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-teal-100 text-teal-700 text-sm font-medium rounded-lg hover:bg-teal-200">
                 <Plus className="w-4 h-4" /> Create Assessment
               </button>
@@ -1153,37 +1038,68 @@ export default function LearnerDetail() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">MCQ Questions</label>
-                    <input type="number" min="0" max="20"
-                      value={trainingForm.mcq_count}
-                      onChange={(e) => setTrainingForm((p) => ({ ...p, mcq_count: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
-                    />
+                {/* Difficulty breakdown */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">
+                    Question Difficulty *
+                    <span className="text-gray-400 font-normal ml-1">— Easy = MCQ recall, Medium = MCQ concept, Hard = written application</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">🟢 Easy</span>
+                        <span className="text-xs text-emerald-600">MCQ</span>
+                      </div>
+                      <input type="number" min="0" max="15"
+                        value={trainingForm.easy_count}
+                        onChange={(e) => setTrainingForm((p) => ({ ...p, easy_count: e.target.value }))}
+                        className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-lg bg-white text-center font-bold"
+                      />
+                    </div>
+                    <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">🟡 Medium</span>
+                        <span className="text-xs text-amber-600">MCQ</span>
+                      </div>
+                      <input type="number" min="0" max="15"
+                        value={trainingForm.medium_count}
+                        onChange={(e) => setTrainingForm((p) => ({ ...p, medium_count: e.target.value }))}
+                        className="w-full px-2 py-1.5 text-sm border border-amber-200 rounded-lg bg-white text-center font-bold"
+                      />
+                    </div>
+                    <div className="rounded-xl border-2 border-red-200 bg-red-50 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-red-700 uppercase tracking-wide">🔴 Hard</span>
+                        <span className="text-xs text-red-600">Written</span>
+                      </div>
+                      <input type="number" min="0" max="15"
+                        value={trainingForm.hard_count}
+                        onChange={(e) => setTrainingForm((p) => ({ ...p, hard_count: e.target.value }))}
+                        className="w-full px-2 py-1.5 text-sm border border-red-200 rounded-lg bg-white text-center font-bold"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Written Questions</label>
-                    <input type="number" min="0" max="20"
-                      value={trainingForm.written_count}
-                      onChange={(e) => setTrainingForm((p) => ({ ...p, written_count: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Pass % Threshold</label>
-                    <input type="number" min="50" max="100"
-                      value={trainingForm.pass_threshold}
-                      onChange={(e) => setTrainingForm((p) => ({ ...p, pass_threshold: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
-                    />
-                  </div>
+                  {(() => {
+                    const total = (parseInt(trainingForm.easy_count) || 0) + (parseInt(trainingForm.medium_count) || 0) + (parseInt(trainingForm.hard_count) || 0);
+                    return total > 0 ? (
+                      <p className="text-xs text-gray-500 mt-2 text-right">{total} question{total !== 1 ? 's' : ''} total</p>
+                    ) : null;
+                  })()}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Pass % Threshold</label>
+                  <input type="number" min="50" max="100"
+                    value={trainingForm.pass_threshold}
+                    onChange={(e) => setTrainingForm((p) => ({ ...p, pass_threshold: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                  />
                 </div>
 
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={generateTrainingAssessment}
-                    disabled={generatingTraining || !trainingForm.title.trim() || !trainingForm.sme_kit_id || trainingForm.source_file_ids.length === 0}
+                    disabled={generatingTraining || !trainingForm.title.trim() || !trainingForm.sme_kit_id || trainingForm.source_file_ids.length === 0 || ((parseInt(trainingForm.easy_count)||0) + (parseInt(trainingForm.medium_count)||0) + (parseInt(trainingForm.hard_count)||0)) === 0}
                     className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50">
                     {generatingTraining ? (
                       <><Loader2 className="w-4 h-4 animate-spin" /> Generating AI Questions…</>
@@ -1202,142 +1118,154 @@ export default function LearnerDetail() {
             {trainingAssessments.length === 0 ? (
               <p className="text-sm text-gray-400">No AI assessments created yet. Click "Create Assessment" to generate one from an SME Kit.</p>
             ) : (
-              <div className="space-y-2">
-                {trainingAssessments.map((a) => (
-                  <div key={a.id} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900 text-sm">{a.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-xs text-gray-400">{a.created_at?.split('T')[0]}</span>
-                        <span className="text-xs px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded">{a.kit_name}</span>
-                        <span className="text-xs text-gray-500">{a.total_questions} Qs ({a.mcq_count} MCQ + {a.written_count} written)</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{a.status}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {a.attempt_count > 0 && (
-                        <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">{a.attempt_count} attempt{a.attempt_count > 1 ? 's' : ''}</span>
+              <div className="space-y-3">
+                {trainingAssessments.map((a) => {
+                  const attempts = a.attempts || [];
+                  const completedAttempts = attempts.filter(at => at.status === 'evaluated');
+                  const isOpen = expandedTA === a.id;
+
+                  return (
+                    <div key={a.id} className={`border rounded-xl overflow-hidden ${a.passed ? 'border-emerald-200' : a.attempt_count > 0 ? 'border-amber-200' : 'border-gray-200'}`}>
+                      {/* Assessment header row */}
+                      <button
+                        onClick={() => { setExpandedTA(isOpen ? null : a.id); setExpandedAttempt(null); }}
+                        className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${a.passed ? 'bg-emerald-50 hover:bg-emerald-100' : a.attempt_count > 0 ? 'bg-amber-50 hover:bg-amber-100' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900 text-sm">{a.title}</span>
+                            <span className="text-xs px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded font-medium">{a.kit_name}</span>
+                            <span className="text-xs text-gray-400">{a.total_questions} Qs · Pass {a.pass_threshold}%</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            {a.attempt_count === 0 ? (
+                              <span className="text-xs text-gray-400 italic">Not started yet</span>
+                            ) : (
+                              <>
+                                <span className="text-xs text-indigo-600 font-medium">{a.attempt_count} attempt{a.attempt_count > 1 ? 's' : ''}</span>
+                                {a.best_score != null && (
+                                  <span className={`text-xs font-bold ${a.passed ? 'text-emerald-600' : 'text-amber-600'}`}>Best score: {Math.round(a.best_score)}/100</span>
+                                )}
+                                {a.passed
+                                  ? <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-semibold">✓ Passed</span>
+                                  : <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-semibold">Not passed yet</span>
+                                }
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-3">
+                          {a.attempt_count > 0 && (
+                            <span className="text-xs text-gray-500 hidden sm:block">
+                              {isOpen ? 'Hide' : 'View'} results
+                            </span>
+                          )}
+                          {isOpen ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+                        </div>
+                      </button>
+
+                      {/* Attempts list */}
+                      {isOpen && (
+                        <div className="bg-white border-t border-gray-100 divide-y divide-gray-50">
+                          {completedAttempts.length === 0 ? (
+                            <p className="text-sm text-gray-400 px-4 py-3">New joiner hasn't submitted any attempts yet.</p>
+                          ) : (
+                            completedAttempts.map((att) => {
+                              const attOpen = expandedAttempt === att.id;
+                              const correctCount = (att.answers || []).filter(a => a.ai_flag === 'correct').length;
+                              const wrongCount = (att.answers || []).filter(a => a.ai_flag === 'wrong').length;
+                              const partialCount = (att.answers || []).filter(a => a.ai_flag === 'partial').length;
+
+                              return (
+                                <div key={att.id}>
+                                  {/* Attempt summary row */}
+                                  <button
+                                    onClick={() => setExpandedAttempt(attOpen ? null : att.id)}
+                                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${att.passed ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                                        {att.attempt_number}
+                                      </span>
+                                      <span className="text-sm font-medium text-gray-800">Attempt #{att.attempt_number}</span>
+                                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${att.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                        {att.passed ? '🏆 Passed' : '✗ Failed'}
+                                      </span>
+                                      {att.score != null && (
+                                        <span className={`text-base font-bold ${att.passed ? 'text-emerald-600' : 'text-red-600'}`}>
+                                          {Math.round(att.score)}/100
+                                        </span>
+                                      )}
+                                      {att.answers?.length > 0 && (
+                                        <span className="text-xs text-gray-500">
+                                          <span className="text-emerald-600 font-semibold">✓{correctCount}</span>
+                                          {partialCount > 0 && <span className="text-amber-600 font-semibold ml-1">~{partialCount}</span>}
+                                          <span className="text-red-500 font-semibold ml-1">✗{wrongCount}</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="text-xs text-gray-400">{att.submitted_at?.split('T')[0] || '—'}</span>
+                                      {attOpen ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                                    </div>
+                                  </button>
+
+                                  {/* Per-answer breakdown */}
+                                  {attOpen && (
+                                    <div className="bg-gray-50 border-t border-gray-100">
+                                      {att.ai_feedback?.overall && (
+                                        <div className="px-4 py-3 bg-orange-50 border-b border-orange-100">
+                                          <p className="text-xs font-semibold text-orange-700 mb-1">🤖 AI Overall Feedback</p>
+                                          <p className="text-sm text-gray-700 leading-relaxed">{att.ai_feedback.overall}</p>
+                                        </div>
+                                      )}
+                                      <div className="divide-y divide-gray-100">
+                                        {(att.answers || []).map((ans, ansIdx) => {
+                                          const q = (a.questions || []).find(q => q.id === ans.question_id) || {};
+                                          const flagColor = ans.ai_flag === 'correct' ? 'text-emerald-600' : ans.ai_flag === 'wrong' ? 'text-red-600' : 'text-amber-600';
+                                          const flagBg = ans.ai_flag === 'correct' ? 'bg-emerald-50 border-emerald-100' : ans.ai_flag === 'wrong' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100';
+                                          return (
+                                            <div key={ans.id} className="px-4 py-3 bg-white">
+                                              <div className="flex items-start gap-2">
+                                                <span className={`font-bold text-sm shrink-0 mt-0.5 ${flagColor}`}>
+                                                  {ans.ai_flag === 'correct' ? '✓' : ans.ai_flag === 'wrong' ? '✗' : '~'}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="flex items-center gap-1.5 mb-1">
+                                                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
+                                                      {q.question_type === 'mcq' ? 'MCQ' : 'Written'}
+                                                    </span>
+                                                    <span className="text-xs text-gray-400">Q{ansIdx + 1}</span>
+                                                  </div>
+                                                  <p className="text-sm font-medium text-gray-900 mb-1.5">{q.question_text || `Question ${ans.question_id}`}</p>
+                                                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-1.5">
+                                                    <p className="text-xs text-gray-500 mb-0.5">Joiner's answer:</p>
+                                                    <p className="text-sm text-gray-800">{ans.answer_text || '(no answer)'}</p>
+                                                  </div>
+                                                  {ans.ai_explanation && (
+                                                    <div className={`border rounded-lg px-3 py-2 text-xs ${flagBg}`}>
+                                                      <span className={`font-semibold ${flagColor}`}>AI: </span>
+                                                      <span className="text-gray-700">{ans.ai_explanation}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
                       )}
-                      {a.best_score != null && (
-                        <span className={`text-sm font-bold ${a.passed ? 'text-emerald-600' : 'text-amber-600'}`}>{Math.round(a.best_score)}/100</span>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
-
-          {/* ── SME Kit Assignment (Content managers only) ── */}
-          {isContentManager && (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-teal-600" /> SME Kit Files
-                </h2>
-                <button
-                  onClick={() => { setShowSmeAssign(!showSmeAssign); setSelectedSmeFiles([]); setSmeSearch(''); }}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-teal-100 text-teal-700 text-sm font-medium rounded-lg hover:bg-teal-200">
-                  <Plus className="w-4 h-4" /> Assign Files
-                </button>
-              </div>
-
-              {/* Assign panel */}
-              {showSmeAssign && (
-                <div className="border-b border-teal-200 bg-teal-50 p-4 space-y-3">
-                  <p className="text-sm font-medium text-gray-700">Select files to assign to {learner.name}:</p>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                    <input
-                      value={smeSearch} onChange={(e) => setSmeSearch(e.target.value)}
-                      placeholder="Search files..."
-                      className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-white" />
-                  </div>
-                  <div className="space-y-1.5 max-h-52 overflow-y-auto">
-                    {smeBank.filter((f) => f.name.toLowerCase().includes(smeSearch.toLowerCase())).map((f) => {
-                      const alreadyAssigned = smeAssigned.some((a) => a.file_id === f.id);
-                      return (
-                        <label key={f.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer border transition-colors ${
-                          alreadyAssigned ? 'border-teal-200 bg-teal-50/80 opacity-60 cursor-not-allowed' :
-                          selectedSmeFiles.includes(f.id) ? 'border-teal-400 bg-teal-50 ring-1 ring-teal-300' :
-                          'border-gray-200 bg-white hover:bg-gray-50'
-                        }`}>
-                          <input
-                            type="checkbox"
-                            className="hidden"
-                            disabled={alreadyAssigned}
-                            checked={selectedSmeFiles.includes(f.id)}
-                            onChange={() => !alreadyAssigned && toggleSmeFile(f.id)} />
-                          {alreadyAssigned
-                            ? <CheckSquare className="w-4 h-4 text-teal-500 shrink-0" />
-                            : selectedSmeFiles.includes(f.id)
-                              ? <CheckSquare className="w-4 h-4 text-teal-600 shrink-0" />
-                              : <Square className="w-4 h-4 text-gray-300 shrink-0" />}
-                          <span className="text-lg shrink-0">📄</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
-                            <p className="text-xs text-gray-400">{f.category} · {f.file_type}</p>
-                          </div>
-                          {alreadyAssigned && <span className="text-xs text-teal-600 font-medium shrink-0">✓ Assigned</span>}
-                        </label>
-                      );
-                    })}
-                    {smeBank.length === 0 && (
-                      <p className="text-sm text-gray-400 text-center py-4">No SME Kit files uploaded yet.</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={() => { setShowSmeAssign(false); setSelectedSmeFiles([]); }}
-                      className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-                    <button
-                      onClick={assignSmeFiles}
-                      disabled={assigningSme || selectedSmeFiles.length === 0}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
-                      {assigningSme && <Loader2 className="w-4 h-4 animate-spin" />}
-                      Assign {selectedSmeFiles.length > 0 ? `(${selectedSmeFiles.length})` : ''}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Currently assigned files */}
-              <div className="divide-y divide-gray-100">
-                {smeAssigned.length === 0 ? (
-                  <div className="px-5 py-8 text-center">
-                    <BookOpen className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                    <p className="text-sm text-gray-400">No SME Kit files assigned to {learner.name} yet.</p>
-                  </div>
-                ) : (
-                  smeAssigned.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg">📄</span>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{a.file_name}</p>
-                          <p className="text-xs text-gray-400">{a.category} · {a.file_type}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {a.file_path && (
-                          <a href={`${API_HOST}${a.file_path}`} target="_blank" rel="noreferrer"
-                            className="px-2.5 py-1 text-xs border rounded-lg flex items-center gap-1"
-                            style={{ color: '#F05A28', borderColor: 'rgba(240,90,40,0.4)' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,90,40,0.07)'}
-                            onMouseLeave={e => e.currentTarget.style.background = ''}>
-                            <ExternalLink className="w-3 h-3" /> View
-                          </a>
-                        )}
-                        <button onClick={() => unassignSmeFile(a.id)}
-                          className="px-2.5 py-1 text-xs text-red-500 border border-red-200 rounded-lg hover:bg-red-50">
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
         </>
       )}
 

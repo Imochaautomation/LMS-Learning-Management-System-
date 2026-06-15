@@ -224,6 +224,9 @@ class TrainingAssessment(Base):
     total_questions = Column(Integer, default=10)
     mcq_count = Column(Integer, default=5)
     written_count = Column(Integer, default=5)
+    easy_count = Column(Integer, default=0)
+    medium_count = Column(Integer, default=0)
+    hard_count = Column(Integer, default=0)
     pass_threshold = Column(Integer, default=70)  # percentage
     status = Column(String(20), default="pending")  # pending, active, completed
     created_at = Column(DateTime, server_default=_now)
@@ -243,6 +246,7 @@ class TrainingQuestion(Base):
     assessment_id = Column(Integer, ForeignKey("training_assessments.id"), nullable=False)
     order_index = Column(Integer, nullable=False)
     question_type = Column(String(20), nullable=False)  # "mcq" | "written"
+    difficulty = Column(String(10), nullable=True)       # "easy" | "medium" | "hard"
     question_text = Column(Text, nullable=False)
     options = Column(JSON, nullable=True)        # ["A. ...", "B. ...", "C. ...", "D. ..."] for MCQ
     correct_answer = Column(Text, nullable=True) # stored for AI evaluation reference

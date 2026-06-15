@@ -165,6 +165,39 @@ def startup():
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS sub_department VARCHAR(100)"))
             conn.commit()
 
+    # Add difficulty column to training_questions (v2.3)
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_questions ADD COLUMN difficulty VARCHAR(10)"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE training_questions ADD COLUMN IF NOT EXISTS difficulty VARCHAR(10)"))
+            conn.commit()
+
+    # Add easy/medium/hard difficulty columns to training_assessments (v2.3)
+    if "sqlite" in db_url_str:
+        for col_sql in [
+            "ALTER TABLE training_assessments ADD COLUMN easy_count INTEGER DEFAULT 0",
+            "ALTER TABLE training_assessments ADD COLUMN medium_count INTEGER DEFAULT 0",
+            "ALTER TABLE training_assessments ADD COLUMN hard_count INTEGER DEFAULT 0",
+        ]:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(col_sql))
+                    conn.commit()
+            except Exception:
+                pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE training_assessments ADD COLUMN IF NOT EXISTS easy_count INTEGER DEFAULT 0"))
+            conn.execute(text("ALTER TABLE training_assessments ADD COLUMN IF NOT EXISTS medium_count INTEGER DEFAULT 0"))
+            conn.execute(text("ALTER TABLE training_assessments ADD COLUMN IF NOT EXISTS hard_count INTEGER DEFAULT 0"))
+            conn.commit()
+
     # Create training module tables (v2.2) — create_all handles new tables but not column additions
     Base.metadata.create_all(bind=engine)
 

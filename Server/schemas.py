@@ -329,8 +329,9 @@ class GenerateAssessmentRequest(BaseModel):
     sme_kit_id: int
     title: str
     source_file_ids: List[int]
-    mcq_count: int = 5
-    written_count: int = 5
+    easy_count: int = 3
+    medium_count: int = 4
+    hard_count: int = 3
     pass_threshold: int = 70
 
 class TrainingQuestionOut(BaseModel):

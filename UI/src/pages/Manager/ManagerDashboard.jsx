@@ -404,7 +404,7 @@ export default function ManagerDashboard() {
       {/* SME KIT */}
       {tab === 'smekit' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-gray-900">📚 Spellbook — SME Training Kit</h2>
+          <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-gray-900">📚 SME Training Kit</h2>
             <div className="flex items-center gap-2">
               {selectedSme.length > 0 && (
                 <button onClick={bulkDeleteSme}

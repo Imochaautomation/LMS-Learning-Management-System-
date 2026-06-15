@@ -21,7 +21,7 @@ export default function TrainingDashboard() {
   const allDone = assessments.length > 0 && assessments.every(a => a.status === 'reviewed' || a.status === 'submitted');
 
   const journeySteps = [
-    { label: '📚 Spellbook', key: 'spellbook', done: true, desc: 'Study training materials' },
+    { label: '📚 SME Kit', key: 'smekit', done: true, desc: 'Study training materials' },
     ...assessments.map((a, i) => {
       const icons = ['⚔️', '🛡️', '🏹', '🗡️', '🔮'];
       const done = a.status === 'reviewed' || a.status === 'submitted';
@@ -140,7 +140,7 @@ export default function TrainingDashboard() {
       <div className="grid sm:grid-cols-3 gap-4">
         <Link to="/training/sme-kit" className="bg-white border border-teal-200 rounded-xl p-5 hover:shadow-md hover:border-teal-400 transition-all group">
           <span className="text-2xl mb-2 block">📚</span>
-          <h3 className="font-bold text-gray-900 text-sm">Spellbook — SME Kit</h3>
+          <h3 className="font-bold text-gray-900 text-sm">SME Training Kit</h3>
           <p className="text-xs text-gray-500 mt-1">Training materials & style guides</p>
           <p className="text-xs text-teal-600 mt-2 font-semibold group-hover:underline">Open →</p>
         </Link>

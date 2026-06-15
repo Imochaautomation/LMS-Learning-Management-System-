@@ -4,44 +4,138 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import api from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
-import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp, History, PlayCircle } from 'lucide-react';
 
 const ORANGE = '#F05A28';
 const TEAL = '#0d9488';
 
+function AttemptCard({ attempt, questions, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const answerMap = {};
+  (attempt.answers || []).forEach(a => { answerMap[a.question_id] = a; });
+  const correctCount = (attempt.answers || []).filter(a => a.ai_flag === 'correct').length;
+  const wrongCount = (attempt.answers || []).filter(a => a.ai_flag === 'wrong').length;
+  const partialCount = (attempt.answers || []).filter(a => a.ai_flag === 'partial').length;
+
+  return (
+    <div className={`border rounded-xl overflow-hidden ${attempt.passed ? 'border-emerald-200' : 'border-gray-200'}`}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`w-full flex items-center justify-between px-4 py-3 text-left ${attempt.passed ? 'bg-emerald-50 hover:bg-emerald-100' : 'bg-gray-50 hover:bg-gray-100'} transition-colors`}>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-semibold text-gray-800">Attempt #{attempt.attempt_number}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${attempt.passed ? 'bg-emerald-200 text-emerald-800' : attempt.status === 'evaluated' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600'}`}>
+            {attempt.passed ? '🏆 Passed' : attempt.status === 'evaluated' ? 'Not passed' : attempt.status}
+          </span>
+          {attempt.score != null && (
+            <span className={`text-sm font-bold ${attempt.passed ? 'text-emerald-600' : 'text-amber-600'}`}>{Math.round(attempt.score)}/100</span>
+          )}
+          {attempt.answers?.length > 0 && (
+            <span className="text-xs text-gray-500">✓ {correctCount} &nbsp;~ {partialCount} &nbsp;✗ {wrongCount}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-gray-400">{attempt.submitted_at?.split('T')[0] || ''}</span>
+          {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="bg-white">
+          {attempt.ai_feedback?.overall && (
+            <div className="px-4 py-3 bg-orange-50 border-b border-orange-100">
+              <p className="text-xs font-semibold text-orange-700 mb-1">🤖 AI Feedback</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{attempt.ai_feedback.overall}</p>
+            </div>
+          )}
+          <div className="divide-y divide-gray-50">
+            {(questions || []).map((q, idx) => {
+              const ev = answerMap[q.id];
+              const flag = ev?.ai_flag;
+              return (
+                <div key={q.id} className="px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <span className={`text-base shrink-0 mt-0.5 ${flag === 'correct' ? 'text-emerald-500' : flag === 'wrong' ? 'text-red-500' : flag === 'partial' ? 'text-amber-500' : 'text-gray-300'}`}>
+                      {flag === 'correct' ? '✓' : flag === 'wrong' ? '✗' : flag === 'partial' ? '~' : '○'}
+                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
+                          {q.question_type === 'mcq' ? 'MCQ' : 'Written'}
+                        </span>
+                        {q.difficulty && (
+                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' : q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                            {q.difficulty === 'easy' ? '🟢 Easy' : q.difficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400">Q{idx + 1}</span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 mb-1">{q.question_text}</p>
+                      <div className="bg-gray-50 rounded-lg px-3 py-2 mb-1">
+                        <p className="text-xs text-gray-500">Your answer:</p>
+                        <p className="text-sm text-gray-800">{ev?.answer_text || '(no answer)'}</p>
+                      </div>
+                      {ev?.ai_explanation && (
+                        <div className={`rounded-lg px-3 py-2 text-xs ${flag === 'correct' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : flag === 'wrong' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
+                          {ev.ai_explanation}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TrainingAssessmentForm() {
   const { assessmentId } = useParams();
-  const navigate = useNavigate();
 
   const [assessment, setAssessment] = useState(null);
+  const [pastAttempts, setPastAttempts] = useState([]);
   const [attempt, setAttempt] = useState(null);
-  const [answers, setAnswers] = useState({}); // { question_id: answer_text }
+  const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [expandedAnswer, setExpandedAnswer] = useState(null);
+  const [mode, setMode] = useState('loading'); // 'loading' | 'history' | 'taking' | 'result'
+  const [startingNew, setStartingNew] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const a = await api.get(`/training/assessments/${assessmentId}`);
+        const [a, attempts] = await Promise.all([
+          api.get(`/training/assessments/${assessmentId}`),
+          api.get(`/training/assessments/${assessmentId}/attempts`),
+        ]);
         setAssessment(a);
+        setPastAttempts(attempts);
 
-        // Start or resume attempt
-        const att = await api.post(`/training/assessments/${assessmentId}/start`, {});
-        setAttempt(att);
-
-        if (att.status === 'evaluated' || att.status === 'submitted') {
-          setResult(att);
-          setSubmitted(true);
+        const inProgress = attempts.find(at => at.status === 'in_progress');
+        if (inProgress) {
+          // Resume the in-progress attempt
+          setAttempt(inProgress);
+          setMode('taking');
+        } else if (attempts.length > 0) {
+          // Show history
+          setMode('history');
+        } else {
+          // No attempts yet — go straight to taking
+          await startAttempt(a);
+          return;
         }
       } catch (e) {
         setError(e.message);
+        setMode('history');
       } finally {
         setLoading(false);
       }
@@ -49,13 +143,32 @@ export default function TrainingAssessmentForm() {
     load();
   }, [assessmentId]);
 
+  const startAttempt = async (existingAssessment) => {
+    setStartingNew(true);
+    try {
+      const a = existingAssessment || assessment || await api.get(`/training/assessments/${assessmentId}`);
+      if (!assessment) setAssessment(a);
+      const att = await api.post(`/training/assessments/${assessmentId}/start`, {});
+      setAttempt(att);
+      setAnswers({});
+      setSubmitted(false);
+      setResult(null);
+      setMode('taking');
+    } catch (e) {
+      setError(`Could not start attempt: ${e.message}`);
+    } finally {
+      setStartingNew(false);
+      setLoading(false);
+    }
+  };
+
   const handleAnswer = (questionId, value) => {
-    setAnswers((p) => ({ ...p, [questionId]: value }));
+    setAnswers(p => ({ ...p, [questionId]: value }));
   };
 
   const handleSubmit = async () => {
     if (!attempt) return;
-    const answersArray = (assessment.questions || []).map((q) => ({
+    const answersArray = (assessment.questions || []).map(q => ({
       question_id: q.id,
       answer_text: answers[q.id] || '',
     }));
@@ -64,6 +177,9 @@ export default function TrainingAssessmentForm() {
       const res = await api.post(`/training/assessments/${assessmentId}/submit`, { answers: answersArray });
       setResult(res);
       setSubmitted(true);
+      setMode('result');
+      // Refresh attempts list
+      api.get(`/training/assessments/${assessmentId}/attempts`).then(setPastAttempts).catch(() => {});
     } catch (e) {
       setError(`Submission failed: ${e.message}`);
     } finally {
@@ -71,10 +187,10 @@ export default function TrainingAssessmentForm() {
     }
   };
 
-  const answeredCount = (assessment?.questions || []).filter((q) => (answers[q.id] || '').trim()).length;
+  const answeredCount = (assessment?.questions || []).filter(q => (answers[q.id] || '').trim()).length;
   const totalCount = assessment?.questions?.length || 0;
 
-  if (loading) {
+  if (loading || mode === 'loading') {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <Loader2 className="w-8 h-8 animate-spin" style={{ color: TEAL }} />
@@ -92,12 +208,11 @@ export default function TrainingAssessmentForm() {
     );
   }
 
-  if (submitted && result) {
+  // ── RESULT screen (just submitted) ──────────────────────────────────────────
+  if (mode === 'result' && result) {
     const passed = result.passed;
     const score = result.score ?? 0;
     const feedback = result.ai_feedback?.overall || '';
-    const answerMap = {};
-    (result.answers || []).forEach((a) => { answerMap[a.question_id] = a; });
 
     return (
       <div className="space-y-6">
@@ -105,9 +220,7 @@ export default function TrainingAssessmentForm() {
 
         <div className={`rounded-2xl p-6 text-white ${passed ? 'bg-gradient-to-r from-emerald-500 to-teal-600' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`}>
           <div className="flex items-center gap-4">
-            {passed
-              ? <Trophy className="w-12 h-12 text-yellow-300" />
-              : <AlertTriangle className="w-12 h-12 text-white/80" />}
+            {passed ? <Trophy className="w-12 h-12 text-yellow-300" /> : <AlertTriangle className="w-12 h-12 text-white/80" />}
             <div>
               <h1 className="text-2xl font-bold">{passed ? '🎉 You Passed!' : 'Keep Practising'}</h1>
               <p className="text-white/80 text-sm mt-0.5">{assessment?.title}</p>
@@ -123,8 +236,8 @@ export default function TrainingAssessmentForm() {
               <p className="text-xs text-white/70 mt-1">Pass Threshold</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-bold">{result.attempt_number}</p>
-              <p className="text-xs text-white/70 mt-1">Attempt #{result.attempt_number}</p>
+              <p className="text-xl font-bold">#{result.attempt_number}</p>
+              <p className="text-xs text-white/70 mt-1">Attempt</p>
             </div>
           </div>
         </div>
@@ -136,88 +249,103 @@ export default function TrainingAssessmentForm() {
           </div>
         )}
 
-        {/* Per-answer breakdown */}
-        {assessment?.questions?.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-              <h3 className="font-semibold text-gray-800">Answer Breakdown</h3>
-            </div>
-            <div className="divide-y divide-gray-100">
-              {assessment.questions.map((q) => {
-                const ev = answerMap[q.id];
-                const flag = ev?.ai_flag;
-                const isOpen = expandedAnswer === q.id;
-                return (
-                  <div key={q.id} className="px-5 py-4">
-                    <button
-                      onClick={() => setExpandedAnswer(isOpen ? null : q.id)}
-                      className="w-full flex items-start justify-between gap-3 text-left">
-                      <div className="flex items-start gap-3">
-                        {flag === 'correct' && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />}
-                        {flag === 'wrong' && <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
-                        {flag === 'partial' && <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />}
-                        {!flag && <div className="w-5 h-5 rounded-full border-2 border-gray-300 shrink-0 mt-0.5" />}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{q.question_text}</p>
-                          <span className={`text-xs font-medium ${q.question_type === 'mcq' ? 'text-indigo-600' : 'text-teal-600'}`}>
-                            {q.question_type === 'mcq' ? 'MCQ' : 'Written'}
-                          </span>
-                        </div>
-                      </div>
-                      {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
-                    </button>
+        <AttemptCard attempt={result} questions={assessment?.questions || []} defaultOpen={true} />
 
-                    {isOpen && (
-                      <div className="mt-3 ml-8 space-y-2">
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <p className="text-xs font-medium text-gray-500 mb-1">Your answer:</p>
-                          <p className="text-sm text-gray-800">{ev?.answer_text || '(no answer)'}</p>
-                        </div>
-                        {ev?.ai_explanation && (
-                          <div className={`rounded-lg p-3 ${flag === 'correct' ? 'bg-emerald-50 border border-emerald-200' : flag === 'wrong' ? 'bg-red-50 border border-red-200' : 'bg-amber-50 border border-amber-200'}`}>
-                            <p className="text-xs font-medium mb-1" style={{ color: flag === 'correct' ? '#065f46' : flag === 'wrong' ? '#991b1b' : '#92400e' }}>AI explanation:</p>
-                            <p className="text-sm" style={{ color: flag === 'correct' ? '#047857' : flag === 'wrong' ? '#b91c1c' : '#b45309' }}>{ev.ai_explanation}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {!passed && (
+        <div className="flex gap-3">
+          {!passed && (
+            <button
+              onClick={startAttempt}
+              disabled={startingNew}
+              className="flex-1 py-3 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+              style={{ background: ORANGE }}>
+              {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+              Try Again
+            </button>
+          )}
           <button
-            onClick={() => { setSubmitted(false); setResult(null); setAnswers({}); setAttempt(null); setLoading(true);
-              api.post(`/training/assessments/${assessmentId}/start`, {}).then((att) => { setAttempt(att); setLoading(false); }).catch(() => setLoading(false));
-            }}
-            className="w-full py-3 rounded-xl text-white font-semibold text-sm"
-            style={{ background: ORANGE }}>
-            Try Again
+            onClick={() => setMode('history')}
+            className="flex-1 py-3 rounded-xl text-gray-700 font-semibold text-sm border border-gray-200 hover:bg-gray-50 flex items-center justify-center gap-2">
+            <History className="w-4 h-4" /> View All Attempts
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── HISTORY screen ───────────────────────────────────────────────────────────
+  if (mode === 'history') {
+    const hasPassed = pastAttempts.some(a => a.passed);
+    const bestScore = pastAttempts.length > 0
+      ? Math.max(...pastAttempts.filter(a => a.score != null).map(a => a.score))
+      : null;
+
+    return (
+      <div className="space-y-6">
+        <BackButton to="/training/ai-assessments" label="Back to Assessments" />
+
+        <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${TEAL}, #134e4a)` }}>
+          <h1 className="text-xl font-bold mb-1">{assessment?.title}</h1>
+          <p className="text-teal-100 text-sm">
+            {totalCount} questions · Pass at {assessment?.pass_threshold}%
+          </p>
+          {pastAttempts.length > 0 && (
+            <div className="flex items-center gap-4 mt-3">
+              <span className="text-sm text-teal-200">{pastAttempts.length} attempt{pastAttempts.length > 1 ? 's' : ''}</span>
+              {bestScore != null && <span className="text-sm font-bold text-white">Best: {Math.round(bestScore)}/100</span>}
+              {hasPassed && <span className="text-sm font-bold text-yellow-300">🏆 Passed!</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+            <History className="w-4 h-4 text-gray-500" /> Attempt History
+          </h2>
+          <button
+            onClick={startAttempt}
+            disabled={startingNew}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
+            style={{ background: ORANGE }}>
+            {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+            {hasPassed ? 'Take Again' : 'Start New Attempt'}
+          </button>
+        </div>
+
+        {pastAttempts.length === 0 ? (
+          <div className="text-center py-12 bg-white border border-gray-100 rounded-2xl">
+            <PlayCircle className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium">No attempts yet</p>
+            <p className="text-sm text-gray-400 mt-1">Click "Start New Attempt" to begin.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pastAttempts.map((att, idx) => (
+              <AttemptCard
+                key={att.id}
+                attempt={att}
+                questions={assessment?.questions || []}
+                defaultOpen={idx === 0}
+              />
+            ))}
+          </div>
         )}
       </div>
     );
   }
 
+  // ── TAKING screen ────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <BackButton to="/training/ai-assessments" label="Back to Assessments" />
 
-      {/* Header */}
       <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${TEAL}, #134e4a)` }}>
         <h1 className="text-xl font-bold mb-1">{assessment?.title}</h1>
         <p className="text-teal-100 text-sm">
           {totalCount} questions ({assessment?.mcq_count} MCQ + {assessment?.written_count} written) · Pass at {assessment?.pass_threshold}%
         </p>
-        {attempt && (
-          <p className="text-teal-200 text-xs mt-1">Attempt #{attempt.attempt_number}</p>
-        )}
+        {attempt && <p className="text-teal-200 text-xs mt-1">Attempt #{attempt.attempt_number}</p>}
       </div>
 
-      {/* Progress */}
       <div className="bg-white border border-gray-200 rounded-xl px-5 py-3 flex items-center gap-4">
         <div className="flex-1">
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -227,7 +355,6 @@ export default function TrainingAssessmentForm() {
         <p className="text-sm font-medium text-gray-700 shrink-0">{answeredCount} / {totalCount} answered</p>
       </div>
 
-      {/* Questions */}
       <div className="space-y-5">
         {(assessment?.questions || []).map((q, idx) => (
           <div key={q.id} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
@@ -241,6 +368,11 @@ export default function TrainingAssessmentForm() {
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${q.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
                     {q.question_type === 'mcq' ? 'MCQ' : 'Written'}
                   </span>
+                  {q.difficulty && (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${q.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' : q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                      {q.difficulty === 'easy' ? '🟢 Easy' : q.difficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm font-medium text-gray-900 leading-relaxed">{q.question_text}</p>
               </div>
@@ -252,9 +384,7 @@ export default function TrainingAssessmentForm() {
                   const letter = opt.charAt(0);
                   const selected = answers[q.id] === letter;
                   return (
-                    <button
-                      key={oi}
-                      onClick={() => handleAnswer(q.id, letter)}
+                    <button key={oi} onClick={() => handleAnswer(q.id, letter)}
                       className={`w-full text-left px-4 py-2.5 rounded-lg text-sm border transition-all ${selected ? 'text-white border-transparent' : 'border-gray-200 text-gray-700 hover:border-teal-300 hover:bg-teal-50'}`}
                       style={selected ? { background: TEAL, borderColor: TEAL } : {}}>
                       {opt}
@@ -264,23 +394,16 @@ export default function TrainingAssessmentForm() {
               </div>
             ) : (
               <div className="ml-10">
-                <textarea
-                  value={answers[q.id] || ''}
-                  onChange={(e) => handleAnswer(q.id, e.target.value)}
-                  rows={4}
+                <textarea value={answers[q.id] || ''} onChange={e => handleAnswer(q.id, e.target.value)} rows={4}
                   placeholder="Write your answer here…"
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-teal-300 focus:border-teal-400"
-                />
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-teal-300 focus:border-teal-400" />
               </div>
             )}
           </div>
         ))}
       </div>
 
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        disabled={submitting || answeredCount === 0}
+      <button onClick={handleSubmit} disabled={submitting || answeredCount === 0}
         className="w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all disabled:opacity-50"
         style={{ background: ORANGE }}>
         {submitting ? (

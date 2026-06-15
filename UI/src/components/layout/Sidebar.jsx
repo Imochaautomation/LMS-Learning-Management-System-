@@ -20,8 +20,7 @@ export default function Sidebar() {
   if (user.role === 'new_joiner') {
     items = [
       { to: '/training', label: 'Dashboard', icon: Home },
-      ...(isContentNewJoiner ? [{ to: '/training/sme-kit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
-      { to: '/training/assessments', label: 'Assessments', icon: FileText },
+      { to: '/training/sme-kit', label: 'SME Training Kit', icon: BookOpen },
       { to: '/training/ai-assessments', label: 'AI Quizzes', icon: Brain },
       { to: '/training/courses', label: 'Courses', icon: GraduationCap },
     ];

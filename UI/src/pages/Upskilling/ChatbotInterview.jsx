@@ -33,6 +33,13 @@ export default function ChatbotInterview() {
   const committedTranscriptRef = useRef('');
   const textareaRef = useRef(null);
   const generatingRef = useRef(false);
+  // Voice quality improvements
+  const audioCtxRef = useRef(null);
+  const analyserRef = useRef(null);
+  const micStreamRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const [voiceBars, setVoiceBars] = useState([0, 0, 0, 0, 0]);
 
   const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI skill interviewer from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time.\n\nLet's get started!`;
 
@@ -53,6 +60,17 @@ export default function ChatbotInterview() {
 
   const canFinishEarly = questionIndex >= MIN_QUESTIONS && !finished && !awaitingWrapup;
   const progress = Math.min((questionIndex / MAX_QUESTIONS) * 100, 100);
+
+  // Cleanup mic + audio context on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(silenceTimerRef.current);
+      if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
+      if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
+    };
+  }, []);
 
   // Auto-resize textarea when input changes
   useEffect(() => {
@@ -100,39 +118,118 @@ export default function ChatbotInterview() {
 
   const appendMessage = (msg) => setChatBlocks(prev => [...prev, msg]);
 
-  const startVoice = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { toast.error('Voice input is not supported in this browser. Try Chrome or Edge.'); return; }
-    if (isListening) {
-      recognitionRef.current?.stop();
-      recognitionRef.current = null;
-      setIsListening(false);
-      return;
+  // Strip filler words and clean up transcript
+  const cleanVoiceText = (text) => {
+    const fillers = /\b(um+|uh+|er+|hmm+|hm+|ah+|oh\s+|like\s+i\s+said|you\s+know|basically|sort\s+of|kind\s+of|i\s+mean)\b[\s,]*/gi;
+    let t = text.replace(fillers, ' ').replace(/\s{2,}/g, ' ').trim();
+    if (!t) return '';
+    // Capitalize first letter
+    t = t[0].toUpperCase() + t.slice(1);
+    return t;
+  };
+
+  // Start AudioContext analyser for live waveform bars
+  const startAudioMonitor = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      micStreamRef.current = stream;
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      analyserRef.current = analyser;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const N = 5;
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        // Sample 5 frequency buckets spread across the voice range
+        const step = Math.floor(data.length / N);
+        const bars = Array.from({ length: N }, (_, i) => Math.min(100, Math.round(data[i * step] / 2.55)));
+        setVoiceBars(bars);
+        animFrameRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {
+      // getUserMedia failed — monitor won't show, recognition still works
     }
+  };
+
+  const stopAudioMonitor = () => {
+    if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); animFrameRef.current = null; }
+    if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
+    if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
+    setVoiceBars([0, 0, 0, 0, 0]);
+  };
+
+  const stopVoice = () => {
+    clearTimeout(silenceTimerRef.current);
+    if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
+    setIsListening(false);
+    stopAudioMonitor();
+  };
+
+  const startVoice = async () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { toast.error('Voice input not supported. Please use Chrome or Edge.'); return; }
+
+    if (isListening) { stopVoice(); return; }
+
+    // Start visual audio monitor in parallel with recognition
+    startAudioMonitor();
+
     resultIndexRef.current = 0;
     committedTranscriptRef.current = '';
+
     const r = new SpeechRecognition();
     r.lang = 'en-US';
     r.continuous = true;
     r.interimResults = true;
+    r.maxAlternatives = 3;
+
     r.onstart = () => setIsListening(true);
+
     r.onresult = (e) => {
+      // Reset silence timer on every result
+      clearTimeout(silenceTimerRef.current);
+
       let newFinal = '';
       let interim = '';
+
       for (let i = resultIndexRef.current; i < e.results.length; i++) {
         if (e.results[i].isFinal) {
-          newFinal += e.results[i][0].transcript + ' ';
+          // Pick the alternative with highest confidence
+          let best = e.results[i][0];
+          for (let j = 1; j < e.results[i].length; j++) {
+            if ((e.results[i][j].confidence || 0) > (best.confidence || 0)) best = e.results[i][j];
+          }
+          // Only accept if confidence is acceptable (0 means browser didn't report it — accept anyway)
+          if (best.confidence === 0 || best.confidence >= 0.45) {
+            newFinal += best.transcript + ' ';
+          }
+          resultIndexRef.current = i + 1;
         } else {
-          interim += e.results[i][0].transcript;
+          // For interim, also pick best alternative
+          let best = e.results[i][0];
+          for (let j = 1; j < e.results[i].length; j++) {
+            if ((e.results[i][j].confidence || 0) > (best.confidence || 0)) best = e.results[i][j];
+          }
+          interim += best.transcript;
         }
       }
+
       if (newFinal) {
-        resultIndexRef.current = e.results.length;
+        const cleaned = cleanVoiceText(newFinal.trim());
         const appended = committedTranscriptRef.current
-          ? committedTranscriptRef.current + ' ' + newFinal.trim()
-          : newFinal.trim();
+          ? committedTranscriptRef.current + ' ' + cleaned
+          : cleaned;
         committedTranscriptRef.current = appended;
         setInput(appended);
+
+        // Auto-stop after 4 s of silence once user has spoken something
+        silenceTimerRef.current = setTimeout(() => {
+          if (recognitionRef.current === r) stopVoice();
+        }, 4000);
       } else if (interim) {
         const preview = committedTranscriptRef.current
           ? committedTranscriptRef.current + ' ' + interim
@@ -140,16 +237,31 @@ export default function ChatbotInterview() {
         setInput(preview);
       }
     };
+
     r.onend = () => {
       if (recognitionRef.current === r) {
-        try { r.start(); } catch { setIsListening(false); }
+        // Auto-restart to keep continuous listening
+        try { r.start(); } catch { setIsListening(false); stopAudioMonitor(); }
       } else {
         setIsListening(false);
+        stopAudioMonitor();
       }
     };
+
     r.onerror = (e) => {
-      if (e.error !== 'no-speech') { setIsListening(false); recognitionRef.current = null; toast.error('Voice input stopped.'); }
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        toast.error('Microphone access denied. Allow mic in your browser settings and try again.');
+        stopVoice();
+      } else if (e.error === 'audio-capture') {
+        toast.error('No microphone found. Please plug in a mic and try again.');
+        stopVoice();
+      } else if (e.error !== 'no-speech') {
+        setIsListening(false);
+        stopAudioMonitor();
+        recognitionRef.current = null;
+      }
     };
+
     r.start();
     recognitionRef.current = r;
   };
@@ -424,19 +536,37 @@ export default function ChatbotInterview() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
               }}
-              placeholder={isListening ? '🎙 Listening... speak now' : 'Type your answer or use the mic... (Shift+Enter for new line)'}
+              placeholder={isListening ? '🎙 Listening… speak clearly, auto-stops after silence' : 'Type your answer or click the mic to speak… (Shift+Enter for new line)'}
               disabled={loading}
               rows={1}
               className="flex-1 px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 resize-none overflow-y-auto"
               style={{ minHeight: '44px', maxHeight: '140px' }}
             />
-            {/* Voice button */}
-            <button onClick={startVoice} disabled={loading}
-              className={`p-3 rounded-xl shrink-0 transition-all ${isListening ? 'text-white animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-              style={isListening ? { background: '#F05A28' } : {}}
-              title={isListening ? 'Mic is ON — click to stop' : 'Click to start voice input'}>
-              {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-            </button>
+            {/* Voice button + waveform */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isListening && (
+                <div className="flex items-end gap-0.5 h-6 px-1" title="Microphone active">
+                  {voiceBars.map((h, i) => (
+                    <div
+                      key={i}
+                      className="rounded-full transition-all duration-75"
+                      style={{
+                        width: '3px',
+                        height: `${Math.max(4, Math.min(24, 4 + h * 0.2))}px`,
+                        background: '#F05A28',
+                        opacity: 0.7 + (h / 100) * 0.3,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              <button onClick={startVoice} disabled={loading}
+                className={`p-3 rounded-xl transition-all ${isListening ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                style={isListening ? { background: '#F05A28' } : {}}
+                title={isListening ? 'Mic ON — click to stop (auto-stops after silence)' : 'Click to speak your answer'}>
+                {isListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+              </button>
+            </div>
             <button onClick={sendMessage} disabled={!input.trim() || loading}
               className="p-3 text-white rounded-xl disabled:opacity-50 shrink-0 transition-colors"
               style={{ background: '#F05A28' }}
