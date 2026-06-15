@@ -17,6 +17,7 @@ class User(Base):
     plain_password = Column(String(255), nullable=True)
     role = Column(String(20), nullable=False)  # admin, manager, new_joiner, employee
     department = Column(String(100), nullable=True)
+    sub_department = Column(String(100), nullable=True)  # e.g. Editing Team, Uploading Team
     designation = Column(String(100), nullable=True)
     experience = Column(String(50), nullable=True)
     manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -158,6 +159,136 @@ class SmeKitAssignment(Base):
     user = relationship("User", foreign_keys=[user_id])
     assigner = relationship("User", foreign_keys=[assigned_by])
 
+
+# ── Training Module (SME Kits + AI Assessments) ─────────────────────────────
+
+class SmeKit(Base):
+    """Named SME Kit collection created by a manager (e.g. 'Editing Onboarding Kit')."""
+    __tablename__ = "sme_kits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(300), nullable=False)
+    description = Column(Text, nullable=True)
+    department = Column(String(100), nullable=True)
+    sub_department = Column(String(100), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, server_default=_now)
+
+    creator = relationship("User", foreign_keys=[created_by])
+    files = relationship("SmeKitFileV2", back_populates="kit", cascade="all, delete-orphan")
+
+
+class SmeKitFileV2(Base):
+    """File or YouTube video inside a named SmeKit."""
+    __tablename__ = "sme_kit_files_v2"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sme_kit_id = Column(Integer, ForeignKey("sme_kits.id"), nullable=False)
+    name = Column(String(300), nullable=False)
+    file_type = Column(String(20), nullable=False)   # "document" | "youtube" | "video"
+    file_path = Column(String(500), nullable=True)   # for uploaded files
+    youtube_url = Column(String(500), nullable=True) # for YouTube links
+    transcript = Column(Text, nullable=True)         # extracted/uploaded transcript
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, server_default=_now)
+
+    kit = relationship("SmeKit", back_populates="files")
+    uploader = relationship("User", foreign_keys=[uploaded_by])
+
+
+class SmeKitAssignmentV2(Base):
+    """Manager assigns a whole SmeKit to a new joiner."""
+    __tablename__ = "sme_kit_assignments_v2"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sme_kit_id = Column(Integer, ForeignKey("sme_kits.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_at = Column(DateTime, server_default=_now)
+
+    kit = relationship("SmeKit", foreign_keys=[sme_kit_id])
+    user = relationship("User", foreign_keys=[user_id])
+    assigner = relationship("User", foreign_keys=[assigned_by])
+
+
+class TrainingAssessment(Base):
+    """AI-generated assessment created by manager for a specific new joiner."""
+    __tablename__ = "training_assessments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(300), nullable=False)
+    new_joiner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    sme_kit_id = Column(Integer, ForeignKey("sme_kits.id"), nullable=False)
+    source_file_ids = Column(JSON, default=list)  # list of SmeKitFileV2 ids used
+    total_questions = Column(Integer, default=10)
+    mcq_count = Column(Integer, default=5)
+    written_count = Column(Integer, default=5)
+    pass_threshold = Column(Integer, default=70)  # percentage
+    status = Column(String(20), default="pending")  # pending, active, completed
+    created_at = Column(DateTime, server_default=_now)
+
+    new_joiner = relationship("User", foreign_keys=[new_joiner_id])
+    creator = relationship("User", foreign_keys=[created_by])
+    kit = relationship("SmeKit", foreign_keys=[sme_kit_id])
+    questions = relationship("TrainingQuestion", back_populates="assessment", cascade="all, delete-orphan")
+    attempts = relationship("TrainingAttempt", back_populates="assessment", cascade="all, delete-orphan")
+
+
+class TrainingQuestion(Base):
+    """One question in a TrainingAssessment (MCQ or written)."""
+    __tablename__ = "training_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    assessment_id = Column(Integer, ForeignKey("training_assessments.id"), nullable=False)
+    order_index = Column(Integer, nullable=False)
+    question_type = Column(String(20), nullable=False)  # "mcq" | "written"
+    question_text = Column(Text, nullable=False)
+    options = Column(JSON, nullable=True)        # ["A. ...", "B. ...", "C. ...", "D. ..."] for MCQ
+    correct_answer = Column(Text, nullable=True) # stored for AI evaluation reference
+
+    assessment = relationship("TrainingAssessment", back_populates="questions")
+
+
+class TrainingAttempt(Base):
+    """One attempt by a new joiner on a TrainingAssessment. Every attempt is stored permanently."""
+    __tablename__ = "training_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    assessment_id = Column(Integer, ForeignKey("training_assessments.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    attempt_number = Column(Integer, default=1)
+    status = Column(String(20), default="in_progress")  # in_progress | submitted | evaluated
+    score = Column(Float, nullable=True)           # percentage 0-100
+    passed = Column(Boolean, nullable=True)
+    trophy_awarded = Column(Boolean, default=False)
+    ai_feedback = Column(JSON, nullable=True)      # overall feedback text from AI
+    submitted_at = Column(DateTime, nullable=True)
+    evaluated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=_now)
+
+    assessment = relationship("TrainingAssessment", back_populates="attempts")
+    user = relationship("User", foreign_keys=[user_id])
+    answers = relationship("TrainingAnswer", back_populates="attempt", cascade="all, delete-orphan")
+
+
+class TrainingAnswer(Base):
+    """New joiner's answer to one TrainingQuestion within an attempt."""
+    __tablename__ = "training_answers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    attempt_id = Column(Integer, ForeignKey("training_attempts.id"), nullable=False)
+    question_id = Column(Integer, ForeignKey("training_questions.id"), nullable=False)
+    answer_text = Column(Text, nullable=True)
+    is_correct = Column(Boolean, nullable=True)
+    ai_flag = Column(String(20), nullable=True)     # "correct" | "wrong" | "partial"
+    ai_explanation = Column(Text, nullable=True)   # per-answer AI feedback
+
+    attempt = relationship("TrainingAttempt", back_populates="answers")
+    question = relationship("TrainingQuestion")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 class CourseBankItem(Base):
     __tablename__ = "course_bank"

@@ -272,3 +272,123 @@ class SkillGapOut(BaseModel):
     skill: str
     score: int
     severity: str
+
+
+# ── Training Module ──
+
+class SmeKitCreateV2(BaseModel):
+    name: str
+    description: Optional[str] = None
+    department: Optional[str] = None
+    sub_department: Optional[str] = None
+
+class SmeKitFileOut(BaseModel):
+    id: int
+    sme_kit_id: int
+    name: str
+    file_type: str
+    file_path: Optional[str] = None
+    youtube_url: Optional[str] = None
+    transcript: Optional[str] = None
+    uploaded_by: int
+    created_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+class SmeKitOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    department: Optional[str] = None
+    sub_department: Optional[str] = None
+    created_by: int
+    creator_name: Optional[str] = None
+    created_at: Optional[datetime] = None
+    files: List[SmeKitFileOut] = []
+    file_count: Optional[int] = 0
+    class Config:
+        from_attributes = True
+
+class SmeKitAssignRequest(BaseModel):
+    sme_kit_id: int
+    user_id: int
+
+class SmeKitAssignmentOut(BaseModel):
+    id: int
+    sme_kit_id: int
+    user_id: int
+    assigned_by: int
+    assigned_at: Optional[datetime] = None
+    kit_name: Optional[str] = None
+    user_name: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class GenerateAssessmentRequest(BaseModel):
+    new_joiner_id: int
+    sme_kit_id: int
+    title: str
+    source_file_ids: List[int]
+    mcq_count: int = 5
+    written_count: int = 5
+    pass_threshold: int = 70
+
+class TrainingQuestionOut(BaseModel):
+    id: int
+    assessment_id: int
+    order_index: int
+    question_type: str
+    question_text: str
+    options: Optional[List[str]] = None
+    class Config:
+        from_attributes = True
+
+class TrainingAssessmentOut(BaseModel):
+    id: int
+    title: str
+    new_joiner_id: int
+    created_by: int
+    sme_kit_id: int
+    source_file_ids: Optional[List[int]] = []
+    total_questions: int
+    mcq_count: int
+    written_count: int
+    pass_threshold: int
+    status: str
+    created_at: Optional[datetime] = None
+    new_joiner_name: Optional[str] = None
+    creator_name: Optional[str] = None
+    kit_name: Optional[str] = None
+    questions: Optional[List[TrainingQuestionOut]] = None
+    class Config:
+        from_attributes = True
+
+class SubmitAttemptRequest(BaseModel):
+    answers: List[dict]  # [{question_id: int, answer_text: str}]
+
+class TrainingAnswerOut(BaseModel):
+    id: int
+    question_id: int
+    answer_text: Optional[str] = None
+    is_correct: Optional[bool] = None
+    ai_flag: Optional[str] = None
+    ai_explanation: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class TrainingAttemptOut(BaseModel):
+    id: int
+    assessment_id: int
+    user_id: int
+    attempt_number: int
+    status: str
+    score: Optional[float] = None
+    passed: Optional[bool] = None
+    trophy_awarded: Optional[bool] = False
+    ai_feedback: Optional[Any] = None
+    submitted_at: Optional[datetime] = None
+    evaluated_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    answers: Optional[List[TrainingAnswerOut]] = None
+    class Config:
+        from_attributes = True

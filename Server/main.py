@@ -8,6 +8,7 @@ from routers import (
     auth_router, admin_router, profile_router, assessments_router,
     courses_router, banks_router, ai_interview_router,
     ai_recommend_router, notifications_router,
+    training_smekit_router, training_assessments_router,
 )
 from config import UPLOAD_DIR
 
@@ -50,6 +51,8 @@ app.include_router(banks_router)
 app.include_router(ai_interview_router)
 app.include_router(ai_recommend_router)
 app.include_router(notifications_router)
+app.include_router(training_smekit_router)
+app.include_router(training_assessments_router)
 
 
 @app.get("/health")
@@ -148,6 +151,22 @@ def startup():
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS designation VARCHAR(100)"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS experience VARCHAR(50)"))
             conn.commit()
+
+    # Add sub_department to users (v2.2 training module)
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN sub_department VARCHAR(100)"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS sub_department VARCHAR(100)"))
+            conn.commit()
+
+    # Create training module tables (v2.2) — create_all handles new tables but not column additions
+    Base.metadata.create_all(bind=engine)
 
     from sqlalchemy.orm import Session
     from database import SessionLocal

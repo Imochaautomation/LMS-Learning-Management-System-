@@ -723,6 +723,13 @@ export default function LearnerDetail() {
   const [assigningSme, setAssigningSme] = useState(false);
   const [smeSearch, setSmeSearch] = useState('');
 
+  // Training Assessments (V2 AI-generated)
+  const [trainingAssessments, setTrainingAssessments] = useState([]);
+  const [myKits, setMyKits] = useState([]);
+  const [showCreateTraining, setShowCreateTraining] = useState(false);
+  const [trainingForm, setTrainingForm] = useState({ title: '', sme_kit_id: '', source_file_ids: [], mcq_count: 5, written_count: 5, pass_threshold: 70 });
+  const [generatingTraining, setGeneratingTraining] = useState(false);
+
   useEffect(() => {
     api.get('/admin/users').then((all) => {
       const u = all.find((x) => x.id === parseInt(id));
@@ -747,6 +754,10 @@ export default function LearnerDetail() {
     api.get('/banks/smekit/assignments').then((all) => {
       setSmeAssigned(all.filter((a) => a.user_id === parseInt(id)));
     }).catch(() => { });
+    api.get('/training/assessments').then((all) => {
+      setTrainingAssessments((all || []).filter((a) => a.new_joiner_id === parseInt(id)));
+    }).catch(() => { });
+    api.get('/training/kits').then(setMyKits).catch(() => { });
   }, [id]);
 
   if (!learner) return <div className="p-8 text-center text-gray-400">Loading...</div>;
@@ -800,6 +811,31 @@ export default function LearnerDetail() {
   const toggleSmeFile = (fileId) => setSelectedSmeFiles((prev) =>
     prev.includes(fileId) ? prev.filter((x) => x !== fileId) : [...prev, fileId]
   );
+
+  const generateTrainingAssessment = async () => {
+    if (!trainingForm.title.trim() || !trainingForm.sme_kit_id || trainingForm.source_file_ids.length === 0) return;
+    setGeneratingTraining(true);
+    try {
+      const res = await api.post('/training/assessments/generate', {
+        new_joiner_id: parseInt(id),
+        sme_kit_id: parseInt(trainingForm.sme_kit_id),
+        title: trainingForm.title.trim(),
+        source_file_ids: trainingForm.source_file_ids,
+        mcq_count: parseInt(trainingForm.mcq_count),
+        written_count: parseInt(trainingForm.written_count),
+        pass_threshold: parseInt(trainingForm.pass_threshold),
+      });
+      setTrainingAssessments((p) => [res, ...p]);
+      setShowCreateTraining(false);
+      setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], mcq_count: 5, written_count: 5, pass_threshold: 70 });
+    } catch (e) {
+      alert(`Failed to generate assessment: ${e.message}`);
+    } finally {
+      setGeneratingTraining(false);
+    }
+  };
+
+  const selectedKit = myKits.find((k) => k.id === parseInt(trainingForm.sme_kit_id));
 
   const criticalGaps = skillGaps.filter(g => g.severity === 'High');
   const mediumGaps = skillGaps.filter(g => g.severity === 'Medium');
@@ -1043,6 +1079,151 @@ export default function LearnerDetail() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Training Assessments (V2 AI-generated) ── */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-teal-600" /> AI Training Assessments
+              </h2>
+              <button
+                onClick={() => { setShowCreateTraining(!showCreateTraining); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], mcq_count: 5, written_count: 5, pass_threshold: 70 }); }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-teal-100 text-teal-700 text-sm font-medium rounded-lg hover:bg-teal-200">
+                <Plus className="w-4 h-4" /> Create Assessment
+              </button>
+            </div>
+
+            {showCreateTraining && (
+              <div className="mb-5 border border-teal-200 bg-teal-50 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-700">Generate AI Assessment from SME Kit</p>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Assessment Title *</label>
+                    <input
+                      value={trainingForm.title}
+                      onChange={(e) => setTrainingForm((p) => ({ ...p, title: e.target.value }))}
+                      placeholder="e.g. Editing Basics Quiz"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">SME Kit *</label>
+                    <select
+                      value={trainingForm.sme_kit_id}
+                      onChange={(e) => setTrainingForm((p) => ({ ...p, sme_kit_id: e.target.value, source_file_ids: [] }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white">
+                      <option value="">— Select kit —</option>
+                      {myKits.map((k) => (
+                        <option key={k.id} value={k.id}>{k.name} ({k.file_count} files)</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {selectedKit && selectedKit.files?.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Select Files for Questions * <span className="text-gray-400">(AI will read these to generate questions)</span></label>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {selectedKit.files.map((f) => {
+                        const checked = trainingForm.source_file_ids.includes(f.id);
+                        return (
+                          <label key={f.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${checked ? 'border-teal-400 bg-white ring-1 ring-teal-300' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setTrainingForm((p) => ({
+                                ...p,
+                                source_file_ids: checked
+                                  ? p.source_file_ids.filter((x) => x !== f.id)
+                                  : [...p.source_file_ids, f.id],
+                              }))}
+                              className="rounded"
+                            />
+                            <span>{f.file_type === 'youtube' ? '▶' : '📄'}</span>
+                            <span className="text-sm text-gray-700 flex-1 truncate">{f.name}</span>
+                            {f.transcript && <span className="text-xs text-green-600 shrink-0">transcript ✓</span>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">MCQ Questions</label>
+                    <input type="number" min="0" max="20"
+                      value={trainingForm.mcq_count}
+                      onChange={(e) => setTrainingForm((p) => ({ ...p, mcq_count: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Written Questions</label>
+                    <input type="number" min="0" max="20"
+                      value={trainingForm.written_count}
+                      onChange={(e) => setTrainingForm((p) => ({ ...p, written_count: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Pass % Threshold</label>
+                    <input type="number" min="50" max="100"
+                      value={trainingForm.pass_threshold}
+                      onChange={(e) => setTrainingForm((p) => ({ ...p, pass_threshold: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={generateTrainingAssessment}
+                    disabled={generatingTraining || !trainingForm.title.trim() || !trainingForm.sme_kit_id || trainingForm.source_file_ids.length === 0}
+                    className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50">
+                    {generatingTraining ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Generating AI Questions…</>
+                    ) : (
+                      <><Zap className="w-4 h-4" /> Generate Assessment</>
+                    )}
+                  </button>
+                  <button onClick={() => setShowCreateTraining(false)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+                </div>
+                {generatingTraining && (
+                  <p className="text-xs text-teal-600">AI is reading the selected files and creating questions — this may take 15–30 seconds…</p>
+                )}
+              </div>
+            )}
+
+            {trainingAssessments.length === 0 ? (
+              <p className="text-sm text-gray-400">No AI assessments created yet. Click "Create Assessment" to generate one from an SME Kit.</p>
+            ) : (
+              <div className="space-y-2">
+                {trainingAssessments.map((a) => (
+                  <div key={a.id} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900 text-sm">{a.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs text-gray-400">{a.created_at?.split('T')[0]}</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded">{a.kit_name}</span>
+                        <span className="text-xs text-gray-500">{a.total_questions} Qs ({a.mcq_count} MCQ + {a.written_count} written)</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${a.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{a.status}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {a.attempt_count > 0 && (
+                        <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">{a.attempt_count} attempt{a.attempt_count > 1 ? 's' : ''}</span>
+                      )}
+                      {a.best_score != null && (
+                        <span className={`text-sm font-bold ${a.passed ? 'text-emerald-600' : 'text-amber-600'}`}>{Math.round(a.best_score)}/100</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

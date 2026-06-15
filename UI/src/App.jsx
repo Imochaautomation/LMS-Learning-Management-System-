@@ -8,12 +8,15 @@ import TrainingDashboard from './pages/Training/TrainingDashboard';
 import SmeKit from './pages/Training/SmeKit';
 import TrainingAssessments from './pages/Training/TrainingAssessments';
 import TrainingCourses from './pages/Training/TrainingCourses';
+import AIAssessments from './pages/Training/AIAssessments';
+import TrainingAssessmentForm from './pages/Training/TrainingAssessmentForm';
 import UpskillDashboard from './pages/Upskilling/UpskillDashboard';
 import UpskillCourses from './pages/Upskilling/UpskillCourses';
 import ProfileSetup from './pages/Upskilling/ProfileSetup';
 import ChatbotInterview from './pages/Upskilling/ChatbotInterview';
 import ManagerDashboard from './pages/Manager/ManagerDashboard';
 import LearnerDetail from './pages/Manager/LearnerDetail';
+import SmeKitManager from './pages/Manager/SmeKitManager';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import UserManagement from './pages/Admin/UserManagement';
 
@@ -46,6 +49,8 @@ export default function App() {
             <Route path="/training/sme-kit" element={<SmeKit />} />
             <Route path="/training/assessments" element={<TrainingAssessments />} />
             <Route path="/training/courses" element={<TrainingCourses />} />
+            <Route path="/training/ai-assessments" element={<AIAssessments />} />
+            <Route path="/training/ai-assessments/:assessmentId" element={<TrainingAssessmentForm />} />
           </Route>
 
           <Route element={
@@ -66,6 +71,7 @@ export default function App() {
           }>
             <Route path="/manager" element={<ManagerDashboard />} />
             <Route path="/manager/learner/:id" element={<LearnerDetail />} />
+            <Route path="/manager/sme-kits" element={<SmeKitManager />} />
           </Route>
 
           <Route element={

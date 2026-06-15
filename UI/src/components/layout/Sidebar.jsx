@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Home, BookOpen, FileText, GraduationCap, Users, LogOut,
-  UserCircle, FolderOpen, UserPlus, ChevronRight
+  UserCircle, FolderOpen, UserPlus, ChevronRight, Brain
 } from 'lucide-react';
 
 const NAVY = '#1E1040';
@@ -22,6 +22,7 @@ export default function Sidebar() {
       { to: '/training', label: 'Dashboard', icon: Home },
       ...(isContentNewJoiner ? [{ to: '/training/sme-kit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
       { to: '/training/assessments', label: 'Assessments', icon: FileText },
+      { to: '/training/ai-assessments', label: 'AI Quizzes', icon: Brain },
       { to: '/training/courses', label: 'Courses', icon: GraduationCap },
     ];
   } else if (user.role === 'employee') {
@@ -33,7 +34,7 @@ export default function Sidebar() {
   } else if (user.role === 'manager') {
     items = [
       { to: '/manager?tab=learners', label: 'Learners', icon: Users },
-      ...(isContentManager ? [{ to: '/manager?tab=smekit', label: 'Spellbook — SME Kit', icon: BookOpen }] : []),
+      { to: '/manager/sme-kits', label: 'SME Kits', icon: BookOpen },
     ];
   } else if (user.role === 'admin') {
     items = [
