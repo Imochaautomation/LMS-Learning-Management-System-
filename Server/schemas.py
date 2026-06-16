@@ -245,6 +245,7 @@ class InterviewRequest(BaseModel):
     total_questions: int = 15
     force_complete: bool = False
     is_clarification: bool = False
+    is_consultant: bool = False
 
 class InterviewResponse(BaseModel):
     follow_up: str

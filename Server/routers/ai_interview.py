@@ -367,6 +367,46 @@ async def interview(
             follow_up="Great! You've completed the interview — generating your skill breakdown and course recommendations now."
         )
 
+    # Consultant mode: answer career/learning guidance without advancing the interview
+    if req.is_consultant:
+        profile = db.query(Profile).filter(Profile.user_id == user.id).first()
+        dept = (user.department or "").strip()
+        designation = (user.designation or "").strip()
+        learning_goals = (profile.learning_goals or "").strip() if profile else ""
+        resume_summary = (profile.summary or "").strip() if profile else ""
+
+        consultant_ctx = f"User profile: {designation or 'Professional'} in {dept or 'the organisation'}."
+        if learning_goals:
+            consultant_ctx += f" Stated learning goals: {learning_goals}."
+        if resume_summary:
+            consultant_ctx += f" Background: {resume_summary[:300]}."
+
+        consultant_system = (
+            f"You are Jarvis, an expert AI learning consultant and career advisor from iMocha. "
+            f"You are helping {user.name}. {consultant_ctx} "
+            "The user has asked a career or learning guidance question during their skill interview. "
+            "Answer it as a friendly, knowledgeable consultant. Give concrete, actionable advice — "
+            "mention specific skills, tools, courses, or steps relevant to their role and goals. "
+            "PLAIN TEXT ONLY — no asterisks, no markdown. Write in natural sentences. "
+            "Keep your answer to 3-5 sentences. At the end, briefly note they can continue the interview whenever they are ready."
+        )
+        existing_msgs = session.messages if session else []
+        llm_msgs = [{"role": "system", "content": consultant_system}]
+        for m in (existing_msgs or [])[-6:]:
+            llm_msgs.append(m)
+        llm_msgs.append({"role": "user", "content": req.answer})
+
+        try:
+            reply = _strip_md(await _call_llm(llm_msgs))
+        except Exception:
+            reply = (
+                "Great question! The best path depends on your goals, but I'd suggest building strong "
+                "fundamentals first, then applying them through real projects. "
+                "Platforms like Coursera, Udemy, and fast.ai are excellent starting points. "
+                "Whenever you are ready, we can jump back into the interview!"
+            )
+        return InterviewResponse(follow_up=reply)
+
     if not session:
         session = InterviewSession(user_id=user.id, messages=[], question_index=0)
         db.add(session)

@@ -13,6 +13,9 @@ const cleanText = (t) => t.replace(/\*+/g, '').trim();
 const isClarification = (t) =>
   /\b(explain|clarify|what do you mean|rephrase|don't understand|elaborate|confusing|confused|unclear|can you repeat|what does that mean)\b/i.test(t);
 
+const isConsultant = (t) =>
+  /\b(guide me|how do i become|how can i become|how to become|learning goals|career advice|career guidance|career path|learning path|skill path|roadmap|what should i learn|how can i improve|advise me|suggest for me|recommend for me|help me with my career|which career|what career|path to|steps to become|become an?\s+\w+\s*(engineer|developer|analyst|manager|designer|architect|scientist))\b/i.test(t);
+
 function JarvisAvatar({ size = 'md' }) {
   const s = size === 'sm' ? 'w-8 h-8' : 'w-10 h-10';
   return (
@@ -274,6 +277,7 @@ export default function ChatbotInterview() {
     setLoading(true);
 
     const isClarity = isClarification(userMsg.text);
+    const isConsult = !isClarity && isConsultant(userMsg.text);
 
     try {
       const res = await api.post('/ai/interview', {
@@ -281,11 +285,12 @@ export default function ChatbotInterview() {
         answer: userMsg.text,
         total_questions: MAX_QUESTIONS,
         is_clarification: isClarity,
+        is_consultant: isConsult,
       });
 
       const reply = cleanText(res.follow_up || res.next_question || '');
 
-      if (!isClarity) {
+      if (!isClarity && !isConsult) {
         const nextQ = questionIndex + 1;
         setQuestionIndex(nextQ);
 
@@ -312,7 +317,7 @@ export default function ChatbotInterview() {
       ];
       const msg = cleanText(fallback[questionIndex % fallback.length]);
       appendMessage({ role: 'bot', text: msg });
-      if (!isClarity) {
+      if (!isClarity && !isConsult) {
         const nextQ = questionIndex + 1;
         setQuestionIndex(nextQ);
         if (nextQ > MAX_QUESTIONS) setAwaitingWrapup(true);
