@@ -64,7 +64,7 @@ function AttemptCard({ attempt, questions, defaultOpen = false }) {
                     <div className="flex-1">
                       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
-                          {q.question_type === 'mcq' ? 'MCQ' : 'Written'}
+                          {q.question_type === 'mcq' ? 'MCQ' : 'Descriptive'}
                         </span>
                         {q.difficulty && (
                           <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' : q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
@@ -341,7 +341,7 @@ export default function TrainingAssessmentForm() {
       <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${TEAL}, #134e4a)` }}>
         <h1 className="text-xl font-bold mb-1">{assessment?.title}</h1>
         <p className="text-teal-100 text-sm">
-          {totalCount} questions ({assessment?.mcq_count} MCQ + {assessment?.written_count} written) · Pass at {assessment?.pass_threshold}%
+          {totalCount} questions ({assessment?.mcq_count} MCQ + {assessment?.written_count} Descriptive) · Pass at {assessment?.pass_threshold}%
         </p>
         {attempt && <p className="text-teal-200 text-xs mt-1">Attempt #{attempt.attempt_number}</p>}
       </div>
@@ -366,7 +366,7 @@ export default function TrainingAssessmentForm() {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${q.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
-                    {q.question_type === 'mcq' ? 'MCQ' : 'Written'}
+                    {q.question_type === 'mcq' ? 'MCQ' : 'Descriptive'}
                   </span>
                   {q.difficulty && (
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${q.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' : q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>

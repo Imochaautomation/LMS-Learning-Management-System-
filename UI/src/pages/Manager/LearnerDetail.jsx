@@ -727,7 +727,7 @@ export default function LearnerDetail() {
   const [trainingAssessments, setTrainingAssessments] = useState([]);
   const [myKits, setMyKits] = useState([]);
   const [showCreateTraining, setShowCreateTraining] = useState(false);
-  const [trainingForm, setTrainingForm] = useState({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, medium_count: 4, hard_count: 3, pass_threshold: 70 });
+  const [trainingForm, setTrainingForm] = useState({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 });
   const [generatingTraining, setGeneratingTraining] = useState(false);
   // Separate expand state for training assessment cards (avoid conflict with old expandedAssess)
   const [expandedTA, setExpandedTA] = useState(null);       // which assessment card is open
@@ -825,13 +825,16 @@ export default function LearnerDetail() {
         title: trainingForm.title.trim(),
         source_file_ids: trainingForm.source_file_ids,
         easy_count: parseInt(trainingForm.easy_count) || 0,
+        easy_type: trainingForm.easy_type || 'mcq',
         medium_count: parseInt(trainingForm.medium_count) || 0,
+        medium_type: trainingForm.medium_type || 'mcq',
         hard_count: parseInt(trainingForm.hard_count) || 0,
+        hard_type: trainingForm.hard_type || 'descriptive',
         pass_threshold: parseInt(trainingForm.pass_threshold),
       });
       setTrainingAssessments((p) => [res, ...p]);
       setShowCreateTraining(false);
-      setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, medium_count: 4, hard_count: 3, pass_threshold: 70 });
+      setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 });
     } catch (e) {
       alert(`Failed to generate assessment: ${e.message}`);
     } finally {
@@ -975,7 +978,7 @@ export default function LearnerDetail() {
                 <BookOpen className="w-4 h-4 text-teal-600" /> AI Training Assessments
               </h2>
               <button
-                onClick={() => { setShowCreateTraining(!showCreateTraining); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, medium_count: 4, hard_count: 3, pass_threshold: 70 }); }}
+                onClick={() => { setShowCreateTraining(!showCreateTraining); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 }); }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-teal-100 text-teal-700 text-sm font-medium rounded-lg hover:bg-teal-200">
                 <Plus className="w-4 h-4" /> Create Assessment
               </button>
@@ -1040,49 +1043,78 @@ export default function LearnerDetail() {
 
                 {/* Difficulty breakdown */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">
-                    Question Difficulty *
-                    <span className="text-gray-400 font-normal ml-1">— Easy = MCQ recall, Medium = MCQ concept, Hard = written application</span>
-                  </label>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Question Difficulty *</label>
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">🟢 Easy</span>
-                        <span className="text-xs text-emerald-600">MCQ</span>
+                    {/* Easy */}
+                    <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                      <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">🟢 Easy</span>
+                      <select
+                        value={trainingForm.easy_type}
+                        onChange={(e) => setTrainingForm((p) => ({ ...p, easy_type: e.target.value }))}
+                        className="w-full px-2 py-1 text-xs border border-emerald-200 rounded-lg bg-white text-emerald-800 font-medium">
+                        <option value="mcq">MCQ</option>
+                        <option value="descriptive">Descriptive</option>
+                      </select>
+                      <div>
+                        <label className="text-[10px] text-emerald-600 mb-0.5 block">No. of Questions</label>
+                        <input type="number" min="0" max="15"
+                          value={trainingForm.easy_count}
+                          onChange={(e) => setTrainingForm((p) => ({ ...p, easy_count: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-lg bg-white text-center font-bold"
+                        />
                       </div>
-                      <input type="number" min="0" max="15"
-                        value={trainingForm.easy_count}
-                        onChange={(e) => setTrainingForm((p) => ({ ...p, easy_count: e.target.value }))}
-                        className="w-full px-2 py-1.5 text-sm border border-emerald-200 rounded-lg bg-white text-center font-bold"
-                      />
                     </div>
-                    <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">🟡 Medium</span>
-                        <span className="text-xs text-amber-600">MCQ</span>
+                    {/* Medium */}
+                    <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-3 space-y-2">
+                      <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">🟡 Medium</span>
+                      <select
+                        value={trainingForm.medium_type}
+                        onChange={(e) => setTrainingForm((p) => ({ ...p, medium_type: e.target.value }))}
+                        className="w-full px-2 py-1 text-xs border border-amber-200 rounded-lg bg-white text-amber-800 font-medium">
+                        <option value="mcq">MCQ</option>
+                        <option value="descriptive">Descriptive</option>
+                      </select>
+                      <div>
+                        <label className="text-[10px] text-amber-600 mb-0.5 block">No. of Questions</label>
+                        <input type="number" min="0" max="15"
+                          value={trainingForm.medium_count}
+                          onChange={(e) => setTrainingForm((p) => ({ ...p, medium_count: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-sm border border-amber-200 rounded-lg bg-white text-center font-bold"
+                        />
                       </div>
-                      <input type="number" min="0" max="15"
-                        value={trainingForm.medium_count}
-                        onChange={(e) => setTrainingForm((p) => ({ ...p, medium_count: e.target.value }))}
-                        className="w-full px-2 py-1.5 text-sm border border-amber-200 rounded-lg bg-white text-center font-bold"
-                      />
                     </div>
-                    <div className="rounded-xl border-2 border-red-200 bg-red-50 p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-red-700 uppercase tracking-wide">🔴 Hard</span>
-                        <span className="text-xs text-red-600">Written</span>
+                    {/* Hard */}
+                    <div className="rounded-xl border-2 border-red-200 bg-red-50 p-3 space-y-2">
+                      <span className="text-xs font-bold text-red-700 uppercase tracking-wide">🔴 Hard</span>
+                      <select
+                        value={trainingForm.hard_type}
+                        onChange={(e) => setTrainingForm((p) => ({ ...p, hard_type: e.target.value }))}
+                        className="w-full px-2 py-1 text-xs border border-red-200 rounded-lg bg-white text-red-800 font-medium">
+                        <option value="mcq">MCQ</option>
+                        <option value="descriptive">Descriptive</option>
+                      </select>
+                      <div>
+                        <label className="text-[10px] text-red-600 mb-0.5 block">No. of Questions</label>
+                        <input type="number" min="0" max="15"
+                          value={trainingForm.hard_count}
+                          onChange={(e) => setTrainingForm((p) => ({ ...p, hard_count: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-sm border border-red-200 rounded-lg bg-white text-center font-bold"
+                        />
                       </div>
-                      <input type="number" min="0" max="15"
-                        value={trainingForm.hard_count}
-                        onChange={(e) => setTrainingForm((p) => ({ ...p, hard_count: e.target.value }))}
-                        className="w-full px-2 py-1.5 text-sm border border-red-200 rounded-lg bg-white text-center font-bold"
-                      />
                     </div>
                   </div>
                   {(() => {
-                    const total = (parseInt(trainingForm.easy_count) || 0) + (parseInt(trainingForm.medium_count) || 0) + (parseInt(trainingForm.hard_count) || 0);
+                    const easy = parseInt(trainingForm.easy_count) || 0;
+                    const medium = parseInt(trainingForm.medium_count) || 0;
+                    const hard = parseInt(trainingForm.hard_count) || 0;
+                    const total = easy + medium + hard;
+                    const mcq = (trainingForm.easy_type === 'mcq' ? easy : 0) + (trainingForm.medium_type === 'mcq' ? medium : 0) + (trainingForm.hard_type === 'mcq' ? hard : 0);
+                    const desc = total - mcq;
                     return total > 0 ? (
-                      <p className="text-xs text-gray-500 mt-2 text-right">{total} question{total !== 1 ? 's' : ''} total</p>
+                      <p className="text-xs text-gray-500 mt-2 text-right">
+                        {total} question{total !== 1 ? 's' : ''} total
+                        {mcq > 0 && desc > 0 ? ` — ${mcq} MCQ, ${desc} Descriptive` : mcq > 0 ? ` — all MCQ` : ` — all Descriptive`}
+                      </p>
                     ) : null;
                   })()}
                 </div>
@@ -1231,7 +1263,7 @@ export default function LearnerDetail() {
                                                 <div className="flex-1 min-w-0">
                                                   <div className="flex items-center gap-1.5 mb-1">
                                                     <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
-                                                      {q.question_type === 'mcq' ? 'MCQ' : 'Written'}
+                                                      {q.question_type === 'mcq' ? 'MCQ' : 'Descriptive'}
                                                     </span>
                                                     <span className="text-xs text-gray-400">Q{ansIdx + 1}</span>
                                                   </div>

@@ -76,22 +76,37 @@ def _build_content_context(files: List[SmeKitFileV2]) -> str:
     return "\n\n---\n\n".join(parts) if parts else "No content available."
 
 
-def _generate_questions(content: str, easy_count: int, medium_count: int, hard_count: int) -> List[dict]:
+def _generate_questions(
+    content: str,
+    easy_count: int, easy_type: str,
+    medium_count: int, medium_type: str,
+    hard_count: int, hard_type: str,
+) -> List[dict]:
     total = easy_count + medium_count + hard_count
+
+    def _type_label(t: str) -> str:
+        return "MCQ" if t == "mcq" else "Descriptive (open-ended, no options)"
+
+    def _type_rule(difficulty: str, t: str) -> str:
+        if t == "mcq":
+            return f"{difficulty} questions test {'recall of specific facts' if difficulty == 'Easy' else 'understanding of concepts'} from the content. Use MCQ format (4 options A/B/C/D)."
+        else:
+            return f"{difficulty} questions test {'recall of specific facts' if difficulty == 'Easy' else 'application or analysis of concepts'} from the content. Use descriptive/open-ended format (no options)."
+
     prompt = f"""You are an expert trainer creating a training assessment strictly based on the provided SME Kit content below.
 
 STRICT RULES — read carefully before generating:
 1. Every question MUST be answerable using ONLY the content provided below. Do NOT draw from general knowledge or external sources.
 2. If a concept in the content is technical or complex, include a brief real-world example in the question text to make it concrete (e.g. "For example, ...").
-3. Easy questions test recall of specific facts from the content. Use MCQ format.
-4. Medium questions test understanding of concepts from the content. Use MCQ format.
-5. Hard questions test application or analysis of concepts from the content. Use written/open-ended format.
+3. {_type_rule('Easy', easy_type)}
+4. {_type_rule('Medium', medium_type)}
+5. {_type_rule('Hard', hard_type)}
 6. Do NOT generate questions about topics not covered in the content below.
 
 SME KIT CONTENT:
 {content[:10000]}
 
-Generate exactly {easy_count} Easy + {medium_count} Medium + {hard_count} Hard questions ({total} total).
+Generate exactly {easy_count} Easy ({_type_label(easy_type)}) + {medium_count} Medium ({_type_label(medium_type)}) + {hard_count} Hard ({_type_label(hard_type)}) questions ({total} total).
 
 Return ONLY valid JSON (no markdown, no explanation):
 {{
@@ -107,7 +122,7 @@ Return ONLY valid JSON (no markdown, no explanation):
     {{
       "order_index": 4,
       "difficulty": "hard",
-      "question_type": "written",
+      "question_type": "descriptive",
       "question_text": "Question text here. For example, ...",
       "options": null,
       "correct_answer": "Model answer: ..."
@@ -117,9 +132,10 @@ Return ONLY valid JSON (no markdown, no explanation):
 
 Format rules:
 - MCQ: exactly 4 options labeled A. B. C. D.; correct_answer is the single letter (A/B/C/D)
-- Written: options is null; correct_answer starts with "Model answer:"
+- Descriptive: options is null; correct_answer starts with "Model answer:"
 - Order: Easy questions first (indices 1–{easy_count}), then Medium ({easy_count+1}–{easy_count+medium_count}), then Hard ({easy_count+medium_count+1}–{total})
-- Include difficulty field for every question"""
+- Include difficulty field for every question
+- Use "question_type": "mcq" for MCQ questions and "question_type": "descriptive" for open-ended questions"""
 
     raw = _call_ai(prompt)
     data = _extract_json(raw)
@@ -163,7 +179,7 @@ Return ONLY valid JSON (no markdown, no explanation):
 Rules:
 - ai_flag must be "correct", "wrong", or "partial"
 - MCQ: correct only if exact letter match (case-insensitive)
-- Written: partial credit allowed; use your judgment based on the model answer
+- Descriptive (question_type = "descriptive" or "written"): partial credit allowed; use your judgment based on the model answer
 - score = (correct_count + 0.5 * partial_count) / total * 100, rounded to 1 decimal
 - Be constructive in explanations"""
 
@@ -265,12 +281,24 @@ def generate_assessment(
         raise HTTPException(400, "No valid files found in kit for given IDs")
 
     content = _build_content_context(files)
-    questions_data = _generate_questions(content, payload.easy_count, payload.medium_count, payload.hard_count)
+    easy_type = getattr(payload, 'easy_type', 'mcq') or 'mcq'
+    medium_type = getattr(payload, 'medium_type', 'mcq') or 'mcq'
+    hard_type = getattr(payload, 'hard_type', 'descriptive') or 'descriptive'
+    questions_data = _generate_questions(
+        content,
+        payload.easy_count, easy_type,
+        payload.medium_count, medium_type,
+        payload.hard_count, hard_type,
+    )
 
     total = payload.easy_count + payload.medium_count + payload.hard_count
-    # MCQ = easy + medium (recall/understanding), Written = hard (application/analysis)
-    mcq_count = payload.easy_count + payload.medium_count
-    written_count = payload.hard_count
+    # Count MCQ vs descriptive based on chosen types
+    mcq_count = sum([
+        payload.easy_count if easy_type == 'mcq' else 0,
+        payload.medium_count if medium_type == 'mcq' else 0,
+        payload.hard_count if hard_type == 'mcq' else 0,
+    ])
+    written_count = total - mcq_count
 
     assessment = TrainingAssessment(
         title=payload.title,
@@ -291,10 +319,14 @@ def generate_assessment(
     db.flush()
 
     for qd in questions_data:
+        raw_type = qd.get("question_type", "descriptive")
+        # Normalise: old "written" values → "descriptive"
+        if raw_type == "written":
+            raw_type = "descriptive"
         q = TrainingQuestion(
             assessment_id=assessment.id,
             order_index=qd.get("order_index", 0),
-            question_type=qd.get("question_type", "written"),
+            question_type=raw_type,
             difficulty=qd.get("difficulty"),
             question_text=qd.get("question_text", ""),
             options=qd.get("options"),
