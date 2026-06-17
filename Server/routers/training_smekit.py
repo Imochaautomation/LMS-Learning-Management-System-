@@ -199,6 +199,35 @@ def add_youtube_link(
     return _file_out(kit_file)
 
 
+@router.patch("/kits/{kit_id}/files/{file_id}", response_model=dict)
+def update_kit_file(
+    kit_id: int,
+    file_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager", "admin")),
+):
+    f = db.query(SmeKitFileV2).filter(
+        SmeKitFileV2.id == file_id,
+        SmeKitFileV2.sme_kit_id == kit_id,
+    ).first()
+    if not f:
+        raise HTTPException(404, "File not found")
+    kit = db.query(SmeKit).filter(SmeKit.id == kit_id).first()
+    if current_user.role == "manager" and kit and kit.created_by != current_user.id:
+        raise HTTPException(403, "Not your kit")
+
+    if "name" in payload and payload["name"]:
+        f.name = payload["name"]
+    if "youtube_url" in payload:
+        f.youtube_url = payload["youtube_url"] or None
+    if "transcript" in payload:
+        f.transcript = payload["transcript"] or None
+    db.commit()
+    db.refresh(f)
+    return _file_out(f)
+
+
 @router.delete("/kits/{kit_id}/files/{file_id}")
 def delete_kit_file(
     kit_id: int,

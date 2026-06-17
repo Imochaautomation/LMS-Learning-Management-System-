@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../api/client';
+import api, { API_HOST } from '../../api/client';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
 import {
-  BookOpen, Plus, Upload, Youtube, Trash2, ChevronDown, ChevronRight,
+  BookOpen, Plus, Upload, Video, Trash2, ChevronDown, ChevronRight,
   Users, FileText, Link2, X, Check, Loader2, ExternalLink, UserCheck,
+  Eye, Pencil, RefreshCw,
 } from 'lucide-react';
 
 const ORANGE = '#F05A28';
@@ -27,17 +28,24 @@ export default function SmeKitManager() {
   const [creating, setCreating] = useState(false);
 
   // Add file modal
-  const [fileModal, setFileModal] = useState(null); // { kitId } or null
+  const [fileModal, setFileModal] = useState(null); // { kitId, fileId? } — fileId means replace
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadTranscript, setUploadTranscript] = useState('');
   const [uploading, setUploading] = useState(false);
 
-  // Add YouTube modal
+  // Add Video/Recording modal
   const [ytModal, setYtModal] = useState(null); // { kitId } or null
   const [ytName, setYtName] = useState('');
   const [ytUrl, setYtUrl] = useState('');
   const [ytTranscript, setYtTranscript] = useState('');
   const [addingYt, setAddingYt] = useState(false);
+
+  // Edit file modal
+  const [editModal, setEditModal] = useState(null); // { file, kitId }
+  const [editName, setEditName] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [editTranscript, setEditTranscript] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // Assign modal
   const [assignModal, setAssignModal] = useState(null); // { kit }
@@ -48,6 +56,7 @@ export default function SmeKitManager() {
   const [deleteModal, setDeleteModal] = useState(null); // { type: 'kit'|'file', kitId, fileId, name }
 
   const fileInputRef = useRef();
+  const replaceInputRef = useRef();
 
   useEffect(() => {
     Promise.all([
@@ -81,7 +90,7 @@ export default function SmeKitManager() {
     }
   };
 
-  // ── Upload document ─────────────────────────────────────────────────────────
+  // ── Upload / Replace document ───────────────────────────────────────────────
   const handleUploadFile = async () => {
     if (!uploadFile) { toast.warning('Please select a file.'); return; }
     setUploading(true);
@@ -89,12 +98,17 @@ export default function SmeKitManager() {
       const fd = new FormData();
       fd.append('file', uploadFile);
       if (uploadTranscript.trim()) fd.append('transcript', uploadTranscript.trim());
+
+      if (fileModal.fileId) {
+        // Replace: delete old then upload new
+        await api.del(`/training/kits/${fileModal.kitId}/files/${fileModal.fileId}`);
+      }
       await api.upload(`/training/kits/${fileModal.kitId}/files`, fd);
       await loadKits();
       setFileModal(null);
       setUploadFile(null);
       setUploadTranscript('');
-      toast.success('File uploaded!');
+      toast.success(fileModal.fileId ? 'File replaced!' : 'File uploaded!');
     } catch (e) {
       toast.error(`Upload failed: ${e.message}`);
     } finally {
@@ -102,8 +116,8 @@ export default function SmeKitManager() {
     }
   };
 
-  // ── Add YouTube link ────────────────────────────────────────────────────────
-  const handleAddYoutube = async () => {
+  // ── Add Video/Recording link ─────────────────────────────────────────────────
+  const handleAddVideo = async () => {
     if (!ytName.trim() || !ytUrl.trim()) { toast.warning('Name and URL are required.'); return; }
     if (!/^https?:\/\/.+/.test(ytUrl.trim())) { toast.warning('URL must start with https://'); return; }
     setAddingYt(true);
@@ -116,11 +130,31 @@ export default function SmeKitManager() {
       await loadKits();
       setYtModal(null);
       setYtName(''); setYtUrl(''); setYtTranscript('');
-      toast.success('YouTube link added!');
+      toast.success('Video/Recording link added!');
     } catch (e) {
-      toast.error(`Failed to add YouTube link: ${e.message}`);
+      toast.error(`Failed to add link: ${e.message}`);
     } finally {
       setAddingYt(false);
+    }
+  };
+
+  // ── Edit file metadata ───────────────────────────────────────────────────────
+  const handleEditFile = async () => {
+    if (!editName.trim()) { toast.warning('Name is required.'); return; }
+    setSaving(true);
+    try {
+      await api.patch(`/training/kits/${editModal.kitId}/files/${editModal.file.id}`, {
+        name: editName.trim(),
+        youtube_url: editUrl.trim() || null,
+        transcript: editTranscript.trim() || null,
+      });
+      await loadKits();
+      setEditModal(null);
+      toast.success('File updated!');
+    } catch (e) {
+      toast.error(`Update failed: ${e.message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -168,6 +202,12 @@ export default function SmeKitManager() {
     if (ft === 'youtube') return '▶';
     if (ft === 'video') return '🎬';
     return '📄';
+  };
+
+  const getViewUrl = (f) => {
+    if (f.youtube_url) return f.youtube_url;
+    if (f.file_path) return `${API_HOST}/uploads/${f.file_path}`;
+    return null;
   };
 
   if (loading) {
@@ -244,7 +284,7 @@ export default function SmeKitManager() {
             </button>
             <button
               onClick={() => { setShowCreateKit(false); setNewKit({ name: '', description: '', sub_department: '' }); }}
-              className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">
+              className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
               Cancel
             </button>
           </div>
@@ -320,45 +360,69 @@ export default function SmeKitManager() {
                       </button>
                       <button
                         onClick={() => { setYtModal({ kitId: kit.id }); setYtName(''); setYtUrl(''); setYtTranscript(''); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg bg-red-500 hover:bg-red-600">
-                        <Youtube className="w-3.5 h-3.5" /> Add YouTube
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg bg-purple-600 hover:bg-purple-700">
+                        <Video className="w-3.5 h-3.5" /> Add Video/Recording
                       </button>
                     </div>
 
                     {/* File list */}
                     {kit.files.length === 0 ? (
-                      <p className="text-xs text-gray-400 py-2">No files in this kit yet. Upload a document or add a YouTube link.</p>
+                      <p className="text-xs text-gray-400 py-2">No files in this kit yet. Upload a document or add a video/recording link.</p>
                     ) : (
                       <div className="space-y-2">
-                        {kit.files.map((f) => (
-                          <div key={f.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-lg shrink-0">{fileTypeIcon(f.file_type)}</span>
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase">{f.file_type}</span>
-                                  {f.transcript && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">transcript ✓</span>
-                                  )}
+                        {kit.files.map((f) => {
+                          const viewUrl = getViewUrl(f);
+                          return (
+                            <div key={f.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="text-lg shrink-0">{fileTypeIcon(f.file_type)}</span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase">{f.file_type}</span>
+                                    {f.transcript && (
+                                      <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">transcript ✓</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
+                              <div className="flex items-center gap-1 shrink-0 ml-2">
+                                {/* View */}
+                                {viewUrl && (
+                                  <a href={viewUrl} target="_blank" rel="noreferrer"
+                                    className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg" title="View">
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                                {/* Edit */}
+                                <button
+                                  onClick={() => {
+                                    setEditModal({ file: f, kitId: kit.id });
+                                    setEditName(f.name);
+                                    setEditUrl(f.youtube_url || '');
+                                    setEditTranscript(f.transcript || '');
+                                  }}
+                                  className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                {/* Replace (documents/videos only) */}
+                                {(f.file_type === 'document' || f.file_type === 'video') && (
+                                  <button
+                                    onClick={() => { setFileModal({ kitId: kit.id, fileId: f.id }); setUploadFile(null); setUploadTranscript(f.transcript || ''); }}
+                                    className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg" title="Replace file">
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {/* Delete */}
+                                <button
+                                  onClick={() => setDeleteModal({ type: 'file', kitId: kit.id, fileId: f.id, name: f.name })}
+                                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              {f.youtube_url && (
-                                <a href={f.youtube_url} target="_blank" rel="noreferrer"
-                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Open YouTube">
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </a>
-                              )}
-                              <button
-                                onClick={() => setDeleteModal({ type: 'file', kitId: kit.id, fileId: f.id, name: f.name })}
-                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -369,12 +433,14 @@ export default function SmeKitManager() {
         </div>
       )}
 
-      {/* Upload Document Modal */}
+      {/* Upload / Replace Document Modal */}
       {fileModal && (
-        <Modal title="Upload Document" onClose={() => setFileModal(null)}>
+        <Modal title={fileModal.fileId ? 'Replace File' : 'Upload Document'} onClose={() => setFileModal(null)}>
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">File *</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                {fileModal.fileId ? 'New File *' : 'File *'}
+              </label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -404,16 +470,16 @@ export default function SmeKitManager() {
               className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50"
               style={{ background: ORANGE }}>
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              Upload
+              {fileModal.fileId ? 'Replace' : 'Upload'}
             </button>
-            <button onClick={() => setFileModal(null)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+            <button onClick={() => setFileModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
           </div>
         </Modal>
       )}
 
-      {/* YouTube Modal */}
+      {/* Add Video/Recording Modal */}
       {ytModal && (
-        <Modal title="Add YouTube Link" onClose={() => setYtModal(null)}>
+        <Modal title="Add Video/Recording" onClose={() => setYtModal(null)}>
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
@@ -425,11 +491,11 @@ export default function SmeKitManager() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">YouTube URL *</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Video/Recording URL *</label>
               <input
                 value={ytUrl}
                 onChange={(e) => setYtUrl(e.target.value)}
-                placeholder="https://youtube.com/watch?v=..."
+                placeholder="https://youtube.com/watch?v=... or any video URL"
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg"
               />
             </div>
@@ -448,13 +514,63 @@ export default function SmeKitManager() {
           </div>
           <div className="flex gap-2 mt-4">
             <button
-              onClick={handleAddYoutube}
+              onClick={handleAddVideo}
               disabled={addingYt || !ytName.trim() || !ytUrl.trim()}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50">
-              {addingYt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Youtube className="w-4 h-4" />}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50">
+              {addingYt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
               Add
             </button>
-            <button onClick={() => setYtModal(null)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+            <button onClick={() => setYtModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit File Modal */}
+      {editModal && (
+        <Modal title="Edit File" onClose={() => setEditModal(null)}>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg"
+              />
+            </div>
+            {(editModal.file.file_type === 'youtube' || editModal.file.file_type === 'video') && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Video/Recording URL</label>
+                <input
+                  value={editUrl}
+                  onChange={(e) => setEditUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg"
+                />
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Transcript <span className="text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                value={editTranscript}
+                onChange={(e) => setEditTranscript(e.target.value)}
+                rows={4}
+                placeholder="Paste transcript or key content here..."
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg resize-none"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={handleEditFile}
+              disabled={saving || !editName.trim()}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50"
+              style={{ background: TEAL }}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              Save
+            </button>
+            <button onClick={() => setEditModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
           </div>
         </Modal>
       )}
@@ -485,7 +601,7 @@ export default function SmeKitManager() {
               {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
               Assign Kit
             </button>
-            <button onClick={() => setAssignModal(null)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+            <button onClick={() => setAssignModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
           </div>
         </Modal>
       )}
@@ -498,7 +614,7 @@ export default function SmeKitManager() {
             {deleteModal.type === 'kit' && ' This will also remove all files inside this kit.'}
           </p>
           <div className="flex justify-end gap-3">
-            <button onClick={() => setDeleteModal(null)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
+            <button onClick={() => setDeleteModal(null)} className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-50">Cancel</button>
             <button onClick={confirmDelete} className="px-4 py-2 text-sm text-white bg-red-600 rounded-xl hover:bg-red-700">Delete</button>
           </div>
         </Modal>

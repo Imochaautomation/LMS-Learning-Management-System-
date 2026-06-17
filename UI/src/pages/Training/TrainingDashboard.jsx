@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/client';
-import { BookOpen, FileText, GraduationCap, CheckCircle, Lock, Award, Trophy, Star, Loader2 } from 'lucide-react';
+import { CheckCircle, Lock, Award, Trophy, Star, Loader2 } from 'lucide-react';
 
 export default function TrainingDashboard() {
   const { user } = useAuth();
@@ -36,7 +36,6 @@ export default function TrainingDashboard() {
       };
     }),
     { label: '🎓 Ready', key: 'ready', done: false, locked: !allDone, desc: 'Manager marks you ready' },
-    { label: '🚀 Self-Learning', key: 'self', done: false, locked: true, desc: 'Courses unlock!' },
   ];
 
   if (loading) {
@@ -89,9 +88,9 @@ export default function TrainingDashboard() {
         </div>
       </div>
 
-      {/* Quest Journey */}
+      {/* Training Journey */}
       <div className="bg-white border border-gray-200 rounded-xl p-6">
-        <h2 className="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">🗺️ My Quest Journey</h2>
+        <h2 className="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">🗺️ My Training Journey</h2>
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
           {journeySteps.map((step, i) => (
             <div key={i} className="flex items-center gap-2 shrink-0">
@@ -137,37 +136,19 @@ export default function TrainingDashboard() {
       </div>
 
       {/* Navigation Cards */}
-      <div className="grid sm:grid-cols-3 gap-4">
+      <div className="grid sm:grid-cols-2 gap-4">
         <Link to="/training/sme-kit" className="bg-white border border-teal-200 rounded-xl p-5 hover:shadow-md hover:border-teal-400 transition-all group">
           <span className="text-2xl mb-2 block">📚</span>
           <h3 className="font-bold text-gray-900 text-sm">SME Training Kit</h3>
           <p className="text-xs text-gray-500 mt-1">Training materials & style guides</p>
           <p className="text-xs text-teal-600 mt-2 font-semibold group-hover:underline">Open →</p>
         </Link>
-        <Link to="/training/assessments" className="bg-white border border-amber-200 rounded-xl p-5 hover:shadow-md hover:border-amber-400 transition-all group">
+        <Link to="/training/ai-assessments" className="bg-white border border-amber-200 rounded-xl p-5 hover:shadow-md hover:border-amber-400 transition-all group">
           <span className="text-2xl mb-2 block">⚔️</span>
-          <h3 className="font-bold text-gray-900 text-sm">Assessment Quests</h3>
-          <p className="text-xs text-gray-500 mt-1">Download, complete & earn badges</p>
+          <h3 className="font-bold text-gray-900 text-sm">AI Quizzes</h3>
+          <p className="text-xs text-gray-500 mt-1">Complete AI quizzes & earn badges</p>
           <p className="text-xs text-amber-600 mt-2 font-semibold group-hover:underline">Open →</p>
         </Link>
-        {allDone ? (
-          <Link to="/training/courses" className="bg-white border border-emerald-200 rounded-xl p-5 hover:shadow-md hover:border-emerald-400 transition-all group">
-            <span className="text-2xl mb-2 block">🎓</span>
-            <h3 className="font-bold text-gray-900 text-sm">Courses</h3>
-            <p className="text-xs text-emerald-600 mt-1">Courses unlocked!</p>
-            <p className="text-xs text-emerald-600 mt-2 font-semibold group-hover:underline">Open →</p>
-          </Link>
-        ) : (
-          <div className="relative bg-gray-50 border border-gray-200 rounded-xl p-5 opacity-60">
-            <div className="absolute top-3 right-3">
-              <Lock className="w-5 h-5 text-gray-400" />
-            </div>
-            <span className="text-2xl mb-2 block">🎓</span>
-            <h3 className="font-bold text-gray-500 text-sm">Courses</h3>
-            <p className="text-xs text-gray-400 mt-1">Complete all quests to unlock</p>
-            <p className="text-xs text-gray-400 mt-2 font-semibold">🔒 Locked — complete assessments first</p>
-          </div>
-        )}
       </div>
     </div>
   );

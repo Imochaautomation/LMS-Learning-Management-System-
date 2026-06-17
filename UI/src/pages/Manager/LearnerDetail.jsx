@@ -869,7 +869,7 @@ export default function LearnerDetail() {
               </div>
             </div>
           </div>
-          {/* Quest Journey */}
+          {/* Training Journey */}
           {(() => {
             const badgesCount = completedAssess.filter(a => a.score >= 90).length;
             const trophiesCount = completedAssess.filter(a => a.score >= 95).length;
@@ -879,12 +879,12 @@ export default function LearnerDetail() {
                 label: `⚔️ Quest ${i + 1}`, done: a.status === 'reviewed' || a.status === 'submitted',
                 active: a.status === 'pending' || a.status === 'downloaded', desc: a.assessment_name,
               })),
-              { label: '🎓 Ready', done: false, locked: true }, { label: '🚀 Self-Learning', done: false, locked: true },
+              { label: '🎓 Ready', done: false, locked: true },
             ];
             return (
               <>
                 <div className="flex items-center justify-between mb-3 border-t border-slate-700/60 pt-4">
-                  <h2 className="text-sm font-bold text-slate-200">🗺️ {learner.name}'s Quest Journey</h2>
+                  <h2 className="text-sm font-bold text-slate-200">🗺️ {learner.name}'s Training Journey</h2>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-purple-400 bg-purple-900/40 px-2 py-1 rounded-full">🏅 {badgesCount} badges</span>
                     <span className="text-xs font-bold text-amber-400 bg-amber-900/40 px-2 py-1 rounded-full">🏆 {trophiesCount} trophies</span>

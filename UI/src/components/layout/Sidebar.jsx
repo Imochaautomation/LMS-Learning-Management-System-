@@ -22,7 +22,6 @@ export default function Sidebar() {
       { to: '/training', label: 'Dashboard', icon: Home },
       { to: '/training/sme-kit', label: 'SME Training Kit', icon: BookOpen },
       { to: '/training/ai-assessments', label: 'AI Quizzes', icon: Brain },
-      { to: '/training/courses', label: 'Courses', icon: GraduationCap },
     ];
   } else if (user.role === 'employee') {
     items = [

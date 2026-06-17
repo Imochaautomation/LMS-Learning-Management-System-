@@ -102,6 +102,7 @@ STRICT RULES — read carefully before generating:
 4. {_type_rule('Medium', medium_type)}
 5. {_type_rule('Hard', hard_type)}
 6. Do NOT generate questions about topics not covered in the content below.
+7. PRACTICAL ERROR-IDENTIFICATION QUESTIONS: For at least 30% of MCQ questions, present a short passage, sentence, or example that contains a deliberate error or violation of a rule from the SME Kit content. Ask the candidate to identify what is wrong or choose the corrected version. Example format: "The following text violates a rule from the guidelines: [text with error]. Which option correctly fixes this?" — The correct answer is the option that follows the documented rule.
 
 SME KIT CONTENT:
 {content[:10000]}
@@ -117,6 +118,14 @@ Return ONLY valid JSON (no markdown, no explanation):
       "question_type": "mcq",
       "question_text": "Question text here. If technical, add: For example, ...",
       "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
+      "correct_answer": "A"
+    }},
+    {{
+      "order_index": 2,
+      "difficulty": "medium",
+      "question_type": "mcq",
+      "question_text": "The following sentence violates a rule in the guidelines: [example sentence with error]. Which option correctly fixes this?",
+      "options": ["A. corrected version", "B. another option", "C. another option", "D. another option"],
       "correct_answer": "A"
     }},
     {{
