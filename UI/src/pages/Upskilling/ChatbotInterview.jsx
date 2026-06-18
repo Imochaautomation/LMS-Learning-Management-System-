@@ -292,7 +292,7 @@ export default function ChatbotInterview() {
 
       if (!isClarity && !isConsult) {
         const nextQ = questionIndex + 1;
-        setQuestionIndex(nextQ);
+        setQuestionIndex(Math.min(nextQ, MAX_QUESTIONS));
 
         if (nextQ > MAX_QUESTIONS) {
           appendMessage({ role: 'bot', text: reply });
@@ -319,7 +319,7 @@ export default function ChatbotInterview() {
       appendMessage({ role: 'bot', text: msg });
       if (!isClarity && !isConsult) {
         const nextQ = questionIndex + 1;
-        setQuestionIndex(nextQ);
+        setQuestionIndex(Math.min(nextQ, MAX_QUESTIONS));
         if (nextQ > MAX_QUESTIONS) setAwaitingWrapup(true);
       }
     }
