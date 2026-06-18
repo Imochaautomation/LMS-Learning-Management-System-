@@ -712,6 +712,9 @@ async def generate_analysis(
     session.skill_gaps = analysis.get("skill_gaps", [])
     session.strengths = analysis.get("strengths", [])
     session.areas_of_improvement = analysis.get("areas_of_improvement", [])
+    flag_modified(session, "skill_gaps")
+    flag_modified(session, "strengths")
+    flag_modified(session, "areas_of_improvement")
     db.commit()
 
     # Save recommended courses — clear stale recommendations first, then save sorted by priority
