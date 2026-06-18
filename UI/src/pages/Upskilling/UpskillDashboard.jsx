@@ -449,7 +449,7 @@ export default function UpskillDashboard() {
     if (!sessionId) return;
     setRegenerating(true);
     try {
-      await api.post('/ai/generate-analysis', { session_id: sessionId });
+      await api.post('/ai/generate-analysis', { user_id: user.id });
       await fetchAnalysis();
       await api.get('/courses/my').then(setCourses).catch(() => {});
     } catch { }
