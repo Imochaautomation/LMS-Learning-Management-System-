@@ -421,21 +421,40 @@ export default function UpskillDashboard() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [regenerating, setRegenerating] = useState(false);
+
+  const fetchAnalysis = () =>
+    api.get('/ai/skill-analysis').then((data) => {
+      setSessionCompleted(data.session_completed || false);
+      setSessionId(data.session_id || null);
+      setSkillGaps(data.skill_gaps || []);
+      setStrengths(data.strengths || []);
+      setAreasOfImprovement(data.areas_of_improvement || []);
+      setQaPairs(data.qa_pairs || []);
+      setLearningGoals(data.learning_goals || null);
+      setInterviewDate(data.interview_date || null);
+    }).catch(() => { });
 
   useEffect(() => {
     Promise.all([
       api.get('/profile/me').then(setProfile).catch(() => setProfile(null)),
-      api.get('/ai/skill-analysis').then((data) => {
-        setSkillGaps(data.skill_gaps || []);
-        setStrengths(data.strengths || []);
-        setAreasOfImprovement(data.areas_of_improvement || []);
-        setQaPairs(data.qa_pairs || []);
-        setLearningGoals(data.learning_goals || null);
-        setInterviewDate(data.interview_date || null);
-      }).catch(() => { }),
+      fetchAnalysis(),
       api.get('/courses/my').then(setCourses).catch(() => setCourses([])),
     ]).finally(() => setLoading(false));
   }, []);
+
+  const handleRegenerate = async () => {
+    if (!sessionId) return;
+    setRegenerating(true);
+    try {
+      await api.post('/ai/generate-analysis', { session_id: sessionId });
+      await fetchAnalysis();
+      await api.get('/courses/my').then(setCourses).catch(() => {});
+    } catch { }
+    setRegenerating(false);
+  };
 
   const profileComplete = profile && (profile.summary || profile.learning_goals);
   const interviewDone = skillGaps.length > 0;
@@ -542,11 +561,25 @@ export default function UpskillDashboard() {
       {currentStep === 2 && (
         <div className="bg-gradient-to-br from-violet-50 to-purple-50 border-2 border-violet-200 rounded-2xl p-8 text-center">
           <div className="w-20 h-20 bg-violet-100 rounded-full flex items-center justify-center mx-auto mb-4"><Bot className="w-10 h-10 text-violet-600" /></div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Step 2: AI Skill Assessment Interview</h2>
-          <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">Complete a 10-question interview with our AI. It will analyze your skills, identify gaps, and recommend personalized courses.</p>
-          <button onClick={() => navigate('/upskilling/interview')} className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 shadow-lg shadow-violet-200 transition-all">
-            <Bot className="w-5 h-5" /> Start AI Interview →
-          </button>
+          {sessionCompleted ? (
+            <>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Interview Complete — Generate Your Report</h2>
+              <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">Your interview is done! Click below to generate your skill gap analysis and course recommendations.</p>
+              <button onClick={handleRegenerate} disabled={regenerating}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60">
+                {regenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                {regenerating ? 'Generating… this may take a minute' : 'Generate My Skill Analysis →'}
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Step 2: AI Skill Assessment Interview</h2>
+              <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">Complete a 10-question interview with our AI. It will analyze your skills, identify gaps, and recommend personalized courses.</p>
+              <button onClick={() => navigate('/upskilling/interview')} className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 shadow-lg shadow-violet-200 transition-all">
+                <Bot className="w-5 h-5" /> Start AI Interview →
+              </button>
+            </>
+          )}
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-emerald-600"><CheckCircle2 className="w-4 h-4" /> Profile completed ✓</div>
           <div className="mt-4 flex justify-center">
             <div className="flex items-center gap-2 px-4 py-2 bg-white/60 rounded-lg border border-gray-200 text-gray-400 text-sm"><Lock className="w-4 h-4" /> Course Recommendations — complete interview first</div>

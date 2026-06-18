@@ -800,6 +800,8 @@ def _build_analysis_response(session, profile):
         skill_gaps.append(gap)
 
     return {
+        "session_id": session.id,
+        "session_completed": True,
         "skill_gaps": skill_gaps,
         "strengths": session.strengths or [],
         "areas_of_improvement": session.areas_of_improvement or [],
@@ -821,7 +823,7 @@ async def get_skill_analysis(
         InterviewSession.status == "completed"
     ).order_by(InterviewSession.completed_at.desc()).first()
     if not session:
-        return {"skill_gaps": [], "strengths": [], "areas_of_improvement": [], "qa_pairs": []}
+        return {"session_id": None, "session_completed": False, "skill_gaps": [], "strengths": [], "areas_of_improvement": [], "qa_pairs": []}
     profile = db.query(Profile).filter(Profile.user_id == user.id).first()
     return _build_analysis_response(session, profile)
 
