@@ -469,7 +469,7 @@ export default function ChatbotInterview() {
             </button>
             <img src="/jarvis-avatar.png" alt="Jarvis" className="w-12 h-12 rounded-2xl object-cover shadow-inner" />
             <div>
-              <h1 className="text-lg font-bold">Jarvis · AI Skill Interviewer</h1>
+              <h1 className="text-lg font-bold">Jarvis · AI Skill Consultant</h1>
               <p className="text-orange-100 text-sm">
                 {awaitingWrapup ? 'Wrapping up — confirm to finish' : finished ? 'Interview complete' : `${questionIndex} of ${MAX_QUESTIONS} answered`}
               </p>
