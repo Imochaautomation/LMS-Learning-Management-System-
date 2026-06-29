@@ -65,7 +65,7 @@ export default function LandingPage() {
             {[
               { value: 'AI Interview', sub: 'Adaptive 10-question engine' },
               { value: 'Skill Radar', sub: 'Visual gap analysis' },
-              { value: '3 Roles', sub: 'Admin · Manager · Employee' },
+              { value: '4 Roles', sub: 'Admin · Manager · Employee · New Joiner' },
               { value: 'Auto-Courses', sub: 'AI-matched recommendations' },
             ].map(({ value, sub }) => (
               <div key={value} className="text-center px-3 py-2">
@@ -92,7 +92,7 @@ export default function LandingPage() {
               { icon: BarChart3, color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', title: 'Skill Gap Analysis', desc: 'Visual radar charts, severity-ranked skill cards, and personalized learning roadmaps — generated automatically from interview data.', tags: ['Radar Charts', 'Severity Scoring', 'Learning Roadmap'] },
 { icon: Users, color: '#10B981', bg: '#F0FDF4', border: '#A7F3D0', title: 'Manager Intelligence', desc: 'Monitor team skill progress, review individual learner growth, and track course completions — all from a single manager dashboard.', tags: ['Team Overview', 'Learner Progress', 'Course Tracking'] },
               { icon: TrendingUp, color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A', title: 'Course Recommendations', desc: 'AI matches skill gaps to real courses on Coursera, Udemy, LinkedIn Learning and more — with direct enrollment links.', tags: ['AI-Matched', 'Multi-platform', 'Gap-targeted'] },
-              { icon: Shield, color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', title: 'Role-Based Access', desc: 'Fine-grained access control for admins, managers, and employees — everyone sees exactly what they need, nothing more.', tags: ['3 Roles', 'Secure JWT', 'Route Guards'] },
+              { icon: Shield, color: '#EF4444', bg: '#FEF2F2', border: '#FECACA', title: 'Role-Based Access', desc: 'Fine-grained access control for admins, managers, employees, and new joiners — everyone sees exactly what they need, nothing more.', tags: ['4 Roles', 'Secure JWT', 'Route Guards'] },
             ].map(({ icon: Icon, color, bg, border, title, desc, tags }) => (
               <div key={title} className="bg-white rounded-2xl p-6 border hover:shadow-lg transition-all duration-200 group" style={{ borderColor: border }}>
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 transition-transform group-hover:scale-105" style={{ background: bg }}>
@@ -144,12 +144,13 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-12">
             <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: ORANGE }}>Built for Everyone</p>
-            <h2 className="text-3xl font-black" style={{ color: NAVY }}>One platform, three roles</h2>
+            <h2 className="text-3xl font-black" style={{ color: NAVY }}>One platform, four roles</h2>
           </div>
-          <div className="grid sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {[
+              { emoji: '🎓', role: 'New Joiner', color: '#0d9488', bg: '#F0FDFA', border: '#99F6E4', points: ['SME Kit access', 'AI training assessments', 'Training course tracking', 'Onboarding dashboard'] },
               { emoji: '📈', role: 'Employee', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', points: ['AI skill interview', 'Gap analysis dashboard', 'Course recommendations', 'Skill radar chart'] },
-              { emoji: '👩‍💼', role: 'Manager', color: ORANGE, bg: '#FFF4EE', border: '#FFD5C2', points: ['Team skill overview', 'Individual learner views', 'Assign content bank', 'Download skill reports'] },
+              { emoji: '👩‍💼', role: 'Manager', color: ORANGE, bg: '#FFF4EE', border: '#FFD5C2', points: ['Team skill overview', 'Individual learner views', 'Assign SME Kit & quizzes', 'Track training progress'] },
               { emoji: '⚙️', role: 'Admin', color: '#10B981', bg: '#F0FDF4', border: '#A7F3D0', points: ['User management', 'Role assignment', 'System overview', 'Full data access'] },
             ].map(({ emoji, role, color, bg, border, points }) => (
               <div key={role} className="bg-white rounded-2xl p-6 border" style={{ borderColor: border }}>

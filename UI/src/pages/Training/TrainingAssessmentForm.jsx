@@ -178,10 +178,22 @@ export default function TrainingAssessmentForm() {
       setResult(res);
       setSubmitted(true);
       setMode('result');
-      // Refresh attempts list
       api.get(`/training/assessments/${assessmentId}/attempts`).then(setPastAttempts).catch(() => {});
     } catch (e) {
-      setError(`Submission failed: ${e.message}`);
+      // AI evaluation can take 30-90s — the server may have finished even if the
+      // network request timed out. Try to recover by re-fetching attempts.
+      try {
+        const attempts = await api.get(`/training/assessments/${assessmentId}/attempts`);
+        const evaluated = attempts.find(at => at.status === 'evaluated' || at.status === 'submitted');
+        if (evaluated) {
+          setPastAttempts(attempts);
+          setResult(evaluated);
+          setSubmitted(true);
+          setMode('result');
+          return;
+        }
+      } catch (_) { /* ignore */ }
+      setError(`Submission failed: ${e.message}. Please go back and try again — your progress may have been saved.`);
     } finally {
       setSubmitting(false);
     }
@@ -408,7 +420,7 @@ export default function TrainingAssessmentForm() {
         style={{ background: ORANGE }}>
         {submitting ? (
           <span className="flex items-center justify-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> AI is evaluating your answers…
+            <Loader2 className="w-4 h-4 animate-spin" /> AI is evaluating your answers… this may take up to 60 seconds
           </span>
         ) : (
           `Submit Assessment (${answeredCount}/${totalCount} answered)`

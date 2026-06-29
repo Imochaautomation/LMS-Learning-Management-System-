@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import (
     User, Profile, AssessmentAssignment, UserCourse, CourseAssignment,
-    CourseCompletion, InterviewSession, Notification
+    CourseCompletion, InterviewSession, Notification,
+    SmeKitAssignment, SmeKitAssignmentV2, SmeKit, SmeKitFileV2
 )
 from schemas import UserCreate, UserUpdate, UserOut
 from auth import hash_password, require_role
@@ -166,6 +167,16 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.query(AssessmentAssignment).filter(
         (AssessmentAssignment.user_id == user_id) | (AssessmentAssignment.assigned_by == user_id)
     ).delete(synchronize_session=False)
+    # SME Kit assignments (old + new schema)
+    db.query(SmeKitAssignment).filter(
+        (SmeKitAssignment.user_id == user_id) | (SmeKitAssignment.assigned_by == user_id)
+    ).delete(synchronize_session=False)
+    db.query(SmeKitAssignmentV2).filter(
+        (SmeKitAssignmentV2.user_id == user_id) | (SmeKitAssignmentV2.assigned_by == user_id)
+    ).delete(synchronize_session=False)
+    # SME Kits created by this user — null out creator rather than cascade-delete content
+    db.query(SmeKit).filter(SmeKit.created_by == user_id).update({"created_by": None}, synchronize_session=False)
+    db.query(SmeKitFileV2).filter(SmeKitFileV2.uploaded_by == user_id).update({"uploaded_by": None}, synchronize_session=False)
     db.query(Profile).filter(Profile.user_id == user_id).delete()
 
     db.delete(user)

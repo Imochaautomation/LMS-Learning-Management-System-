@@ -83,6 +83,7 @@ export default function UpskillCourses() {
 
   const refreshRecommendations = async () => {
     setRefreshing(true);
+    toast.info('Analysing your interview… this takes 30–60 seconds. Please wait.');
     try {
       await api.post('/ai/generate-analysis', { user_id: user?.id || 0 });
       const updated = await api.get('/courses/recommended');

@@ -732,6 +732,7 @@ export default function LearnerDetail() {
   // Separate expand state for training assessment cards (avoid conflict with old expandedAssess)
   const [expandedTA, setExpandedTA] = useState(null);       // which assessment card is open
   const [expandedAttempt, setExpandedAttempt] = useState(null); // which attempt row is open
+  const [showQuestionsTA, setShowQuestionsTA] = useState(null); // which assessment is showing questions panel
 
   useEffect(() => {
     api.get('/admin/users').then((all) => {
@@ -1014,22 +1015,18 @@ export default function LearnerDetail() {
 
                 {selectedKit && selectedKit.files?.length > 0 && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Select Files for Questions * <span className="text-gray-400">(AI will read these to generate questions)</span></label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Select File for Questions * <span className="text-gray-400">(AI will read this file to generate questions)</span></label>
                     <div className="space-y-1.5 max-h-40 overflow-y-auto">
                       {selectedKit.files.map((f) => {
-                        const checked = trainingForm.source_file_ids.includes(f.id);
+                        const selected = trainingForm.source_file_ids[0] === f.id;
                         return (
-                          <label key={f.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${checked ? 'border-teal-400 bg-white ring-1 ring-teal-300' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                          <label key={f.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${selected ? 'border-teal-400 bg-white ring-1 ring-teal-300' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
                             <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => setTrainingForm((p) => ({
-                                ...p,
-                                source_file_ids: checked
-                                  ? p.source_file_ids.filter((x) => x !== f.id)
-                                  : [...p.source_file_ids, f.id],
-                              }))}
-                              className="rounded"
+                              type="radio"
+                              name="source_file"
+                              checked={selected}
+                              onChange={() => setTrainingForm((p) => ({ ...p, source_file_ids: [f.id] }))}
+                              className="accent-teal-600"
                             />
                             <span>{f.file_type === 'youtube' ? '▶' : '📄'}</span>
                             <span className="text-sm text-gray-700 flex-1 truncate">{f.name}</span>
@@ -1195,11 +1192,54 @@ export default function LearnerDetail() {
                         </div>
                       </button>
 
+                      {/* Questions panel */}
+                      {isOpen && showQuestionsTA === a.id && (
+                        <div className="bg-indigo-50 border-t border-indigo-100">
+                          <div className="px-4 py-2 flex items-center justify-between">
+                            <p className="text-xs font-semibold text-indigo-700">Questions ({(a.questions || []).length})</p>
+                            <button onClick={() => setShowQuestionsTA(null)} className="text-xs text-indigo-500 hover:text-indigo-700">Hide</button>
+                          </div>
+                          <div className="divide-y divide-indigo-100 max-h-80 overflow-y-auto">
+                            {(a.questions || []).map((q, qi) => (
+                              <div key={q.id} className="px-4 py-3 bg-white">
+                                <div className="flex items-start gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{qi + 1}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>{q.question_type === 'mcq' ? 'MCQ' : 'Descriptive'}</span>
+                                      {q.difficulty && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' : q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{q.difficulty === 'easy' ? '🟢 Easy' : q.difficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}</span>}
+                                    </div>
+                                    <p className="text-sm text-gray-900 leading-snug mb-1.5">{q.question_text}</p>
+                                    {q.options && (
+                                      <div className="space-y-1 mb-1.5">
+                                        {q.options.map((opt, oi) => (
+                                          <p key={oi} className={`text-xs px-2 py-1 rounded ${q.correct_answer === opt.charAt(0) ? 'bg-emerald-100 text-emerald-800 font-semibold' : 'text-gray-500'}`}>
+                                            {opt}{q.correct_answer === opt.charAt(0) ? ' ✓' : ''}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {q.correct_answer && !q.options && (
+                                      <p className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1.5 rounded leading-snug">{q.correct_answer}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Attempts list */}
                       {isOpen && (
                         <div className="bg-white border-t border-gray-100 divide-y divide-gray-50">
                           {completedAttempts.length === 0 ? (
-                            <p className="text-sm text-gray-400 px-4 py-3">New joiner hasn't submitted any attempts yet.</p>
+                            <div className="px-4 py-3 flex items-center justify-between">
+                              <p className="text-sm text-gray-400">New joiner hasn't submitted any attempts yet.</p>
+                              <button onClick={() => setShowQuestionsTA(showQuestionsTA === a.id ? null : a.id)} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50">
+                                {showQuestionsTA === a.id ? 'Hide Questions' : 'Preview Questions'}
+                              </button>
+                            </div>
                           ) : (
                             completedAttempts.map((att) => {
                               const attOpen = expandedAttempt === att.id;
@@ -1289,6 +1329,13 @@ export default function LearnerDetail() {
                                 </div>
                               );
                             })
+                          )}
+                          {completedAttempts.length > 0 && (
+                            <div className="px-4 py-2 border-t border-gray-100 flex justify-end">
+                              <button onClick={() => setShowQuestionsTA(showQuestionsTA === a.id ? null : a.id)} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50">
+                                {showQuestionsTA === a.id ? 'Hide Questions' : 'Preview Questions'}
+                              </button>
+                            </div>
                           )}
                         </div>
                       )}

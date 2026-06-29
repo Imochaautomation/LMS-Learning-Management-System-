@@ -5,7 +5,7 @@ import api from '../../api/client';
 import { Send, Loader2, User, CheckCircle, ExternalLink, Mic, MicOff, ArrowLeft } from 'lucide-react';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
 
-const MIN_QUESTIONS = 15;
+const MIN_QUESTIONS = 8;
 const MAX_QUESTIONS = 15;
 
 const cleanText = (t) => t.replace(/\*+/g, '').trim();
@@ -44,7 +44,7 @@ export default function ChatbotInterview() {
   const silenceTimerRef = useRef(null);
   const [voiceBars, setVoiceBars] = useState([0, 0, 0, 0, 0]);
 
-  const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI skill interviewer from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time.\n\nLet's get started!`;
+  const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI Skill Consultant from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time. After ${MIN_QUESTIONS} questions you can wrap up early.\n\nLet's get started!`;
 
   const [chatBlocks, setChatBlocks] = useState([]);
   const [input, setInput] = useState('');

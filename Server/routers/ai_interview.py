@@ -100,7 +100,11 @@ QUESTION STRUCTURE — distribute your 15 questions across these areas:
 - Questions 11-13: Growth, accomplishments, and professional journey so far
 - Questions 14-15: Learning goals alignment — probe whether current skills match where they want to go
 
-Do NOT cluster questions in one area. If you have already asked 3+ questions about any single topic (e.g. SEO, brand positioning), move on permanently."""
+TOPIC DIVERSITY — CRITICAL RULE: You MUST spread your questions across at least 6 different skill areas.
+- After asking 2 questions on any single topic (e.g. SEO, content editing, grammar, Excel), you MUST move to a completely different skill area permanently. Do NOT return to that topic even in a new phrasing.
+- Count your past questions. If SEO has appeared 2+ times already, the next question MUST be about something entirely different — tools, communication, project management, specific software, etc.
+- Treat sub-topics of the same domain as the same topic: "on-page SEO", "keyword research", and "search ranking" are all "SEO" — counted together toward the 2-question cap.
+- If you cannot think of a new topic, ask about: daily tools/software, collaboration/team dynamics, data analysis, reporting, client interaction, process improvement, or professional development."""
 
 
 def _build_analysis_prompt(user, profile=None) -> str:
@@ -153,7 +157,7 @@ Return ONLY valid JSON in this exact format:
     "Specific area 2"
   ],
   "course_recommendations": [
-    {{"title": "Course Title", "provider": "Coursera", "category": "Category", "tag": "Gap-Fill", "link": "https://www.coursera.org/search?query=TOPIC", "duration": "4 weeks", "course_type": "video_freemium", "free": true}},
+    {{"title": "Course Title", "provider": "Coursera", "category": "Category", "tag": "Gap-Fill", "link": "https://www.coursera.org/learn/EXACT-COURSE-SLUG", "duration": "4 weeks", "course_type": "video_freemium", "free": true}},
     "..."
   ]
 }}
@@ -198,17 +202,22 @@ TARGET MIX (in order they appear in the list):
 
 CRITICAL — VIDEO COURSES ONLY: Do NOT recommend documentation pages, official API docs, GitHub repos, research papers, or blog posts. Specifically NEVER use: MDN Web Docs, docs.anthropic.com, platform.openai.com/docs, docs.cohere.com, GitHub repositories, or any URL that is purely a reading/reference resource. Every recommended course must be a structured VIDEO learning experience with a clear curriculum.
 
-LINKS — Use SEARCH URLs (always valid):
+LINKS — STRICT RULES:
+  NEVER use google.com, google.co.in, or any Google search link. NEVER use Bing or other search engines as a link.
+  Use ONLY platform search URLs — these always resolve correctly:
   * Coursera: https://www.coursera.org/search?query=YOUR+COURSE+TOPIC
   * Udemy: https://www.udemy.com/courses/search/?q=YOUR+COURSE+TOPIC
   * LinkedIn Learning: https://www.linkedin.com/learning/search?keywords=YOUR+COURSE+TOPIC
   * edX: https://www.edx.org/search?q=YOUR+COURSE+TOPIC
   * YouTube: https://www.youtube.com/results?search_query=YOUR+COURSE+TOPIC+full+course
-  * freeCodeCamp: https://www.freecodecamp.org/news/search/?query=YOUR+TOPIC
+  * freeCodeCamp: https://www.freecodecamp.org/learn
   * Google Digital Garage: https://learndigital.withgoogle.com/digitalgarage/courses
   * Khan Academy: https://www.khanacademy.org/search?page_search_query=YOUR+TOPIC
   * Skillshare: https://www.skillshare.com/en/search?query=YOUR+TOPIC
   * Alison: https://alison.com/courses?query=YOUR+TOPIC
+  * Pluralsight: https://www.pluralsight.com/search?q=YOUR+TOPIC
+  * DeepLearning.AI: https://www.deeplearning.ai/courses/
+  * If a provider is not in this list, use their homepage URL — do NOT use a Google search.
   * NEVER use google.com/search — users must land on the course platform.
 - The link field must NEVER be empty or null.
 
@@ -530,13 +539,23 @@ async def get_session(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return all past completed sessions + current in-progress session messages for the chat window."""
+    """Return completed/in-progress sessions for the chat window.
+    Only the most-recent in_progress session is returned (abandoned sessions are excluded).
+    """
     sessions = db.query(InterviewSession).filter(
         InterviewSession.user_id == user.id,
-    ).order_by(InterviewSession.id.asc()).all()
+    ).order_by(InterviewSession.id.desc()).all()
 
+    # Keep only the newest in_progress (skip older ones and all abandoned sessions)
+    seen_in_progress = False
     result = []
     for s in sessions:
+        if s.status == "abandoned":
+            continue
+        if s.status == "in_progress":
+            if seen_in_progress:
+                continue  # skip older in_progress duplicates
+            seen_in_progress = True
         result.append({
             "id": s.id,
             "status": s.status,
@@ -544,6 +563,8 @@ async def get_session(
             "messages": s.messages or [],
             "completed_at": s.completed_at.isoformat() if s.completed_at else None,
         })
+    # Return in chronological order (oldest first) so the frontend sorts correctly
+    result.reverse()
     return result
 
 

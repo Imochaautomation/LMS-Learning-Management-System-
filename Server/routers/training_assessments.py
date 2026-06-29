@@ -93,16 +93,19 @@ def _generate_questions(
         else:
             return f"{difficulty} questions test {'recall of specific facts' if difficulty == 'Easy' else 'application or analysis of concepts'} from the content. Use descriptive/open-ended format (no options)."
 
-    prompt = f"""You are an expert trainer creating a training assessment strictly based on the provided SME Kit content below.
+    prompt = f"""You are an expert trainer creating a training assessment STRICTLY based on the provided SME Kit content below.
 
-STRICT RULES — read carefully before generating:
-1. Every question MUST be answerable using ONLY the content provided below. Do NOT draw from general knowledge or external sources.
-2. If a concept in the content is technical or complex, include a brief real-world example in the question text to make it concrete (e.g. "For example, ...").
-3. {_type_rule('Easy', easy_type)}
-4. {_type_rule('Medium', medium_type)}
-5. {_type_rule('Hard', hard_type)}
-6. Do NOT generate questions about topics not covered in the content below.
-7. PRACTICAL ERROR-IDENTIFICATION QUESTIONS: For at least 30% of MCQ questions, present a short passage, sentence, or example that contains a deliberate error or violation of a rule from the SME Kit content. Ask the candidate to identify what is wrong or choose the corrected version. Example format: "The following text violates a rule from the guidelines: [text with error]. Which option correctly fixes this?" — The correct answer is the option that follows the documented rule.
+ABSOLUTE RULES — violating any of these makes the assessment useless:
+1. CONTENT-ONLY: Every single question MUST be directly and specifically answerable from the content below. If you cannot point to a specific sentence, rule, or fact in the content that answers the question, do NOT include that question.
+2. NO EXTERNAL KNOWLEDGE: Do NOT use facts, rules, or concepts from outside the provided content — not from general training knowledge, industry standards, or common sense. Only what is explicitly stated in the document below.
+3. TOPIC FIDELITY: If the content is about "Content Editing Guidelines", generate questions ONLY about content editing. If it is about "Insurance Claims Processing", generate questions ONLY about insurance claims. Read the content first and identify its actual topic — then generate questions ONLY on that topic.
+4. ZERO HALLUCINATION: Do not invent rules, scenarios, or facts. Every correct answer must be a direct quote or paraphrase from the content below.
+5. {_type_rule('Easy', easy_type)}
+6. {_type_rule('Medium', medium_type)}
+7. {_type_rule('Hard', hard_type)}
+8. PRACTICAL ERROR-IDENTIFICATION (MCQ only): For at least 30% of MCQ questions, present a sentence or example that violates a SPECIFIC RULE from this document. Ask the candidate to identify the error or choose the corrected version. Only use rules that appear verbatim in the content below.
+
+BEFORE generating questions, briefly identify: (1) the topic of this document, and (2) three to five key rules or concepts it covers. Then base ALL questions on those.
 
 SME KIT CONTENT:
 {content[:10000]}
@@ -468,6 +471,14 @@ def submit_attempt(
         TrainingAttempt.status == "in_progress",
     ).first()
     if not attempt:
+        # Check if already submitted/evaluated (e.g. client timeout but server completed)
+        recent = db.query(TrainingAttempt).filter(
+            TrainingAttempt.assessment_id == assessment_id,
+            TrainingAttempt.user_id == current_user.id,
+            TrainingAttempt.status.in_(["submitted", "evaluated"]),
+        ).order_by(TrainingAttempt.id.desc()).first()
+        if recent:
+            return _attempt_out(recent)
         raise HTTPException(400, "No in-progress attempt found. Start the assessment first.")
 
     attempt.status = "submitted"

@@ -115,7 +115,7 @@ export default function UserManagement() {
   };
 
   const openEdit = (u) => {
-    setEditForm({ id: u.id, name: u.name, email: u.email, password: '', role: u.role, department: u.department || '' });
+    setEditForm({ id: u.id, name: u.name, email: u.email, password: '', role: u.role, department: u.department || '', manager_id: u.manager_id ? String(u.manager_id) : '' });
     setEditModal(true);
   };
 
@@ -125,6 +125,7 @@ export default function UserManagement() {
     if (!editForm.email.trim()) e.email = 'Email is required';
     else if (!isImochaEmail(editForm.email)) e.email = 'Email must end with @imocha.co or @imocha.io';
     if (editForm.password && editForm.password.length < 8) e.password = 'Password must be at least 8 characters';
+    if ((editForm.role === 'employee' || editForm.role === 'new_joiner') && !editForm.manager_id) e.manager_id = 'Please select a manager';
     return e;
   };
 
@@ -137,6 +138,8 @@ export default function UserManagement() {
     try {
       const payload = { name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department };
       if (editForm.password) payload.password = editForm.password;
+      if (editForm.manager_id) payload.manager_id = parseInt(editForm.manager_id);
+      else if (editForm.role !== 'employee' && editForm.role !== 'new_joiner') payload.manager_id = null;
       await api.put(`/admin/users/${editForm.id}`, payload);
       setEditModal(null);
       loadUsers();
@@ -167,7 +170,7 @@ export default function UserManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">User Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Create and manage admin & manager accounts.</p>
+          <p className="text-sm text-gray-500 mt-1">Create and manage all user accounts — admin, manager, employee, and new joiner.</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 px-4 py-2.5 text-white text-sm font-medium rounded-xl transition-colors"
@@ -413,6 +416,17 @@ export default function UserManagement() {
                   <option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option>
                 </select>
               </div>
+              {(editForm.role === 'employee' || editForm.role === 'new_joiner') && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Manager *</label>
+                  <select value={editForm.manager_id} onChange={(e) => { setEditForm({ ...editForm, manager_id: e.target.value }); setEditErrors((p) => ({ ...p, manager_id: '' })); }}
+                    className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white ${editErrors.manager_id ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
+                    <option value="">Select Manager</option>
+                    {managers.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.department || 'No dept'})</option>)}
+                  </select>
+                  {editErrors.manager_id && <p className="text-xs text-red-500 mt-1">{editErrors.manager_id}</p>}
+                </div>
+              )}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setEditModal(null)} className="px-4 py-2.5 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
                 <button type="submit" disabled={editSaving} className="flex items-center gap-2 px-5 py-2.5 text-white text-sm font-medium rounded-xl disabled:opacity-60"

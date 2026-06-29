@@ -7,7 +7,7 @@ import {
   Users, Bell, Loader2,
   ExternalLink, Search, Trash2, Upload,
   ChevronRight, AlertTriangle,
-  ChevronLeft, CheckSquare, Square, MailCheck
+  ChevronLeft, CheckSquare, Square, MailCheck, ClipboardList, Trophy
 } from 'lucide-react';
 
 const roleLabel = { new_joiner: 'New Joiner', employee: 'Employee' };
@@ -83,6 +83,7 @@ export default function ManagerDashboard() {
 
   // SME Kit assignment count (read-only — assignment happens in LearnerDetail)
   const [smeAssignments, setSmeAssignments] = useState([]); // [{id, file_id, user_id, ...}]
+  const [trainingAssessments, setTrainingAssessments] = useState([]);
 
   useEffect(() => {
     Promise.all([
@@ -95,6 +96,7 @@ export default function ManagerDashboard() {
       api.get('/banks/courses').then(setCourseBank).catch(() => {}),
       api.get('/banks/sme-kit').then(setSmeKit).catch(() => {}),
       api.get('/banks/smekit/assignments').then(setSmeAssignments).catch(() => {}),
+      api.get('/training/assessments').then(setTrainingAssessments).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [user]);
 
@@ -220,6 +222,7 @@ export default function ManagerDashboard() {
 
   const tabs = [
     { id: 'learners', label: 'Learners', icon: Users },
+    { id: 'quizzes', label: 'Quizzes', icon: ClipboardList },
     { id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.filter((n) => !n.read).length },
   ];
 
@@ -291,6 +294,57 @@ export default function ManagerDashboard() {
       )}
 
       {/* NOTIFICATIONS */}
+      {/* QUIZZES */}
+      {tab === 'quizzes' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900">AI-Generated Quizzes</h2>
+            <p className="text-xs text-gray-400">Create quizzes from a learner's profile page</p>
+          </div>
+          {trainingAssessments.length === 0 ? (
+            <div className="text-center py-14 bg-white border border-gray-100 rounded-2xl">
+              <ClipboardList className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No quizzes yet</p>
+              <p className="text-sm text-gray-400 mt-1">Open a learner's profile and use "Generate Quiz" to create one.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {trainingAssessments.map((a) => {
+                const attempts = a.attempts || [];
+                const bestAttempt = attempts.filter(at => at.score != null).sort((x, y) => y.score - x.score)[0];
+                const hasPassed = attempts.some(at => at.passed);
+                const latestAttempt = attempts[0];
+                return (
+                  <div key={a.id} className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between gap-4 hover:shadow-sm transition-shadow">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <p className="font-semibold text-gray-900 text-sm truncate">{a.title}</p>
+                        {hasPassed && <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold flex items-center gap-1"><Trophy className="w-3 h-3" /> Passed</span>}
+                        {!hasPassed && latestAttempt?.status === 'evaluated' && <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">Not passed</span>}
+                        {!latestAttempt && <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Not started</span>}
+                        {latestAttempt?.status === 'in_progress' && <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">In progress</span>}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
+                        <span>👤 {a.new_joiner_name || 'Unknown'}</span>
+                        <span>{a.total_questions} questions</span>
+                        <span>Pass: {a.pass_threshold}%</span>
+                        {bestAttempt && <span className="font-semibold text-gray-600">Best: {Math.round(bestAttempt.score)}/100</span>}
+                        {attempts.length > 0 && <span>{attempts.length} attempt{attempts.length > 1 ? 's' : ''}</span>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/manager/learner/${a.new_joiner_id}`)}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50">
+                      <ChevronRight className="w-3.5 h-3.5" /> View Learner
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === 'notifications' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
