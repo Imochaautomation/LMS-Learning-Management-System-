@@ -29,48 +29,59 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <style>{`
-        @keyframes float-slow { 0%,100%{transform:translateY(0) translateX(0) scale(1)} 33%{transform:translateY(-22px) translateX(10px) scale(1.04)} 66%{transform:translateY(12px) translateX(-8px) scale(0.97)} }
-        @keyframes float-mid  { 0%,100%{transform:translateY(0) translateX(0) scale(1)} 40%{transform:translateY(18px) translateX(-14px) scale(1.06)} 70%{transform:translateY(-10px) translateX(6px) scale(0.96)} }
-        @keyframes float-fast { 0%,100%{transform:translateY(0) translateX(0)} 50%{transform:translateY(-28px) translateX(16px)} }
-        @keyframes aurora     { 0%,100%{opacity:0.13;transform:scale(1) rotate(0deg)} 50%{opacity:0.22;transform:scale(1.15) rotate(8deg)} }
-        @keyframes particle   { 0%{transform:translateY(0) translateX(0);opacity:0} 10%{opacity:1} 90%{opacity:0.6} 100%{transform:translateY(-120px) translateX(var(--dx));opacity:0} }
+        @keyframes aurora     { 0%,100%{opacity:var(--a1);transform:scale(1) rotate(0deg)} 50%{opacity:var(--a2);transform:scale(1.2) rotate(10deg)} }
+        @keyframes particle   { 0%{transform:translateY(0) translateX(0);opacity:0} 15%{opacity:1} 85%{opacity:0.9} 100%{transform:translateY(-160px) translateX(var(--dx));opacity:0} }
         @keyframes spin-slow  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes beam       { 0%,100%{opacity:0.04;transform:scaleX(1)} 50%{opacity:0.1;transform:scaleX(1.08)} }
         .hero-particle { animation: particle var(--dur,6s) linear infinite; animation-delay: var(--delay,0s); }
         .aurora-blob   { animation: aurora var(--adur,8s) ease-in-out infinite; animation-delay: var(--adelay,0s); }
+        .hero-beam     { animation: beam var(--bdur,6s) ease-in-out infinite; animation-delay: var(--bdelay,0s); }
       `}</style>
-      <section className="relative pt-36 pb-28 overflow-hidden" style={{ background: `linear-gradient(135deg, ${NAVY} 0%, #2D1B6B 55%, #1B3A8A 100%)` }}>
-        {/* Aurora blobs */}
-        <div className="aurora-blob absolute -top-40 -right-40 w-[620px] h-[620px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${ORANGE} 0%, transparent 70%)`, opacity: 0.13, filter: 'blur(80px)', '--adur': '9s', '--adelay': '0s' }} />
-        <div className="aurora-blob absolute top-1/2 -left-48 w-[500px] h-[500px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, #7C3AED 0%, transparent 70%)', opacity: 0.15, filter: 'blur(90px)', '--adur': '11s', '--adelay': '2s' }} />
-        <div className="aurora-blob absolute -bottom-20 right-1/3 w-[400px] h-[400px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, #2563EB 0%, transparent 70%)', opacity: 0.12, filter: 'blur(70px)', '--adur': '13s', '--adelay': '1s' }} />
-        <div className="aurora-blob absolute top-10 left-1/2 w-[300px] h-[300px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${ORANGE} 0%, transparent 70%)`, opacity: 0.07, filter: 'blur(60px)', '--adur': '7s', '--adelay': '3s' }} />
+      <section className="relative pt-36 pb-28 overflow-hidden" style={{ background: `linear-gradient(135deg, #0d0820 0%, #180d3a 45%, #0e1f50 100%)` }}>
+        {/* Aurora blobs — boosted opacity on dark bg */}
+        <div className="aurora-blob absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${ORANGE} 0%, transparent 65%)`, filter: 'blur(70px)', '--a1':'0.32', '--a2':'0.48', '--adur': '9s', '--adelay': '0s' }} />
+        <div className="aurora-blob absolute top-1/3 -left-40 w-[600px] h-[600px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, #7C3AED 0%, transparent 65%)', filter: 'blur(80px)', '--a1':'0.28', '--a2':'0.42', '--adur': '11s', '--adelay': '2s' }} />
+        <div className="aurora-blob absolute -bottom-10 right-1/4 w-[500px] h-[500px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, #2563EB 0%, transparent 65%)', filter: 'blur(70px)', '--a1':'0.25', '--a2':'0.38', '--adur': '13s', '--adelay': '1s' }} />
+        <div className="aurora-blob absolute top-0 left-1/3 w-[400px] h-[400px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, #F97316 0%, transparent 65%)`, filter: 'blur(60px)', '--a1':'0.18', '--a2':'0.30', '--adur': '7s', '--adelay': '3s' }} />
+        <div className="aurora-blob absolute bottom-1/4 -right-20 w-[350px] h-[350px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, #9333EA 0%, transparent 65%)', filter: 'blur(65px)', '--a1':'0.22', '--a2':'0.35', '--adur': '10s', '--adelay': '1.5s' }} />
 
-        {/* Floating particles */}
+        {/* Light beams */}
+        {[15, 38, 60, 80].map((left, i) => (
+          <div key={i} className="hero-beam absolute top-0 bottom-0 pointer-events-none" style={{ left: `${left}%`, width: 1, background: `linear-gradient(180deg, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)`, '--bdur': `${6 + i * 2}s`, '--bdelay': `${i * 0.8}s` }} />
+        ))}
+
+        {/* Floating particles — larger and brighter */}
         {[
-          { left:'10%', top:'80%', size:3, dur:'7s', delay:'0s',  dx:'20px',  color:'rgba(240,90,40,0.7)' },
-          { left:'20%', top:'85%', size:2, dur:'9s', delay:'1.5s',dx:'-15px', color:'rgba(255,255,255,0.5)' },
-          { left:'35%', top:'90%', size:4, dur:'6s', delay:'0.8s',dx:'25px',  color:'rgba(124,58,237,0.6)' },
-          { left:'50%', top:'88%', size:2, dur:'8s', delay:'2s',  dx:'-10px', color:'rgba(240,90,40,0.5)' },
-          { left:'63%', top:'82%', size:3, dur:'10s',delay:'0.3s',dx:'18px',  color:'rgba(255,255,255,0.4)' },
-          { left:'75%', top:'86%', size:2, dur:'7s', delay:'1.2s',dx:'-20px', color:'rgba(96,165,250,0.6)' },
-          { left:'85%', top:'90%', size:4, dur:'9s', delay:'0.6s',dx:'12px',  color:'rgba(240,90,40,0.4)' },
-          { left:'92%', top:'84%', size:2, dur:'6s', delay:'2.5s',dx:'-8px',  color:'rgba(255,255,255,0.3)' },
-          { left:'5%',  top:'70%', size:3, dur:'11s',delay:'1s',  dx:'22px',  color:'rgba(124,58,237,0.5)' },
-          { left:'42%', top:'75%', size:2, dur:'8s', delay:'3s',  dx:'-18px', color:'rgba(255,255,255,0.35)'},
-          { left:'58%', top:'78%', size:3, dur:'7s', delay:'1.8s',dx:'14px',  color:'rgba(96,165,250,0.5)' },
-          { left:'28%', top:'92%', size:2, dur:'9s', delay:'0.4s',dx:'-12px', color:'rgba(240,90,40,0.6)' },
+          { left:'8%',  top:'78%', size:5, dur:'7s',  delay:'0s',   dx:'24px',  color:'rgba(240,90,40,0.95)' },
+          { left:'18%', top:'84%', size:3, dur:'9s',  delay:'1.5s', dx:'-18px', color:'rgba(255,255,255,0.85)' },
+          { left:'30%', top:'88%', size:6, dur:'6s',  delay:'0.8s', dx:'28px',  color:'rgba(167,139,250,0.9)' },
+          { left:'44%', top:'86%', size:3, dur:'8s',  delay:'2s',   dx:'-14px', color:'rgba(240,90,40,0.8)' },
+          { left:'55%', top:'80%', size:5, dur:'10s', delay:'0.3s', dx:'20px',  color:'rgba(255,255,255,0.75)' },
+          { left:'67%', top:'85%', size:3, dur:'7s',  delay:'1.2s', dx:'-22px', color:'rgba(96,165,250,0.9)' },
+          { left:'78%', top:'89%', size:6, dur:'9s',  delay:'0.6s', dx:'16px',  color:'rgba(240,90,40,0.7)' },
+          { left:'90%', top:'82%', size:3, dur:'6s',  delay:'2.5s', dx:'-10px', color:'rgba(255,255,255,0.7)' },
+          { left:'4%',  top:'68%', size:4, dur:'11s', delay:'1s',   dx:'26px',  color:'rgba(167,139,250,0.8)' },
+          { left:'40%', top:'73%', size:3, dur:'8s',  delay:'3s',   dx:'-20px', color:'rgba(255,255,255,0.65)'},
+          { left:'62%', top:'76%', size:5, dur:'7s',  delay:'1.8s', dx:'18px',  color:'rgba(96,165,250,0.85)' },
+          { left:'25%', top:'91%', size:3, dur:'9s',  delay:'0.4s', dx:'-14px', color:'rgba(240,90,40,0.9)' },
+          { left:'72%', top:'70%', size:4, dur:'8s',  delay:'2.2s', dx:'22px',  color:'rgba(167,139,250,0.7)' },
+          { left:'85%', top:'75%', size:3, dur:'10s', delay:'0.9s', dx:'-16px', color:'rgba(240,90,40,0.75)' },
         ].map((p, i) => (
           <div key={i} className="hero-particle absolute rounded-full pointer-events-none"
             style={{ left: p.left, top: p.top, width: p.size, height: p.size, background: p.color,
-              '--dur': p.dur, '--delay': p.delay, '--dx': p.dx, boxShadow: `0 0 ${p.size * 3}px ${p.color}` }} />
+              '--dur': p.dur, '--delay': p.delay, '--dx': p.dx,
+              boxShadow: `0 0 ${p.size * 4}px ${p.size}px ${p.color}` }} />
         ))}
 
-        {/* Animated grid overlay */}
-        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        {/* Dot grid */}
+        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-        {/* Rotating ring accent */}
-        <div className="absolute top-1/2 left-1/2 pointer-events-none" style={{ width: 700, height: 700, marginLeft: -350, marginTop: -350, animation: 'spin-slow 30s linear infinite', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '50%' }} />
-        <div className="absolute top-1/2 left-1/2 pointer-events-none" style={{ width: 500, height: 500, marginLeft: -250, marginTop: -250, animation: 'spin-slow 20s linear infinite reverse', border: '1px solid rgba(240,90,40,0.05)', borderRadius: '50%' }} />
+        {/* Rotating rings — more visible on dark bg */}
+        <div className="absolute top-1/2 left-1/2 pointer-events-none" style={{ width: 750, height: 750, marginLeft: -375, marginTop: -375, animation: 'spin-slow 30s linear infinite', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '50%' }} />
+        <div className="absolute top-1/2 left-1/2 pointer-events-none" style={{ width: 520, height: 520, marginLeft: -260, marginTop: -260, animation: 'spin-slow 20s linear infinite reverse', border: '1px solid rgba(240,90,40,0.12)', borderRadius: '50%' }} />
+
+        {/* Darken top so content stays readable */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(13,8,32,0.45) 0%, transparent 40%, transparent 70%, rgba(13,8,32,0.3) 100%)' }} />
 
         <div className="relative max-w-5xl mx-auto px-6 text-center">
           {/* Badge */}
