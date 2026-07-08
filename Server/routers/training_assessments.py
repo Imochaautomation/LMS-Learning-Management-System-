@@ -11,11 +11,12 @@ GET    /training/assessments/{id}/attempts — list all attempts (manager)
 GET    /training/attempts/{attempt_id}    — attempt detail with per-answer flags
 """
 
+import io
 import json
 import re
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
@@ -378,6 +379,128 @@ def generate_assessment(
     db.commit()
     db.refresh(assessment)
     return _assessment_out(assessment, include_questions=True, for_joiner=False)
+
+
+@router.post("/assessments/from-excel", response_model=dict)
+async def create_assessment_from_excel(
+    file: UploadFile = File(...),
+    new_joiner_id: int = Form(...),
+    title: str = Form(...),
+    pass_threshold: int = Form(70),
+    sheet: str = Form("all"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager", "admin")),
+):
+    """Import questions from an Excel file (3-sheet template) instead of AI generation."""
+    import openpyxl
+
+    joiner = db.query(User).filter(User.id == new_joiner_id).first()
+    if not joiner:
+        raise HTTPException(404, "New joiner not found")
+
+    content = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content))
+    except Exception as e:
+        raise HTTPException(400, f"Could not read Excel file: {str(e)[:120]}")
+
+    DESCRIPTIVE_SHEET = "Descriptive questions"
+    all_sheets = wb.sheetnames
+    sheets_to_read = all_sheets if sheet == "all" else [sheet]
+
+    questions_data = []
+    order = 1
+
+    for sheet_name in sheets_to_read:
+        if sheet_name not in wb.sheetnames:
+            continue
+        ws = wb[sheet_name]
+        is_descriptive = sheet_name == DESCRIPTIVE_SHEET
+
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not row or not row[0]:
+                continue
+            difficulty = str(row[0] or "").strip().lower()
+            if difficulty not in ("easy", "medium", "hard"):
+                continue
+
+            question_text = str(row[2] or "").strip()
+            if not question_text:
+                continue
+
+            if is_descriptive:
+                answer_explanation = str(row[3] or "").strip()
+                questions_data.append({
+                    "order_index": order,
+                    "question_type": "descriptive",
+                    "difficulty": difficulty,
+                    "question_text": question_text,
+                    "options": None,
+                    "correct_answer": f"Model answer: {answer_explanation}",
+                })
+            else:
+                opt_a = str(row[3] or "").strip()
+                opt_b = str(row[4] or "").strip()
+                opt_c = str(row[5] or "").strip()
+                opt_d = str(row[6] or "").strip()
+                correct = str(row[7] or "").strip()
+                questions_data.append({
+                    "order_index": order,
+                    "question_type": "mcq",
+                    "difficulty": difficulty,
+                    "question_text": question_text,
+                    "options": [f"A. {opt_a}", f"B. {opt_b}", f"C. {opt_c}", f"D. {opt_d}"],
+                    "correct_answer": correct,
+                })
+            order += 1
+
+    if not questions_data:
+        raise HTTPException(400, "No valid questions found in the uploaded file. Check the file format.")
+
+    total = len(questions_data)
+    mcq_count = sum(1 for q in questions_data if q["question_type"] == "mcq")
+    written_count = total - mcq_count
+    easy_count = sum(1 for q in questions_data if q["difficulty"] == "easy")
+    medium_count = sum(1 for q in questions_data if q["difficulty"] == "medium")
+    hard_count = sum(1 for q in questions_data if q["difficulty"] == "hard")
+
+    assessment = TrainingAssessment(
+        title=title.strip(),
+        new_joiner_id=new_joiner_id,
+        created_by=current_user.id,
+        sme_kit_id=None,
+        source_file_ids=[],
+        total_questions=total,
+        mcq_count=mcq_count,
+        written_count=written_count,
+        easy_count=easy_count,
+        medium_count=medium_count,
+        hard_count=hard_count,
+        pass_threshold=pass_threshold,
+        status="active",
+    )
+    db.add(assessment)
+    db.flush()
+
+    for qd in questions_data:
+        db.add(TrainingQuestion(
+            assessment_id=assessment.id,
+            order_index=qd["order_index"],
+            question_type=qd["question_type"],
+            difficulty=qd["difficulty"],
+            question_text=qd["question_text"],
+            options=qd["options"],
+            correct_answer=qd["correct_answer"],
+        ))
+
+    db.commit()
+    db.refresh(assessment)
+    d = _assessment_out(assessment, include_questions=False)
+    d["attempt_count"] = 0
+    d["best_score"] = None
+    d["passed"] = False
+    d["attempts"] = []
+    return d
 
 
 @router.get("/assessments", response_model=List[dict])

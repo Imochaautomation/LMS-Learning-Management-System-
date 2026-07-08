@@ -71,7 +71,7 @@ export default function AIAssessments() {
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-gray-400">
-                      <span>{a.kit_name}</span>
+                      <span>{a.kit_name || '📥 Excel Import'}</span>
                       <span>{a.total_questions} questions ({a.mcq_count} MCQ + {a.written_count} written)</span>
                       <span>Pass at {a.pass_threshold}%</span>
                     </div>

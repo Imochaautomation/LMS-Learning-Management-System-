@@ -729,6 +729,9 @@ export default function LearnerDetail() {
   const [showCreateTraining, setShowCreateTraining] = useState(false);
   const [trainingForm, setTrainingForm] = useState({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 });
   const [generatingTraining, setGeneratingTraining] = useState(false);
+  const [createMode, setCreateMode] = useState('ai'); // 'ai' | 'excel'
+  const [excelForm, setExcelForm] = useState({ title: '', pass_threshold: 70, sheet: 'all', file: null });
+  const [importingExcel, setImportingExcel] = useState(false);
   // Separate expand state for training assessment cards (avoid conflict with old expandedAssess)
   const [expandedTA, setExpandedTA] = useState(null);       // which assessment card is open
   const [expandedAttempt, setExpandedAttempt] = useState(null); // which attempt row is open
@@ -840,6 +843,27 @@ export default function LearnerDetail() {
       alert(`Failed to generate assessment: ${e.message}`);
     } finally {
       setGeneratingTraining(false);
+    }
+  };
+
+  const importExcelAssessment = async () => {
+    if (!excelForm.title.trim() || !excelForm.file) return;
+    setImportingExcel(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', excelForm.file);
+      fd.append('new_joiner_id', id);
+      fd.append('title', excelForm.title.trim());
+      fd.append('pass_threshold', excelForm.pass_threshold);
+      fd.append('sheet', excelForm.sheet);
+      const res = await api.post('/training/assessments/from-excel', fd);
+      setTrainingAssessments((p) => [res, ...p]);
+      setShowCreateTraining(false);
+      setExcelForm({ title: '', pass_threshold: 70, sheet: 'all', file: null });
+    } catch (e) {
+      alert(`Import failed: ${e.message}`);
+    } finally {
+      setImportingExcel(false);
     }
   };
 
@@ -979,7 +1003,7 @@ export default function LearnerDetail() {
                 <BookOpen className="w-4 h-4 text-teal-600" /> AI Training Assessments
               </h2>
               <button
-                onClick={() => { setShowCreateTraining(!showCreateTraining); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 }); }}
+                onClick={() => { setShowCreateTraining(!showCreateTraining); setCreateMode('ai'); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 }); setExcelForm({ title: '', pass_threshold: 70, sheet: 'all', file: null }); }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-teal-100 text-teal-700 text-sm font-medium rounded-lg hover:bg-teal-200">
                 <Plus className="w-4 h-4" /> Create Assessment
               </button>
@@ -987,6 +1011,78 @@ export default function LearnerDetail() {
 
             {showCreateTraining && (
               <div className="mb-5 border border-teal-200 bg-teal-50 rounded-xl p-4 space-y-3">
+                {/* Mode tabs */}
+                <div className="flex gap-2 border-b border-teal-200 pb-3">
+                  <button
+                    onClick={() => setCreateMode('ai')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${createMode === 'ai' ? 'bg-teal-600 text-white' : 'bg-white text-teal-700 border border-teal-300 hover:bg-teal-50'}`}>
+                    <Zap className="w-3.5 h-3.5" /> AI Generate
+                  </button>
+                  <button
+                    onClick={() => setCreateMode('excel')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${createMode === 'excel' ? 'bg-teal-600 text-white' : 'bg-white text-teal-700 border border-teal-300 hover:bg-teal-50'}`}>
+                    📥 Import from Excel
+                  </button>
+                </div>
+
+                {createMode === 'excel' ? (
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-gray-700">Import Questions from Excel Template</p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Assessment Title *</label>
+                        <input
+                          value={excelForm.title}
+                          onChange={(e) => setExcelForm((p) => ({ ...p, title: e.target.value }))}
+                          placeholder="e.g. Editing Basics Quiz"
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Sheet(s) to Import</label>
+                        <select
+                          value={excelForm.sheet}
+                          onChange={(e) => setExcelForm((p) => ({ ...p, sheet: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white">
+                          <option value="all">All sheets (62 questions)</option>
+                          <option value="Document-based">Document-based (20 questions)</option>
+                          <option value="Sample questions">Sample questions (21 questions)</option>
+                          <option value="Descriptive questions">Descriptive questions (21 questions)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Excel File (.xlsx) *</label>
+                        <input
+                          type="file"
+                          accept=".xlsx"
+                          onChange={(e) => setExcelForm((p) => ({ ...p, file: e.target.files[0] || null }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                        />
+                        {excelForm.file && <p className="text-xs text-teal-600 mt-1">✓ {excelForm.file.name}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Pass % Threshold</label>
+                        <input type="number" min="50" max="100"
+                          value={excelForm.pass_threshold}
+                          onChange={(e) => setExcelForm((p) => ({ ...p, pass_threshold: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={importExcelAssessment}
+                        disabled={importingExcel || !excelForm.title.trim() || !excelForm.file}
+                        className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50">
+                        {importingExcel ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</> : <>📥 Import Questions</>}
+                      </button>
+                      <button onClick={() => setShowCreateTraining(false)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                <div className="space-y-3">
                 <p className="text-sm font-semibold text-gray-700">Generate AI Assessment from SME Kit</p>
 
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -1141,6 +1237,8 @@ export default function LearnerDetail() {
                 {generatingTraining && (
                   <p className="text-xs text-teal-600">AI is reading the selected files and creating questions — this may take 15–30 seconds…</p>
                 )}
+                </div>
+                )}
               </div>
             )}
 
@@ -1162,7 +1260,10 @@ export default function LearnerDetail() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-gray-900 text-sm">{a.title}</span>
-                            <span className="text-xs px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded font-medium">{a.kit_name}</span>
+                            {a.kit_name
+                              ? <span className="text-xs px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded font-medium">{a.kit_name}</span>
+                              : <span className="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-medium">📥 Excel Import</span>
+                            }
                             <span className="text-xs text-gray-400">{a.total_questions} Qs · Pass {a.pass_threshold}%</span>
                           </div>
                           <div className="flex items-center gap-3 mt-1 flex-wrap">

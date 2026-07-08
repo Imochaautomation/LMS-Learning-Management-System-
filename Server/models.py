@@ -219,7 +219,7 @@ class TrainingAssessment(Base):
     title = Column(String(300), nullable=False)
     new_joiner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    sme_kit_id = Column(Integer, ForeignKey("sme_kits.id"), nullable=False)
+    sme_kit_id = Column(Integer, ForeignKey("sme_kits.id"), nullable=True)
     source_file_ids = Column(JSON, default=list)  # list of SmeKitFileV2 ids used
     total_questions = Column(Integer, default=10)
     mcq_count = Column(Integer, default=5)

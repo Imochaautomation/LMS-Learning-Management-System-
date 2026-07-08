@@ -224,6 +224,15 @@ def startup():
             conn.execute(text("ALTER TABLE training_attempts ADD COLUMN IF NOT EXISTS question_generation INTEGER DEFAULT 1"))
             conn.commit()
 
+    # Make sme_kit_id nullable on training_assessments (v2.5) — Excel-imported assessments have no SME kit
+    if "sqlite" not in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_assessments ALTER COLUMN sme_kit_id DROP NOT NULL"))
+                conn.commit()
+        except Exception:
+            pass
+
     # Create training module tables (v2.2) — create_all handles new tables but not column additions
     Base.metadata.create_all(bind=engine)
 
