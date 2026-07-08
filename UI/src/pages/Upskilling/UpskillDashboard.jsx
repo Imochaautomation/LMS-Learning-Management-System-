@@ -424,6 +424,7 @@ export default function UpskillDashboard() {
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState(null);
 
   const fetchAnalysis = () =>
     api.get('/ai/skill-analysis').then((data) => {
@@ -448,11 +449,14 @@ export default function UpskillDashboard() {
   const handleRegenerate = async () => {
     if (!sessionId) return;
     setRegenerating(true);
+    setRegenerateError(null);
     try {
       await api.post('/ai/generate-analysis', { user_id: user.id });
       await fetchAnalysis();
       await api.get('/courses/my').then(setCourses).catch(() => {});
-    } catch { }
+    } catch (err) {
+      setRegenerateError(err.message || 'Analysis generation failed. Please try again in a moment.');
+    }
     setRegenerating(false);
   };
 
@@ -568,8 +572,17 @@ export default function UpskillDashboard() {
               <button onClick={handleRegenerate} disabled={regenerating}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-60">
                 {regenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                {regenerating ? 'Generating… this may take a minute' : 'Generate My Skill Analysis →'}
+                {regenerating ? 'Generating… this may take up to 90 seconds' : 'Generate My Skill Analysis →'}
               </button>
+              {regenerating && (
+                <p className="text-xs text-gray-400 mt-3 max-w-xs mx-auto">The AI is analysing your interview responses and finding the best courses for you. Please keep this page open.</p>
+              )}
+              {regenerateError && (
+                <div className="mt-4 max-w-md mx-auto bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+                  <strong>Generation failed:</strong> {regenerateError}
+                  <p className="text-xs text-red-500 mt-1">The AI service may be busy. Please wait a moment and try again.</p>
+                </div>
+              )}
             </>
           ) : (
             <>

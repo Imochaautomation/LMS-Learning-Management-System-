@@ -250,6 +250,7 @@ class TrainingQuestion(Base):
     question_text = Column(Text, nullable=False)
     options = Column(JSON, nullable=True)        # ["A. ...", "B. ...", "C. ...", "D. ..."] for MCQ
     correct_answer = Column(Text, nullable=True) # stored for AI evaluation reference
+    generation = Column(Integer, default=1, nullable=True)  # question set version; increments on re-attempt
 
     assessment = relationship("TrainingAssessment", back_populates="questions")
 
@@ -262,6 +263,7 @@ class TrainingAttempt(Base):
     assessment_id = Column(Integer, ForeignKey("training_assessments.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     attempt_number = Column(Integer, default=1)
+    question_generation = Column(Integer, default=1, nullable=True)  # which question set this attempt uses
     status = Column(String(20), default="in_progress")  # in_progress | submitted | evaluated
     score = Column(Float, nullable=True)           # percentage 0-100
     passed = Column(Boolean, nullable=True)

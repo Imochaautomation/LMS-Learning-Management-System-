@@ -1291,7 +1291,9 @@ export default function LearnerDetail() {
                                       )}
                                       <div className="divide-y divide-gray-100">
                                         {(att.answers || []).map((ans, ansIdx) => {
-                                          const q = (a.questions || []).find(q => q.id === ans.question_id) || {};
+                                          // Use embedded question data (works across all question generations)
+                                          const q = { question_text: ans.question_text, question_type: ans.question_type, difficulty: ans.difficulty } ||
+                                                    (a.questions || []).find(q => q.id === ans.question_id) || {};
                                           const flagColor = ans.ai_flag === 'correct' ? 'text-emerald-600' : ans.ai_flag === 'wrong' ? 'text-red-600' : 'text-amber-600';
                                           const flagBg = ans.ai_flag === 'correct' ? 'bg-emerald-50 border-emerald-100' : ans.ai_flag === 'wrong' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100';
                                           return (
@@ -1307,7 +1309,7 @@ export default function LearnerDetail() {
                                                     </span>
                                                     <span className="text-xs text-gray-400">Q{ansIdx + 1}</span>
                                                   </div>
-                                                  <p className="text-sm font-medium text-gray-900 mb-1.5">{q.question_text || `Question ${ans.question_id}`}</p>
+                                                  <p className="text-sm font-medium text-gray-900 mb-1.5">{q.question_text || `Question ${ansIdx + 1}`}</p>
                                                   <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-1.5">
                                                     <p className="text-xs text-gray-500 mb-0.5">Joiner's answer:</p>
                                                     <p className="text-sm text-gray-800">{ans.answer_text || '(no answer)'}</p>

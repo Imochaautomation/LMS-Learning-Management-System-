@@ -290,41 +290,41 @@ def _build_search_url(title: str, provider: str) -> str:
 
 
 async def _validate_course_links(courses: list[dict]) -> list[dict]:
-    """Validate each course link via HTTP HEAD. Replace dead links with search URLs."""
+    """Validate course links in parallel. Replace dead/missing links with search URLs."""
+    import asyncio
+
+    async def _check_one(c: dict, client: httpx.AsyncClient) -> dict:
+        link = c.get("link", "")
+        title = c.get("title", "")
+        provider = c.get("provider", "")
+
+        if not link:
+            c["link"] = _build_search_url(title, provider)
+            return c
+
+        # Search URLs are always valid — skip HEAD check
+        if any(p in link for p in ["search?", "search/?", "/results?", "query=", "keywords="]):
+            return c
+
+        # Validate direct URLs in parallel
+        try:
+            resp = await client.head(link, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            })
+            if resp.status_code >= 400:
+                c["link"] = _build_search_url(title, provider)
+        except Exception:
+            c["link"] = _build_search_url(title, provider)
+        return c
+
+    async with httpx.AsyncClient(timeout=6, follow_redirects=True) as client:
+        results = await asyncio.gather(*[_check_one(c, client) for c in courses], return_exceptions=True)
+
     validated = []
-    async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
-        for c in courses:
-            link = c.get("link", "")
-            title = c.get("title", "")
-            provider = c.get("provider", "")
-
-            if not link:
-                # No link at all — generate a search URL
-                c["link"] = _build_search_url(title, provider)
-                validated.append(c)
-                continue
-
-            # Check if it's already a search URL (always valid)
-            if any(p in link for p in ["search?", "search/?", "/results?"]):
-                validated.append(c)
-                continue
-
-            # Validate direct URLs with HTTP HEAD
-            try:
-                resp = await client.head(link, headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                })
-                if resp.status_code < 400:
-                    # Link is valid
-                    validated.append(c)
-                else:
-                    # Dead link — replace with search URL
-                    c["link"] = _build_search_url(title, provider)
-                    validated.append(c)
-            except Exception:
-                # Network error — fall back to search URL
-                c["link"] = _build_search_url(title, provider)
-                validated.append(c)
+    for r in results:
+        if isinstance(r, Exception):
+            continue
+        validated.append(r)
     return validated
 
 
@@ -686,13 +686,10 @@ async def generate_analysis(
             cleaned = cleaned.rsplit("```", 1)[0].strip()
         analysis = json.loads(cleaned)
     except Exception as e:
-        # Fallback — build basic analysis from Q&A so it at least has real content
-        analysis = {
-            "skill_gaps": [],
-            "strengths": ["Completed the full AI interview — demonstrates commitment to growth."],
-            "areas_of_improvement": ["Further analysis will be available after a successful AI evaluation."],
-            "course_recommendations": [],
-        }
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI analysis generation failed — please retry in a moment. ({str(e)[:120]})"
+        )
 
     # For any skill_gap missing observation/question_asked/answer_summary,
     # find the most relevant Q&A by keyword matching on the skill name
@@ -728,6 +725,12 @@ async def generate_analysis(
                     break
 
     analysis["skill_gaps"] = skill_gaps
+
+    if not skill_gaps:
+        raise HTTPException(
+            status_code=503,
+            detail="AI returned no skill gaps — the interview may have been too short or the AI response was invalid. Please retry."
+        )
 
     # Save skill gaps, strengths, areas
     session.skill_gaps = analysis.get("skill_gaps", [])

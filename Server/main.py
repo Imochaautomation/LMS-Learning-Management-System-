@@ -198,6 +198,32 @@ def startup():
             conn.execute(text("ALTER TABLE training_assessments ADD COLUMN IF NOT EXISTS hard_count INTEGER DEFAULT 0"))
             conn.commit()
 
+    # Add generation column to training_questions (v2.4) — tracks question set per re-attempt
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_questions ADD COLUMN generation INTEGER DEFAULT 1"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE training_questions ADD COLUMN IF NOT EXISTS generation INTEGER DEFAULT 1"))
+            conn.commit()
+
+    # Add question_generation column to training_attempts (v2.4) — links attempt to its question set
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_attempts ADD COLUMN question_generation INTEGER DEFAULT 1"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE training_attempts ADD COLUMN IF NOT EXISTS question_generation INTEGER DEFAULT 1"))
+            conn.commit()
+
     # Create training module tables (v2.2) — create_all handles new tables but not column additions
     Base.metadata.create_all(bind=engine)
 

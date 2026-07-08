@@ -14,11 +14,17 @@ const TEAL = '#0d9488';
 
 function AttemptCard({ attempt, questions, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
-  const answerMap = {};
-  (attempt.answers || []).forEach(a => { answerMap[a.question_id] = a; });
-  const correctCount = (attempt.answers || []).filter(a => a.ai_flag === 'correct').length;
-  const wrongCount = (attempt.answers || []).filter(a => a.ai_flag === 'wrong').length;
-  const partialCount = (attempt.answers || []).filter(a => a.ai_flag === 'partial').length;
+  // Use embedded question data from answers (works across generations), fall back to questions prop
+  const answersWithQ = (attempt.answers || []).map(a => ({
+    ...a,
+    question_text: a.question_text || questions?.find(q => q.id === a.question_id)?.question_text || '',
+    question_type: a.question_type || questions?.find(q => q.id === a.question_id)?.question_type || '',
+    difficulty: a.difficulty || questions?.find(q => q.id === a.question_id)?.difficulty,
+    options: a.options || questions?.find(q => q.id === a.question_id)?.options,
+  }));
+  const correctCount = answersWithQ.filter(a => a.ai_flag === 'correct').length;
+  const wrongCount = answersWithQ.filter(a => a.ai_flag === 'wrong').length;
+  const partialCount = answersWithQ.filter(a => a.ai_flag === 'partial').length;
 
   return (
     <div className={`border rounded-xl overflow-hidden ${attempt.passed ? 'border-emerald-200' : 'border-gray-200'}`}>
@@ -52,35 +58,34 @@ function AttemptCard({ attempt, questions, defaultOpen = false }) {
             </div>
           )}
           <div className="divide-y divide-gray-50">
-            {(questions || []).map((q, idx) => {
-              const ev = answerMap[q.id];
-              const flag = ev?.ai_flag;
+            {answersWithQ.map((ans, idx) => {
+              const flag = ans.ai_flag;
               return (
-                <div key={q.id} className="px-4 py-3">
+                <div key={ans.id} className="px-4 py-3">
                   <div className="flex items-start gap-2">
                     <span className={`text-base shrink-0 mt-0.5 ${flag === 'correct' ? 'text-emerald-500' : flag === 'wrong' ? 'text-red-500' : flag === 'partial' ? 'text-amber-500' : 'text-gray-300'}`}>
                       {flag === 'correct' ? '✓' : flag === 'wrong' ? '✗' : flag === 'partial' ? '~' : '○'}
                     </span>
                     <div className="flex-1">
                       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
-                          {q.question_type === 'mcq' ? 'MCQ' : 'Descriptive'}
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${ans.question_type === 'mcq' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
+                          {ans.question_type === 'mcq' ? 'MCQ' : 'Descriptive'}
                         </span>
-                        {q.difficulty && (
-                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${q.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' : q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                            {q.difficulty === 'easy' ? '🟢 Easy' : q.difficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
+                        {ans.difficulty && (
+                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${ans.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' : ans.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                            {ans.difficulty === 'easy' ? '🟢 Easy' : ans.difficulty === 'medium' ? '🟡 Medium' : '🔴 Hard'}
                           </span>
                         )}
                         <span className="text-xs text-gray-400">Q{idx + 1}</span>
                       </div>
-                      <p className="text-sm font-medium text-gray-900 mb-1">{q.question_text}</p>
+                      <p className="text-sm font-medium text-gray-900 mb-1">{ans.question_text}</p>
                       <div className="bg-gray-50 rounded-lg px-3 py-2 mb-1">
                         <p className="text-xs text-gray-500">Your answer:</p>
-                        <p className="text-sm text-gray-800">{ev?.answer_text || '(no answer)'}</p>
+                        <p className="text-sm text-gray-800">{ans.answer_text || '(no answer)'}</p>
                       </div>
-                      {ev?.ai_explanation && (
+                      {ans.ai_explanation && (
                         <div className={`rounded-lg px-3 py-2 text-xs ${flag === 'correct' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : flag === 'wrong' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
-                          {ev.ai_explanation}
+                          {ans.ai_explanation}
                         </div>
                       )}
                     </div>
@@ -148,7 +153,11 @@ export default function TrainingAssessmentForm() {
     try {
       const a = existingAssessment || assessment || await api.get(`/training/assessments/${assessmentId}`);
       if (!assessment) setAssessment(a);
+      // For re-attempts, the server regenerates questions — this takes 60-120s
       const att = await api.post(`/training/assessments/${assessmentId}/start`, {});
+      // Fetch assessment fresh so we get the new generation's questions
+      const freshAssessment = await api.get(`/training/assessments/${assessmentId}`);
+      setAssessment(freshAssessment);
       setAttempt(att);
       setAnswers({});
       setSubmitted(false);
@@ -271,7 +280,7 @@ export default function TrainingAssessmentForm() {
               className="flex-1 py-3 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: ORANGE }}>
               {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-              Try Again
+              {startingNew ? 'Preparing new questions…' : 'Try Again'}
             </button>
           )}
           <button
@@ -319,7 +328,7 @@ export default function TrainingAssessmentForm() {
             className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
             style={{ background: ORANGE }}>
             {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-            {hasPassed ? 'Take Again' : 'Start New Attempt'}
+            {startingNew ? 'Preparing new questions…' : hasPassed ? 'Take Again' : 'Start New Attempt'}
           </button>
         </div>
 

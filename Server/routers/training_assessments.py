@@ -88,10 +88,17 @@ def _generate_questions(
         return "MCQ" if t == "mcq" else "Descriptive (open-ended, no options)"
 
     def _type_rule(difficulty: str, t: str) -> str:
-        if t == "mcq":
-            return f"{difficulty} questions test {'recall of specific facts' if difficulty == 'Easy' else 'understanding of concepts'} from the content. Use MCQ format (4 options A/B/C/D)."
+        if difficulty == "Easy":
+            lang_note = " Write in plain, simple language (CEFR A2-B1 level): short sentences, common vocabulary, no jargon. Uniformly simple — context, logic, AND wording must all be easy."
+        elif difficulty == "Medium":
+            lang_note = " Use clear professional language (CEFR B1-B2 level): straightforward sentences, standard industry terms where needed."
         else:
-            return f"{difficulty} questions test {'recall of specific facts' if difficulty == 'Easy' else 'application or analysis of concepts'} from the content. Use descriptive/open-ended format (no options)."
+            lang_note = " Language may be more complex (CEFR B2-C1 level) to match the depth of the concept being tested."
+
+        if t == "mcq":
+            return f"{'Easy' if difficulty == 'Easy' else difficulty} questions test {'direct recall of specific facts' if difficulty == 'Easy' else ('understanding of concepts' if difficulty == 'Medium' else 'analysis and application of concepts')} from the content. Use MCQ format (4 options A/B/C/D).{lang_note}"
+        else:
+            return f"{'Easy' if difficulty == 'Easy' else difficulty} questions test {'direct recall of specific facts' if difficulty == 'Easy' else ('application of concepts' if difficulty == 'Medium' else 'analysis and critical evaluation of concepts')} from the content. Use descriptive/open-ended format (no options).{lang_note}"
 
     prompt = f"""You are an expert trainer creating a training assessment STRICTLY based on the provided SME Kit content below.
 
@@ -157,9 +164,10 @@ Format rules:
 def _evaluate_attempt(questions: List[TrainingQuestion], answers: List[dict]) -> dict:
     qa_pairs = []
     answer_map = {a["question_id"]: a["answer_text"] for a in answers}
-    for q in questions:
+    for seq_num, q in enumerate(questions, start=1):
         qa_pairs.append({
             "question_id": q.id,
+            "question_number": seq_num,  # sequential 1..N — use this in feedback text, NOT question_id
             "question_type": q.question_type,
             "question_text": q.question_text,
             "options": q.options,
@@ -167,7 +175,8 @@ def _evaluate_attempt(questions: List[TrainingQuestion], answers: List[dict]) ->
             "user_answer": answer_map.get(q.id, ""),
         })
 
-    prompt = f"""You are evaluating a training assessment submission.
+    total_q = len(qa_pairs)
+    prompt = f"""You are evaluating a training assessment submission of {total_q} questions.
 
 Questions and answers:
 {json.dumps(qa_pairs, indent=2)}
@@ -178,22 +187,25 @@ Return ONLY valid JSON (no markdown, no explanation):
 {{
   "evaluations": [
     {{
-      "question_id": 1,
+      "question_id": <copy the question_id field exactly>,
       "is_correct": true,
       "ai_flag": "correct",
-      "ai_explanation": "Brief explanation"
+      "ai_explanation": "Brief explanation of why this answer is correct or wrong"
     }}
   ],
   "overall_feedback": "2-3 sentences of overall feedback on the submission",
   "score": 75.0
 }}
 
-Rules:
-- ai_flag must be "correct", "wrong", or "partial"
-- MCQ: correct only if exact letter match (case-insensitive)
-- Descriptive (question_type = "descriptive" or "written"): partial credit allowed; use your judgment based on the model answer
-- score = (correct_count + 0.5 * partial_count) / total * 100, rounded to 1 decimal
-- Be constructive in explanations"""
+CRITICAL RULES:
+- The evaluations array MUST have exactly {total_q} entries — one per question, in the same order.
+- "question_id" in each evaluation MUST be copied exactly from the question_id field in the input — do NOT substitute or invent new IDs.
+- In "overall_feedback" and "ai_explanation", ALWAYS refer to questions by their "question_number" (e.g. "Question 3", "Q5"), NEVER by their "question_id" (which is an internal database ID, not a sequence number).
+- ai_flag must be "correct", "wrong", or "partial" — nothing else.
+- MCQ: correct only if the user's letter matches the correct_answer letter (case-insensitive). Wrong otherwise — no partial credit for MCQ.
+- Descriptive (question_type = "descriptive" or "written"): partial credit allowed; compare the user's answer against the model answer and use your judgment.
+- score = (correct_count + 0.5 * partial_count) / {total_q} * 100, rounded to 1 decimal.
+- Be constructive and specific in explanations. Reference the actual content from the question."""
 
     raw = _call_ai(prompt)
     return _extract_json(raw)
@@ -201,7 +213,7 @@ Rules:
 
 # ── Serialisers ──────────────────────────────────────────────────────────────
 
-def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=False) -> dict:
+def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=False, generation=None) -> dict:
     d = {
         "id": a.id,
         "title": a.title,
@@ -223,8 +235,14 @@ def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=F
         "kit_name": a.kit.name if a.kit else None,
     }
     if include_questions:
+        # Only expose the latest generation of questions (or generation passed as hint)
+        all_qs = sorted(a.questions, key=lambda x: x.order_index)
+        max_gen = max((q.generation or 1 for q in all_qs), default=1) if all_qs else 1
+        target_gen = generation if generation is not None else max_gen
         qs = []
-        for q in sorted(a.questions, key=lambda x: x.order_index):
+        for q in all_qs:
+            if (q.generation or 1) != target_gen:
+                continue
             qd = {
                 "id": q.id,
                 "assessment_id": q.assessment_id,
@@ -242,11 +260,32 @@ def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=F
 
 
 def _attempt_out(attempt: TrainingAttempt) -> dict:
+    answers_out = []
+    for ans in attempt.answers:
+        a = {
+            "id": ans.id,
+            "question_id": ans.question_id,
+            "answer_text": ans.answer_text,
+            "is_correct": ans.is_correct,
+            "ai_flag": ans.ai_flag,
+            "ai_explanation": ans.ai_explanation,
+        }
+        # Embed the question data so history works regardless of which generation was used
+        if ans.question:
+            a["question_text"] = ans.question.question_text
+            a["question_type"] = ans.question.question_type
+            a["difficulty"] = ans.question.difficulty
+            a["options"] = ans.question.options
+            a["order_index"] = ans.question.order_index
+        answers_out.append(a)
+    # Sort by order_index so they display in the right sequence
+    answers_out.sort(key=lambda x: x.get("order_index", 0))
     return {
         "id": attempt.id,
         "assessment_id": attempt.assessment_id,
         "user_id": attempt.user_id,
         "attempt_number": attempt.attempt_number,
+        "question_generation": attempt.question_generation or 1,
         "status": attempt.status,
         "score": attempt.score,
         "passed": attempt.passed,
@@ -255,17 +294,7 @@ def _attempt_out(attempt: TrainingAttempt) -> dict:
         "submitted_at": attempt.submitted_at,
         "evaluated_at": attempt.evaluated_at,
         "created_at": attempt.created_at,
-        "answers": [
-            {
-                "id": ans.id,
-                "question_id": ans.question_id,
-                "answer_text": ans.answer_text,
-                "is_correct": ans.is_correct,
-                "ai_flag": ans.ai_flag,
-                "ai_explanation": ans.ai_explanation,
-            }
-            for ans in attempt.answers
-        ],
+        "answers": answers_out,
     }
 
 
@@ -414,7 +443,19 @@ def get_assessment(
     is_joiner = current_user.role == "new_joiner"
     if is_joiner and a.new_joiner_id != current_user.id:
         raise HTTPException(403, "Not your assessment")
-    return _assessment_out(a, include_questions=True, for_joiner=is_joiner)
+
+    # For joiners: return the question generation matching their in-progress attempt
+    gen = None
+    if is_joiner:
+        in_progress = db.query(TrainingAttempt).filter(
+            TrainingAttempt.assessment_id == assessment_id,
+            TrainingAttempt.user_id == current_user.id,
+            TrainingAttempt.status == "in_progress",
+        ).first()
+        if in_progress:
+            gen = in_progress.question_generation or 1
+
+    return _assessment_out(a, include_questions=True, for_joiner=is_joiner, generation=gen)
 
 
 @router.post("/assessments/{assessment_id}/start", response_model=dict)
@@ -423,6 +464,7 @@ def start_attempt(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("new_joiner")),
 ):
+    from models import TrainingQuestion as TQ
     a = db.query(TrainingAssessment).filter(TrainingAssessment.id == assessment_id).first()
     if not a or a.new_joiner_id != current_user.id:
         raise HTTPException(404, "Assessment not found")
@@ -442,10 +484,69 @@ def start_attempt(
         TrainingAttempt.user_id == current_user.id,
     ).count() + 1
 
+    # Determine which question generation to use for this attempt
+    existing_gens = db.query(TQ.generation).filter(TQ.assessment_id == assessment_id).distinct().all()
+    max_existing_gen = max((g[0] or 1 for g in existing_gens), default=1)
+
+    if attempt_number == 1:
+        # First attempt — use existing question set (generation 1)
+        question_generation = 1
+    else:
+        # Re-attempt — regenerate a fresh question set so answers can't be memorised
+        new_generation = max_existing_gen + 1
+        try:
+            files = db.query(SmeKitFileV2).filter(
+                SmeKitFileV2.id.in_(a.source_file_ids or []),
+                SmeKitFileV2.sme_kit_id == a.sme_kit_id,
+            ).all()
+            content = _build_content_context(files)
+            easy_type = "mcq"
+            medium_type = "mcq"
+            hard_type = "descriptive"
+            # Infer types from existing generation-1 questions
+            gen1_qs = [q for q in a.questions if (q.generation or 1) == 1]
+            if gen1_qs:
+                easy_qs = [q for q in gen1_qs if (q.difficulty or "").lower() == "easy"]
+                medium_qs = [q for q in gen1_qs if (q.difficulty or "").lower() == "medium"]
+                hard_qs = [q for q in gen1_qs if (q.difficulty or "").lower() == "hard"]
+                if easy_qs:
+                    easy_type = easy_qs[0].question_type
+                if medium_qs:
+                    medium_type = medium_qs[0].question_type
+                if hard_qs:
+                    hard_type = hard_qs[0].question_type
+            questions_data = _generate_questions(
+                content,
+                a.easy_count or 0, easy_type,
+                a.medium_count or 0, medium_type,
+                a.hard_count or 0, hard_type,
+            )
+            for qd in questions_data:
+                raw_type = qd.get("question_type", "descriptive")
+                if raw_type == "written":
+                    raw_type = "descriptive"
+                q = TrainingQuestion(
+                    assessment_id=a.id,
+                    order_index=qd.get("order_index", 0),
+                    question_type=raw_type,
+                    difficulty=qd.get("difficulty"),
+                    question_text=qd.get("question_text", ""),
+                    options=qd.get("options"),
+                    correct_answer=qd.get("correct_answer"),
+                    generation=new_generation,
+                )
+                db.add(q)
+            db.commit()
+            question_generation = new_generation
+        except Exception:
+            # If regeneration fails, fall back to the most recent existing generation
+            question_generation = max_existing_gen
+
     attempt = TrainingAttempt(
         assessment_id=assessment_id,
         user_id=current_user.id,
         attempt_number=attempt_number,
+        question_generation=question_generation,
         status="in_progress",
     )
     db.add(attempt)
@@ -485,7 +586,12 @@ def submit_attempt(
     attempt.submitted_at = datetime.utcnow()
     db.commit()
 
-    questions = sorted(a.questions, key=lambda x: x.order_index)
+    # Use the question generation tied to this specific attempt
+    attempt_gen = attempt.question_generation or 1
+    questions = sorted(
+        [q for q in a.questions if (q.generation or 1) == attempt_gen],
+        key=lambda x: x.order_index,
+    )
     answers_input = payload.answers
 
     try:
