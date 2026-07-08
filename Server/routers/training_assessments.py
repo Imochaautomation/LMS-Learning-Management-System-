@@ -614,8 +614,30 @@ def start_attempt(
     if attempt_number == 1:
         # First attempt — use existing question set (generation 1)
         question_generation = 1
+    elif a.sme_kit_id is None:
+        # Excel-imported assessment — no SME Kit to regenerate from.
+        # Shuffle the latest generation's questions into a new generation so the
+        # order is different each attempt (prevents memorisation of position).
+        import random
+        new_generation = max_existing_gen + 1
+        source_qs = [q for q in a.questions if (q.generation or 1) == max_existing_gen]
+        shuffled = list(source_qs)
+        random.shuffle(shuffled)
+        for new_order, orig_q in enumerate(shuffled, start=1):
+            db.add(TrainingQuestion(
+                assessment_id=a.id,
+                order_index=new_order,
+                question_type=orig_q.question_type,
+                difficulty=orig_q.difficulty,
+                question_text=orig_q.question_text,
+                options=orig_q.options,
+                correct_answer=orig_q.correct_answer,
+                generation=new_generation,
+            ))
+        db.commit()
+        question_generation = new_generation
     else:
-        # Re-attempt — regenerate a fresh question set so answers can't be memorised
+        # AI-generated assessment — regenerate a fresh question set from SME Kit content
         new_generation = max_existing_gen + 1
         try:
             files = db.query(SmeKitFileV2).filter(
@@ -626,7 +648,6 @@ def start_attempt(
             easy_type = "mcq"
             medium_type = "mcq"
             hard_type = "descriptive"
-            # Infer types from existing generation-1 questions
             gen1_qs = [q for q in a.questions if (q.generation or 1) == 1]
             if gen1_qs:
                 easy_qs = [q for q in gen1_qs if (q.difficulty or "").lower() == "easy"]
@@ -648,7 +669,7 @@ def start_attempt(
                 raw_type = qd.get("question_type", "descriptive")
                 if raw_type == "written":
                     raw_type = "descriptive"
-                q = TrainingQuestion(
+                db.add(TrainingQuestion(
                     assessment_id=a.id,
                     order_index=qd.get("order_index", 0),
                     question_type=raw_type,
@@ -657,13 +678,28 @@ def start_attempt(
                     options=qd.get("options"),
                     correct_answer=qd.get("correct_answer"),
                     generation=new_generation,
-                )
-                db.add(q)
+                ))
             db.commit()
             question_generation = new_generation
         except Exception:
-            # If regeneration fails, fall back to the most recent existing generation
-            question_generation = max_existing_gen
+            # AI regeneration failed — shuffle the latest generation instead
+            import random
+            source_qs = [q for q in a.questions if (q.generation or 1) == max_existing_gen]
+            shuffled = list(source_qs)
+            random.shuffle(shuffled)
+            for new_order, orig_q in enumerate(shuffled, start=1):
+                db.add(TrainingQuestion(
+                    assessment_id=a.id,
+                    order_index=new_order,
+                    question_type=orig_q.question_type,
+                    difficulty=orig_q.difficulty,
+                    question_text=orig_q.question_text,
+                    options=orig_q.options,
+                    correct_answer=orig_q.correct_answer,
+                    generation=new_generation,
+                ))
+            db.commit()
+            question_generation = new_generation
 
     attempt = TrainingAttempt(
         assessment_id=assessment_id,
@@ -709,13 +745,24 @@ def submit_attempt(
     attempt.submitted_at = datetime.utcnow()
     db.commit()
 
-    # Use the question generation tied to this specific attempt
-    attempt_gen = attempt.question_generation or 1
+    answers_input = payload.answers
+
+    # Look up questions directly by the IDs submitted by the frontend.
+    # This is generation-agnostic and avoids mismatches if question_generation
+    # doesn't perfectly align with what was displayed to the user.
+    submitted_ids = [ans.get("question_id") for ans in answers_input if ans.get("question_id")]
+    questions_by_id = {q.id: q for q in a.questions}
     questions = sorted(
-        [q for q in a.questions if (q.generation or 1) == attempt_gen],
+        [questions_by_id[qid] for qid in submitted_ids if qid in questions_by_id],
         key=lambda x: x.order_index,
     )
-    answers_input = payload.answers
+    # Fallback: if no submitted IDs match (shouldn't happen), use generation filter
+    if not questions:
+        attempt_gen = attempt.question_generation or 1
+        questions = sorted(
+            [q for q in a.questions if (q.generation or 1) == attempt_gen],
+            key=lambda x: x.order_index,
+        )
 
     try:
         evaluation = _evaluate_attempt(questions, answers_input)
