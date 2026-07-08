@@ -323,6 +323,25 @@ def generate_assessment(
         raise HTTPException(400, "No valid files found in kit for given IDs")
 
     content = _build_content_context(files)
+
+    # Reject before calling AI if no file has readable content.
+    # "no text extracted" / "no transcript provided" means the AI will hallucinate
+    # questions about the error string rather than the actual document.
+    _NO_CONTENT_MARKERS = ("no text extracted", "no transcript provided", "No content available")
+    has_real_content = any(
+        m not in (f.transcript or "") and (f.transcript or "").strip()
+        for f in files
+    ) or not any(
+        marker in content for marker in _NO_CONTENT_MARKERS
+    )
+    if not has_real_content or content.strip() == "No content available.":
+        raise HTTPException(
+            400,
+            "The selected file has no readable text content. "
+            "Please open the SME Kit, select the file, and paste the document text into the Transcript field manually. "
+            "This is needed for PDFs that are scanned images or have copy-protection — the text cannot be extracted automatically."
+        )
+
     easy_type = getattr(payload, 'easy_type', 'mcq') or 'mcq'
     medium_type = getattr(payload, 'medium_type', 'mcq') or 'mcq'
     hard_type = getattr(payload, 'hard_type', 'descriptive') or 'descriptive'

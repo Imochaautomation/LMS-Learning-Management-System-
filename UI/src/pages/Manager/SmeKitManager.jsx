@@ -52,6 +52,9 @@ export default function SmeKitManager() {
   const [assignUserId, setAssignUserId] = useState('');
   const [assigning, setAssigning] = useState(false);
 
+  // Extract text state
+  const [extracting, setExtracting] = useState(null); // fileId being extracted
+
   // Delete confirm
   const [deleteModal, setDeleteModal] = useState(null); // { type: 'kit'|'file', kitId, fileId, name }
 
@@ -155,6 +158,23 @@ export default function SmeKitManager() {
       toast.error(`Update failed: ${e.message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── Extract transcript from existing file ───────────────────────────────────
+  const handleExtract = async (kitId, fileId) => {
+    setExtracting(fileId);
+    try {
+      const updated = await api.post(`/training/kits/${kitId}/files/${fileId}/extract`, {});
+      setKits(prev => prev.map(k => k.id === kitId
+        ? { ...k, files: k.files.map(f => f.id === fileId ? updated : f) }
+        : k
+      ));
+      toast.success('Text extracted and saved as transcript!');
+    } catch (e) {
+      toast.error(e.message || 'Could not extract text. Please paste the transcript manually.');
+    } finally {
+      setExtracting(null);
     }
   };
 
@@ -380,9 +400,10 @@ export default function SmeKitManager() {
                                   <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
                                   <div className="flex items-center gap-2 mt-0.5">
                                     <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase">{f.file_type}</span>
-                                    {f.transcript && (
-                                      <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">transcript ✓</span>
-                                    )}
+                                    {f.transcript
+                                      ? <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">transcript ✓</span>
+                                      : f.file_type === 'document' && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">⚠ no text extracted</span>
+                                    }
                                   </div>
                                 </div>
                               </div>
@@ -411,6 +432,18 @@ export default function SmeKitManager() {
                                     onClick={() => { setFileModal({ kitId: kit.id, fileId: f.id }); setUploadFile(null); setUploadTranscript(f.transcript || ''); }}
                                     className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg" title="Replace file">
                                     <RefreshCw className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {/* Extract text — shown only for documents without a transcript */}
+                                {f.file_type === 'document' && !f.transcript && (
+                                  <button
+                                    onClick={() => handleExtract(kit.id, f.id)}
+                                    disabled={extracting === f.id}
+                                    className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg disabled:opacity-50"
+                                    title="Auto-extract text from file">
+                                    {extracting === f.id
+                                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      : <span className="text-xs font-semibold">⚡</span>}
                                   </button>
                                 )}
                                 {/* Delete */}

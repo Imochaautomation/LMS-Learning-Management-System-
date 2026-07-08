@@ -19,6 +19,47 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
+
+def _extract_text_from_file(path: str, max_chars: int = 12000) -> str:
+    """Try pdfplumber then PyPDF2 for PDFs, python-docx for DOCX, plain read for TXT."""
+    ext = os.path.splitext(path)[1].lower()
+    text = ""
+    if ext == ".pdf":
+        try:
+            import pdfplumber
+            with pdfplumber.open(path) as pdf:
+                for page in pdf.pages:
+                    text += (page.extract_text() or "")
+            if text.strip():
+                return text[:max_chars]
+        except Exception:
+            pass
+        try:
+            import PyPDF2
+            with open(path, "rb") as f:
+                reader = PyPDF2.PdfReader(f)
+                for page in reader.pages:
+                    text += (page.extract_text() or "")
+            if text.strip():
+                return text[:max_chars]
+        except Exception:
+            pass
+    elif ext in (".docx", ".doc"):
+        try:
+            import docx
+            doc = docx.Document(path)
+            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            return text[:max_chars]
+        except Exception:
+            pass
+    elif ext in (".txt", ".md", ".csv"):
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read(max_chars)
+        except Exception:
+            pass
+    return ""
+
 from database import SessionLocal
 from auth import get_current_user, require_role
 from models import User, SmeKit, SmeKitFileV2, SmeKitAssignmentV2
@@ -156,6 +197,12 @@ async def upload_kit_file(
     ext = os.path.splitext(file.filename)[1].lower()
     file_type = "video" if ext in (".mp4", ".webm", ".mov") else "document"
 
+    # Auto-extract text if no transcript was provided manually
+    if not transcript and file_type == "document":
+        extracted = _extract_text_from_file(dest)
+        if extracted:
+            transcript = extracted
+
     kit_file = SmeKitFileV2(
         sme_kit_id=kit_id,
         name=file.filename,
@@ -223,6 +270,35 @@ def update_kit_file(
         f.youtube_url = payload["youtube_url"] or None
     if "transcript" in payload:
         f.transcript = payload["transcript"] or None
+    db.commit()
+    db.refresh(f)
+    return _file_out(f)
+
+
+@router.post("/kits/{kit_id}/files/{file_id}/extract", response_model=dict)
+def extract_file_transcript(
+    kit_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager", "admin")),
+):
+    """Re-run text extraction on an already-uploaded file and save result as transcript."""
+    f = db.query(SmeKitFileV2).filter(
+        SmeKitFileV2.id == file_id,
+        SmeKitFileV2.sme_kit_id == kit_id,
+    ).first()
+    if not f:
+        raise HTTPException(404, "File not found")
+    if not f.file_path:
+        raise HTTPException(400, "No file path stored — cannot extract")
+
+    from config import UPLOAD_DIR as _UPLOAD_DIR
+    full_path = os.path.join(_UPLOAD_DIR, f.file_path)
+    text = _extract_text_from_file(full_path)
+    if not text:
+        raise HTTPException(422, "Could not extract text from this file. The PDF may be a scanned image. Please paste the text manually into the Transcript field.")
+
+    f.transcript = text
     db.commit()
     db.refresh(f)
     return _file_out(f)
