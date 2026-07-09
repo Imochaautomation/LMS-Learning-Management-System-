@@ -676,7 +676,7 @@ async def generate_analysis(
             qa_pairs.append({"question": msg["content"], "answer": messages_list[i + 1]["content"]})
 
     try:
-        response = await _call_llm(llm_messages, timeout=120)
+        response = await _call_llm(llm_messages, timeout=85)
         # Strip markdown fences if present
         cleaned = response.strip()
         if cleaned.startswith("```"):

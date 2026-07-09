@@ -436,7 +436,8 @@ export default function UpskillDashboard() {
       setQaPairs(data.qa_pairs || []);
       setLearningGoals(data.learning_goals || null);
       setInterviewDate(data.interview_date || null);
-    }).catch(() => { });
+      return data;
+    }).catch(() => null);
 
   useEffect(() => {
     Promise.all([
@@ -450,13 +451,21 @@ export default function UpskillDashboard() {
     if (!sessionId) return;
     setRegenerating(true);
     setRegenerateError(null);
+    let generationFailed = false;
+    let failMsg = '';
     try {
       await api.post('/ai/generate-analysis', { user_id: user.id });
-      await fetchAnalysis();
-      await api.get('/courses/my').then(setCourses).catch(() => {});
     } catch (err) {
-      setRegenerateError(err.message || 'Analysis generation failed. Please try again in a moment.');
+      generationFailed = true;
+      failMsg = err.message || 'Analysis generation timed out. Checking for results…';
+      setRegenerateError(failMsg);
     }
+    // Always refresh — even on timeout the server may have saved the analysis to DB
+    const data = await fetchAnalysis();
+    if (generationFailed && data && (data.skill_gaps || []).length > 0) {
+      setRegenerateError(null); // Analysis saved despite timeout — clear error
+    }
+    await api.get('/courses/my').then(setCourses).catch(() => {});
     setRegenerating(false);
   };
 

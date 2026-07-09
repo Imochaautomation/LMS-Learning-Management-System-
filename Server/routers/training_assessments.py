@@ -328,11 +328,14 @@ def generate_assessment(
     # "no text extracted" / "no transcript provided" means the AI will hallucinate
     # questions about the error string rather than the actual document.
     _NO_CONTENT_MARKERS = ("no text extracted", "no transcript provided", "No content available")
-    has_real_content = any(
-        m not in (f.transcript or "") and (f.transcript or "").strip()
+    has_file_with_content = any(
+        (f.transcript or "").strip() and
+        not any(marker in (f.transcript or "") for marker in _NO_CONTENT_MARKERS)
         for f in files
-    ) or not any(
-        marker in content for marker in _NO_CONTENT_MARKERS
+    )
+    has_real_content = has_file_with_content or (
+        content.strip() and
+        not any(marker in content for marker in _NO_CONTENT_MARKERS)
     )
     if not has_real_content or content.strip() == "No content available.":
         raise HTTPException(
