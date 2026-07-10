@@ -606,14 +606,16 @@ async def generate_analysis(
         return max(0, sum(1 for m in (s.messages or []) if m.get("role") == "user") - 1)
 
     def _best_session(uid):
-        """Return the best session for a given user_id, or None."""
+        """Return the most recent completed session with enough answers.
+        Matches the ordering used by get_skill_analysis so both endpoints
+        operate on the same session."""
         completed = db.query(InterviewSession).filter(
             InterviewSession.user_id == uid,
             InterviewSession.status == "completed"
-        ).order_by(InterviewSession.question_index.desc(), InterviewSession.completed_at.desc()).all()
+        ).order_by(InterviewSession.completed_at.desc()).all()  # newest first
 
         MIN_ANSWERS = 3
-        # First pass: sessions with enough answers
+        # First pass: most recent session with enough answers
         for s in completed:
             if _count_real(s) >= MIN_ANSWERS:
                 return s
