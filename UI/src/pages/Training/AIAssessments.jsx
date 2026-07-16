@@ -6,7 +6,21 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
-import { Loader2, BookOpen, ChevronRight, Trophy, Clock, CheckCircle2 } from 'lucide-react';
+import { Loader2, BookOpen, ChevronRight, Trophy, Award, Clock, CheckCircle2 } from 'lucide-react';
+
+function AccuracyBadge({ score }) {
+  if (score >= 95) return (
+    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+      <Trophy className="w-3 h-3" /> Trophy
+    </span>
+  );
+  if (score >= 90) return (
+    <span className="inline-flex items-center gap-1 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+      <Award className="w-3 h-3" /> Badge
+    </span>
+  );
+  return null;
+}
 
 const TEAL = '#0d9488';
 const ORANGE = '#F05A28';
@@ -67,6 +81,12 @@ export default function AIAssessments() {
                       {hasPassed && (
                         <span className="flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-semibold">
                           <CheckCircle2 className="w-3 h-3" /> Passed
+                        </span>
+                      )}
+                      {hasPassed && a.best_score != null && <AccuracyBadge score={a.best_score} />}
+                      {a.best_score === 100 && (
+                        <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                          🌟 Perfect Score!
                         </span>
                       )}
                     </div>

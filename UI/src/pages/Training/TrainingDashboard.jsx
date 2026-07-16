@@ -7,17 +7,39 @@ import { CheckCircle, Lock, Award, Trophy, Star, Loader2 } from 'lucide-react';
 export default function TrainingDashboard() {
   const { user } = useAuth();
   const [assessments, setAssessments] = useState([]);
+  const [aiAssessments, setAiAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/assessments/my').then(setAssessments).catch(() => {}).finally(() => setLoading(false));
+    Promise.all([
+      api.get('/assessments/my').catch(() => []),
+      api.get('/training/assessments/mine').catch(() => []),
+    ]).then(([fileAssessments, aiQuizzes]) => {
+      setAssessments(fileAssessments);
+      setAiAssessments(aiQuizzes);
+    }).finally(() => setLoading(false));
   }, []);
 
   const reviewed = assessments.filter((a) => a.status === 'reviewed');
   const submitted = assessments.filter((a) => a.status === 'submitted' || a.status === 'reviewed');
-  const badges = reviewed.filter(a => a.score >= 90).length;
-  const trophies = reviewed.filter(a => a.score >= 95).length;
-  const avgScore = reviewed.length ? Math.round(reviewed.reduce((s, a) => s + (a.score || 0), 0) / reviewed.length) : 0;
+
+  // Badges and trophies from file-upload assessments
+  const fileBadges = reviewed.filter(a => a.score >= 90).length;
+  const fileTrophies = reviewed.filter(a => a.score >= 95).length;
+  const fileAvgScore = reviewed.length ? reviewed.reduce((s, a) => s + (a.score || 0), 0) / reviewed.length : 0;
+
+  // Badges and trophies from AI quiz assessments
+  const aiBadges = aiAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 90).length;
+  const aiTrophies = aiAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 95).length;
+  const aiScored = aiAssessments.filter(a => a.best_score != null);
+  const aiAvgScore = aiScored.length ? aiScored.reduce((s, a) => s + (a.best_score || 0), 0) / aiScored.length : 0;
+
+  const badges = fileBadges + aiBadges;
+  const trophies = fileTrophies + aiTrophies;
+  const totalScoredCount = reviewed.length + aiScored.length;
+  const avgScore = totalScoredCount > 0
+    ? Math.round((fileAvgScore * reviewed.length + aiAvgScore * aiScored.length) / totalScoredCount)
+    : 0;
   const allDone = assessments.length > 0 && assessments.every(a => a.status === 'reviewed' || a.status === 'submitted');
 
   const journeySteps = [
