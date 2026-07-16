@@ -373,6 +373,7 @@ export default function ChatbotInterview() {
     generatingRef.current = true;
     setGenerating(true);
     setAnalysisError(false);
+    let generationFailed = false;
     try {
       // Always ensure session is closed before generating analysis
       try {
@@ -384,12 +385,26 @@ export default function ChatbotInterview() {
         });
       } catch {}
       await api.post('/ai/generate-analysis', { user_id: user.id });
+    } catch {
+      generationFailed = true;
+    }
+    // Always try to fetch results — the server may have finished even if the
+    // network request timed out (Railway/Cloudflare 100s proxy limit)
+    try {
       const courses = await api.get('/courses/recommended');
-      setAnalysisResult(courses);
-      toast.success('Skill analysis complete!');
-    } catch (err) {
-      setAnalysisError(true);
-      toast.error('Analysis generation failed. Please retry in a moment.');
+      if (courses && courses.length > 0) {
+        setAnalysisResult(courses);
+        setAnalysisError(false);
+        toast.success('Skill analysis complete!');
+      } else if (generationFailed) {
+        setAnalysisError(true);
+        toast.error('Analysis generation timed out. Please retry in a moment.');
+      }
+    } catch {
+      if (generationFailed) {
+        setAnalysisError(true);
+        toast.error('Analysis generation failed. Please retry in a moment.');
+      }
     }
     setGenerating(false);
     generatingRef.current = false;

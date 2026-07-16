@@ -210,7 +210,7 @@ LINKS — STRICT RULES:
   * LinkedIn Learning: https://www.linkedin.com/learning/search?keywords=YOUR+COURSE+TOPIC
   * edX: https://www.edx.org/search?q=YOUR+COURSE+TOPIC
   * YouTube: https://www.youtube.com/results?search_query=YOUR+COURSE+TOPIC+full+course
-  * freeCodeCamp: https://www.freecodecamp.org/learn
+  * freeCodeCamp: https://www.freecodecamp.org/news/search/?query=YOUR+COURSE+TOPIC
   * Google Digital Garage: https://learndigital.withgoogle.com/digitalgarage/courses
   * Khan Academy: https://www.khanacademy.org/search?page_search_query=YOUR+TOPIC
   * Skillshare: https://www.skillshare.com/en/search?query=YOUR+TOPIC

@@ -784,9 +784,22 @@ def submit_attempt(
         score = float(evaluation.get("score", 0.0))
         overall_feedback = evaluation.get("overall_feedback", "")
     except Exception as exc:
-        score = 0.0
-        overall_feedback = "Evaluation could not be completed automatically."
+        # AI evaluation failed — auto-grade MCQ questions at least so the
+        # learner gets a real score rather than 0
+        answer_map = {ans.get("question_id"): ans.get("answer_text", "") for ans in answers_input}
+        correct_count = 0
+        total_q = len(questions)
         evals = {}
+        for q in questions:
+            user_ans = (answer_map.get(q.id) or "").strip().upper()
+            correct = (q.correct_answer or "").strip().upper()
+            if q.question_type == "mcq" and user_ans and correct and user_ans == correct:
+                correct_count += 1
+                evals[q.id] = {"question_id": q.id, "is_correct": True, "ai_flag": "correct", "ai_explanation": ""}
+            elif q.question_type == "mcq":
+                evals[q.id] = {"question_id": q.id, "is_correct": False, "ai_flag": "wrong", "ai_explanation": ""}
+        score = round((correct_count / total_q) * 100, 1) if total_q > 0 else 0.0
+        overall_feedback = "Descriptive answers could not be AI-evaluated at this time. MCQ answers have been auto-graded."
 
     for ans_data in answers_input:
         qid = ans_data.get("question_id")
