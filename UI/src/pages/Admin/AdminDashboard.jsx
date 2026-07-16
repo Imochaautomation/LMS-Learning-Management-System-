@@ -36,10 +36,10 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Users', value: counts.total, icon: Users, color: '', iconStyle: { background: 'rgba(240,90,40,0.1)', color: '#F05A28' } },
-          { label: 'Managers', value: counts.manager, icon: Shield, color: 'bg-amber-50 text-amber-600' },
-          { label: 'New Joiners', value: counts.new_joiner, icon: UserPlus, color: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Admins', value: counts.admin, icon: Shield, color: 'bg-red-50 text-red-600' },
+          { label: 'Managers', value: counts.manager, icon: Users, color: 'bg-amber-50 text-amber-600' },
           { label: 'Employees', value: counts.employee, icon: BookOpen, color: 'bg-blue-50 text-blue-600' },
+          { label: 'New Joiners', value: counts.new_joiner, icon: UserPlus, color: 'bg-emerald-50 text-emerald-600' },
         ].map((s) => (
           <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-5">
             <div className="flex items-start justify-between">

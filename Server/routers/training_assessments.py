@@ -101,33 +101,35 @@ def _generate_questions(
         else:
             return f"{'Easy' if difficulty == 'Easy' else difficulty} questions test {'direct recall of specific facts' if difficulty == 'Easy' else ('application of concepts' if difficulty == 'Medium' else 'analysis and critical evaluation of concepts')} from the content. Use descriptive/open-ended format (no options).{lang_note}"
 
-    prompt = f"""You are an expert trainer creating a training assessment STRICTLY based on the provided SME Kit content below.
+    prompt = f"""You are an expert trainer creating a training assessment based exclusively on the SME Kit content provided below.
 
-ABSOLUTE RULES — violating any of these makes the assessment useless:
-1. CONTENT-ONLY: Every single question MUST be directly and specifically answerable from the content below. If you cannot point to a specific sentence, rule, or fact in the content that answers the question, do NOT include that question.
-2. NO EXTERNAL KNOWLEDGE: Do NOT use facts, rules, or concepts from outside the provided content — not from general training knowledge, industry standards, or common sense. Only what is explicitly stated in the document below.
-3. TOPIC FIDELITY: If the content is about "Content Editing Guidelines", generate questions ONLY about content editing. If it is about "Insurance Claims Processing", generate questions ONLY about insurance claims. Read the content first and identify its actual topic — then generate questions ONLY on that topic.
-4. ZERO HALLUCINATION: Do not invent rules, scenarios, or facts. Every correct answer must be a direct quote or paraphrase from the content below.
+Follow these rules strictly:
+1. Every question must be directly answerable from the content below. Do not use outside knowledge or general facts.
+2. Match the document's actual topic. If the content is about "Content Editing Guidelines," generate questions only about content editing — not about the document's metadata, file format, or general industry practices.
+3. Do not invent rules, scenarios, or facts. Every correct answer must be found in the content below.
+4. Use US English throughout: American spelling (-ize, -or, -er endings), double quotation marks, Oxford comma, active voice.
 5. {_type_rule('Easy', easy_type)}
 6. {_type_rule('Medium', medium_type)}
 7. {_type_rule('Hard', hard_type)}
-8. PRACTICAL ERROR-IDENTIFICATION (MCQ only): For at least 30% of MCQ questions, present a sentence or example that violates a SPECIFIC RULE from this document. Ask the candidate to identify the error or choose the corrected version. Only use rules that appear verbatim in the content below.
+8. For MCQ questions, vary the question formats: include both knowledge-recall questions AND error-identification questions (present a sentence with a mistake from the document and ask which option corrects it). Do not make all medium-difficulty questions identical in structure.
+9. Do not repeat the same question stem pattern more than twice across the full set.
+10. Keep question language professional and neutral — avoid "you" in question stems where possible.
 
-BEFORE generating questions, briefly identify: (1) the topic of this document, and (2) three to five key rules or concepts it covers. Then base ALL questions on those.
+Before generating questions, identify: (a) the document's topic, and (b) four to six key rules or concepts it covers. Base all questions on those specific concepts.
 
-SME KIT CONTENT:
+SME Kit Content:
 {content[:10000]}
 
 Generate exactly {easy_count} Easy ({_type_label(easy_type)}) + {medium_count} Medium ({_type_label(medium_type)}) + {hard_count} Hard ({_type_label(hard_type)}) questions ({total} total).
 
-Return ONLY valid JSON (no markdown, no explanation):
+Return ONLY valid JSON (no markdown, no explanation, no extra text before or after):
 {{
   "questions": [
     {{
       "order_index": 1,
       "difficulty": "easy",
       "question_type": "mcq",
-      "question_text": "Question text here. If technical, add: For example, ...",
+      "question_text": "Question text here.",
       "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
       "correct_answer": "A"
     }},
@@ -135,7 +137,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       "order_index": 2,
       "difficulty": "medium",
       "question_type": "mcq",
-      "question_text": "The following sentence violates a rule in the guidelines: [example sentence with error]. Which option correctly fixes this?",
+      "question_text": "The following sentence contains an error based on the guidelines: \\"[example sentence with error].\" Which option correctly fixes it?",
       "options": ["A. corrected version", "B. another option", "C. another option", "D. another option"],
       "correct_answer": "A"
     }},
@@ -143,19 +145,20 @@ Return ONLY valid JSON (no markdown, no explanation):
       "order_index": 4,
       "difficulty": "hard",
       "question_type": "descriptive",
-      "question_text": "Question text here. For example, ...",
+      "question_text": "Question text here.",
       "options": null,
       "correct_answer": "Model answer: ..."
     }}
   ]
 }}
 
-Format rules:
-- MCQ: exactly 4 options labeled A. B. C. D.; correct_answer is the single letter (A/B/C/D)
+Formatting rules:
+- MCQ: exactly 4 options labeled A. B. C. D.; correct_answer is the single letter only (A, B, C, or D)
 - Descriptive: options is null; correct_answer starts with "Model answer:"
 - Order: Easy questions first (indices 1–{easy_count}), then Medium ({easy_count+1}–{easy_count+medium_count}), then Hard ({easy_count+medium_count+1}–{total})
-- Include difficulty field for every question
-- Use "question_type": "mcq" for MCQ questions and "question_type": "descriptive" for open-ended questions"""
+- Include the difficulty field for every question
+- Use "question_type": "mcq" or "question_type": "descriptive"
+- Generate exactly {total} questions — no more, no fewer"""
 
     raw = _call_ai(prompt)
     data = _extract_json(raw)
@@ -278,6 +281,7 @@ def _attempt_out(attempt: TrainingAttempt) -> dict:
             a["difficulty"] = ans.question.difficulty
             a["options"] = ans.question.options
             a["order_index"] = ans.question.order_index
+            a["correct_answer"] = ans.question.correct_answer
         answers_out.append(a)
     # Sort by order_index so they display in the right sequence
     answers_out.sort(key=lambda x: x.get("order_index", 0))
@@ -703,25 +707,13 @@ def start_attempt(
                 ))
             db.commit()
             question_generation = new_generation
-        except Exception:
-            # AI regeneration failed — shuffle the latest generation instead
-            import random
-            source_qs = [q for q in a.questions if (q.generation or 1) == max_existing_gen]
-            shuffled = list(source_qs)
-            random.shuffle(shuffled)
-            for new_order, orig_q in enumerate(shuffled, start=1):
-                db.add(TrainingQuestion(
-                    assessment_id=a.id,
-                    order_index=new_order,
-                    question_type=orig_q.question_type,
-                    difficulty=orig_q.difficulty,
-                    question_text=orig_q.question_text,
-                    options=orig_q.options,
-                    correct_answer=orig_q.correct_answer,
-                    generation=new_generation,
-                ))
-            db.commit()
-            question_generation = new_generation
+        except Exception as regen_err:
+            # AI regeneration failed — raise so the learner retries rather than
+            # silently serving the same questions in a shuffled order
+            raise HTTPException(
+                503,
+                "Could not generate new questions from the SME Kit. Please try again in a moment.",
+            ) from regen_err
 
     attempt = TrainingAttempt(
         assessment_id=assessment_id,

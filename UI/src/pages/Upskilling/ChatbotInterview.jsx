@@ -5,7 +5,7 @@ import api from '../../api/client';
 import { Send, Loader2, User, CheckCircle, ExternalLink, Mic, MicOff, ArrowLeft } from 'lucide-react';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
 
-const MIN_QUESTIONS = 8;
+const MIN_QUESTIONS = 15;
 const MAX_QUESTIONS = 15;
 
 const cleanText = (t) => t.replace(/\*+/g, '').trim();
@@ -395,9 +395,18 @@ export default function ChatbotInterview() {
     generatingRef.current = false;
   };
 
+  const voiceSupported = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+
+      {!voiceSupported && (
+        <div className="flex-shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 text-sm text-amber-800">
+          <span className="text-base">🎤</span>
+          <span><strong>Voice input is not available in this browser.</strong> For the best experience, use Google Chrome or Microsoft Edge. You can still type your answers below.</span>
+        </div>
+      )}
 
       {/* Session transcript modal */}
       {viewingSession && (

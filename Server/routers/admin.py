@@ -5,7 +5,8 @@ from database import get_db
 from models import (
     User, Profile, AssessmentAssignment, UserCourse, CourseAssignment,
     CourseCompletion, InterviewSession, Notification,
-    SmeKitAssignment, SmeKitAssignmentV2, SmeKit, SmeKitFileV2
+    SmeKitAssignment, SmeKitAssignmentV2, SmeKit, SmeKitFileV2,
+    TrainingAssessment, TrainingAttempt, TrainingAnswer, TrainingQuestion,
 )
 from schemas import UserCreate, UserUpdate, UserOut
 from auth import hash_password, require_role
@@ -178,6 +179,50 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.query(SmeKit).filter(SmeKit.created_by == user_id).update({"created_by": None}, synchronize_session=False)
     db.query(SmeKitFileV2).filter(SmeKitFileV2.uploaded_by == user_id).update({"uploaded_by": None}, synchronize_session=False)
     db.query(Profile).filter(Profile.user_id == user_id).delete()
+
+    # Training assessment data (new AI quiz system)
+    # Delete answers → attempts first, then null out FK on assessments assigned to this joiner
+    joiner_assessment_ids = [
+        a.id for a in db.query(TrainingAssessment.id).filter(
+            TrainingAssessment.new_joiner_id == user_id
+        ).all()
+    ]
+    if joiner_assessment_ids:
+        attempt_ids = [
+            t.id for t in db.query(TrainingAttempt.id).filter(
+                TrainingAttempt.assessment_id.in_(joiner_assessment_ids)
+            ).all()
+        ]
+        if attempt_ids:
+            db.query(TrainingAnswer).filter(
+                TrainingAnswer.attempt_id.in_(attempt_ids)
+            ).delete(synchronize_session=False)
+        db.query(TrainingAttempt).filter(
+            TrainingAttempt.assessment_id.in_(joiner_assessment_ids)
+        ).delete(synchronize_session=False)
+        db.query(TrainingQuestion).filter(
+            TrainingQuestion.assessment_id.in_(joiner_assessment_ids)
+        ).delete(synchronize_session=False)
+        db.query(TrainingAssessment).filter(
+            TrainingAssessment.id.in_(joiner_assessment_ids)
+        ).delete(synchronize_session=False)
+    # Assessments created by this user (manager) — null out creator
+    db.query(TrainingAssessment).filter(
+        TrainingAssessment.created_by == user_id
+    ).update({"created_by": None}, synchronize_session=False)
+    # Attempts by this user on other assessments
+    other_attempt_ids = [
+        t.id for t in db.query(TrainingAttempt.id).filter(
+            TrainingAttempt.user_id == user_id
+        ).all()
+    ]
+    if other_attempt_ids:
+        db.query(TrainingAnswer).filter(
+            TrainingAnswer.attempt_id.in_(other_attempt_ids)
+        ).delete(synchronize_session=False)
+    db.query(TrainingAttempt).filter(
+        TrainingAttempt.user_id == user_id
+    ).delete(synchronize_session=False)
 
     db.delete(user)
     db.commit()

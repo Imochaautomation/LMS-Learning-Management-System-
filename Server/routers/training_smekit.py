@@ -62,7 +62,7 @@ def _extract_text_from_file(path: str, max_chars: int = 12000) -> str:
 
 from database import SessionLocal
 from auth import get_current_user, require_role
-from models import User, SmeKit, SmeKitFileV2, SmeKitAssignmentV2
+from models import User, SmeKit, SmeKitFileV2, SmeKitAssignmentV2, TrainingAssessment
 from schemas import SmeKitCreateV2, SmeKitOut, SmeKitFileOut, SmeKitAssignRequest, SmeKitAssignmentOut
 from config import UPLOAD_DIR
 
@@ -167,6 +167,13 @@ def delete_kit(
         raise HTTPException(404, "Kit not found")
     if current_user.role == "manager" and kit.created_by != current_user.id:
         raise HTTPException(403, "Not your kit")
+    # Null out FK references before deleting to avoid constraint errors in PostgreSQL
+    db.query(TrainingAssessment).filter(TrainingAssessment.sme_kit_id == kit_id).update(
+        {"sme_kit_id": None}, synchronize_session=False
+    )
+    db.query(SmeKitAssignmentV2).filter(SmeKitAssignmentV2.sme_kit_id == kit_id).delete(
+        synchronize_session=False
+    )
     db.delete(kit)
     db.commit()
     return {"ok": True}

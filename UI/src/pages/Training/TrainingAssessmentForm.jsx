@@ -83,6 +83,12 @@ function AttemptCard({ attempt, questions, defaultOpen = false }) {
                         <p className="text-xs text-gray-500">Your answer:</p>
                         <p className="text-sm text-gray-800">{ans.answer_text || '(no answer)'}</p>
                       </div>
+                      {flag === 'wrong' && ans.correct_answer && (
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 mb-1">
+                          <p className="text-xs text-emerald-700 font-semibold">Correct answer:</p>
+                          <p className="text-sm text-emerald-800">{ans.correct_answer}</p>
+                        </div>
+                      )}
                       {ans.ai_explanation && (
                         <div className={`rounded-lg px-3 py-2 text-xs ${flag === 'correct' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : flag === 'wrong' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
                           {ans.ai_explanation}
@@ -243,7 +249,7 @@ export default function TrainingAssessmentForm() {
           <div className="flex items-center gap-4">
             {passed ? <Trophy className="w-12 h-12 text-yellow-300" /> : <AlertTriangle className="w-12 h-12 text-white/80" />}
             <div>
-              <h1 className="text-2xl font-bold">{passed ? '🎉 You Passed!' : 'Keep Practising'}</h1>
+              <h1 className="text-2xl font-bold">{passed ? '🎉 You Passed!' : 'Keep Practicing'}</h1>
               <p className="text-white/80 text-sm mt-0.5">{assessment?.title}</p>
             </div>
           </div>

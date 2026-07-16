@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import { UserPlus, Trash2, X, Loader2, Search, Eye, EyeOff, AlertTriangle, RefreshCw, Copy, Pencil, Check } from 'lucide-react';
+import { ToastContainer, useToast } from '../../components/shared/Toast';
 
 const roleBadge = {
   admin: 'bg-red-50 text-red-700',
@@ -40,6 +41,7 @@ export default function UserManagement() {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [managers, setManagers] = useState([]);
+  const { toasts, removeToast, toast } = useToast();
 
   const generatePassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!';
@@ -158,7 +160,7 @@ export default function UserManagement() {
       setDeleteModal(null);
       loadUsers();
     } catch (err) {
-      console.error(err.message);
+      toast.error(`Could not delete user: ${err.message}`);
     } finally {
       setDeleting(false);
     }
@@ -166,6 +168,7 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
       <BackButton to="/admin" label="Back to Admin" />
       <div className="flex items-center justify-between">
         <div>
