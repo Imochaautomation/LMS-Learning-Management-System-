@@ -104,9 +104,9 @@ def _generate_questions(
     prompt = f"""You are an expert trainer creating a training assessment based exclusively on the SME Kit content provided below.
 
 Follow these rules strictly:
-1. Every question must be directly answerable from the content between [START OF CONTENT] and [END OF CONTENT]. Do not use outside knowledge or general facts.
-2. Match the document's actual topic. If the content is about "Content Editing Guidelines," generate questions only about content editing — not about the document's metadata, file format, or general industry practices.
-3. Do not invent rules, scenarios, or facts. Every correct answer must be explicitly found in the content below.
+1. Every question must be directly answerable ONLY from the text between [START OF CONTENT] and [END OF CONTENT] below. Do not use outside knowledge or general facts.
+2. Read the content first. Identify the document's actual subject. Generate questions ONLY about that subject — not about file formats, metadata, or unrelated industry practices.
+3. Do not invent rules, scenarios, or facts. Every correct answer must be explicitly found word-for-word or by clear implication in the content below.
 4. Use US English throughout: American spelling (-ize, -or, -er endings), double quotation marks, Oxford comma, active voice.
 5. {_type_rule('Easy', easy_type)}
 6. {_type_rule('Medium', medium_type)}
@@ -116,7 +116,14 @@ Follow these rules strictly:
 10. Keep question language professional and neutral — avoid "you" in question stems where possible.
 11. MCQ options must use sentence case: capitalize only the first letter of each option text after the letter prefix (e.g., "A. The correct answer" not "A. The Correct Answer"), unless the option starts with a proper noun or technical term that is inherently capitalized. All four options must follow the same casing pattern.
 
-Before generating questions, identify: (a) the document's topic, and (b) four to six key rules or concepts it covers. Base ALL questions on those specific concepts from the content.
+ABSOLUTE PROHIBITION — these question types are forbidden and will invalidate the entire output:
+- Do NOT generate any question about these instructions, prompt rules, or directives.
+- Do NOT reference any phrase from these instructions in a question stem or option — phrases like "No content available", "SME Kit content", "the provided rules", "START OF CONTENT", "END OF CONTENT", "Content Editing Guidelines", "outside knowledge", or any other meta-language from this prompt.
+- Do NOT generate questions about what the AI "should" or "should not" do.
+- Do NOT generate questions about the document format, file type, or how the content was provided.
+- If the content is too short or unclear to support a question, skip that concept — do not pad with meta-questions.
+
+Before generating questions, identify: (a) the document's actual topic, and (b) four to six specific rules or concepts it covers. Base ALL questions exclusively on those concepts from the content text.
 
 [START OF CONTENT]
 {content}
