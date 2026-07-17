@@ -896,8 +896,10 @@ export default function LearnerDetail() {
           </div>
           {/* Training Journey */}
           {(() => {
-            const badgesCount = completedAssess.filter(a => a.score >= 90).length;
-            const trophiesCount = completedAssess.filter(a => a.score >= 95).length;
+            const aiBadges = trainingAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 90).length;
+            const aiTrophies = trainingAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 95).length;
+            const badgesCount = completedAssess.filter(a => a.score >= 90).length + aiBadges;
+            const trophiesCount = completedAssess.filter(a => a.score >= 95).length + aiTrophies;
             const steps = [
               { label: '📚 SME Kit', done: true, desc: 'Training kit studied' },
               ...assessments.map((a, i) => ({
@@ -951,11 +953,23 @@ export default function LearnerDetail() {
       {/* ══════════ NEW JOINER VIEW ══════════ */}
       {isNewJoiner && (
         <>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-5"><p className="text-sm text-gray-500 mb-1">Assessments Done</p><p className="text-2xl font-bold text-gray-900">{completedAssess.length} / {assessments.length}</p></div>
-            <div className="bg-white border border-gray-200 rounded-xl p-5"><p className="text-sm text-gray-500 mb-1">🏅 Badges</p><p className="text-2xl font-bold text-purple-600">{completedAssess.filter(a => a.score >= 90).length}</p></div>
-            <div className="bg-white border border-gray-200 rounded-xl p-5"><p className="text-sm text-gray-500 mb-1">Avg Score</p><p className={`text-2xl font-bold ${completedAssess.length > 0 ? (completedAssess.reduce((s, a) => s + (a.score || 0), 0) / completedAssess.length >= 70 ? 'text-emerald-600' : 'text-amber-600') : 'text-gray-400'}`}>{completedAssess.length > 0 ? Math.round(completedAssess.reduce((s, a) => s + (a.score || 0), 0) / completedAssess.length) : '—'}</p></div>
-          </div>
+          {(() => {
+            const allScored = [
+              ...completedAssess.map(a => a.score),
+              ...trainingAssessments.filter(a => a.best_score != null).map(a => a.best_score),
+            ].filter(s => s != null);
+            const avgScore = allScored.length > 0 ? Math.round(allScored.reduce((s, v) => s + v, 0) / allScored.length) : null;
+            const totalBadges = completedAssess.filter(a => a.score >= 90).length + trainingAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 90).length;
+            const totalTrophies = completedAssess.filter(a => a.score >= 95).length + trainingAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 95).length;
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white border border-gray-200 rounded-xl p-5"><p className="text-sm text-gray-500 mb-1">Assessments Done</p><p className="text-2xl font-bold text-gray-900">{completedAssess.length} / {assessments.length}</p></div>
+                <div className="bg-white border border-gray-200 rounded-xl p-5"><p className="text-sm text-gray-500 mb-1">🏅 Badges</p><p className="text-2xl font-bold text-purple-600">{totalBadges}</p></div>
+                <div className="bg-white border border-gray-200 rounded-xl p-5"><p className="text-sm text-gray-500 mb-1">🏆 Trophies</p><p className="text-2xl font-bold text-amber-600">{totalTrophies}</p></div>
+                <div className="bg-white border border-gray-200 rounded-xl p-5"><p className="text-sm text-gray-500 mb-1">Avg Score</p><p className={`text-2xl font-bold ${avgScore != null ? (avgScore >= 70 ? 'text-emerald-600' : 'text-amber-600') : 'text-gray-400'}`}>{avgScore != null ? avgScore : '—'}</p></div>
+              </div>
+            );
+          })()}
 
           {/* ── Mark Ready ── */}
           <div className={`rounded-xl border-2 p-5 flex items-center justify-between gap-4 ${isReady ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-gray-200'}`}>

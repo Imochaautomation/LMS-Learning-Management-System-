@@ -69,7 +69,7 @@ def _build_content_context(files: List[SmeKitFileV2]) -> str:
     parts = []
     for f in files:
         if f.transcript:
-            parts.append(f"[{f.name}]\n{f.transcript[:3000]}")
+            parts.append(f"[{f.name}]\n{f.transcript[:6000]}")
         elif f.youtube_url:
             parts.append(f"[YouTube: {f.name}] URL: {f.youtube_url} (no transcript provided)")
         else:
@@ -104,9 +104,9 @@ def _generate_questions(
     prompt = f"""You are an expert trainer creating a training assessment based exclusively on the SME Kit content provided below.
 
 Follow these rules strictly:
-1. Every question must be directly answerable from the content below. Do not use outside knowledge or general facts.
+1. Every question must be directly answerable from the content between [START OF CONTENT] and [END OF CONTENT]. Do not use outside knowledge or general facts.
 2. Match the document's actual topic. If the content is about "Content Editing Guidelines," generate questions only about content editing — not about the document's metadata, file format, or general industry practices.
-3. Do not invent rules, scenarios, or facts. Every correct answer must be found in the content below.
+3. Do not invent rules, scenarios, or facts. Every correct answer must be explicitly found in the content below.
 4. Use US English throughout: American spelling (-ize, -or, -er endings), double quotation marks, Oxford comma, active voice.
 5. {_type_rule('Easy', easy_type)}
 6. {_type_rule('Medium', medium_type)}
@@ -114,13 +114,15 @@ Follow these rules strictly:
 8. For MCQ questions, vary the question formats: include both knowledge-recall questions AND error-identification questions (present a sentence with a mistake from the document and ask which option corrects it). Do not make all medium-difficulty questions identical in structure.
 9. Do not repeat the same question stem pattern more than twice across the full set.
 10. Keep question language professional and neutral — avoid "you" in question stems where possible.
+11. MCQ options must use sentence case: capitalize only the first letter of each option text after the letter prefix (e.g., "A. The correct answer" not "A. The Correct Answer"), unless the option starts with a proper noun or technical term that is inherently capitalized. All four options must follow the same casing pattern.
 
-Before generating questions, identify: (a) the document's topic, and (b) four to six key rules or concepts it covers. Base all questions on those specific concepts.
+Before generating questions, identify: (a) the document's topic, and (b) four to six key rules or concepts it covers. Base ALL questions on those specific concepts from the content.
 
-SME Kit Content:
-{content[:10000]}
+[START OF CONTENT]
+{content}
+[END OF CONTENT]
 
-Generate exactly {easy_count} Easy ({_type_label(easy_type)}) + {medium_count} Medium ({_type_label(medium_type)}) + {hard_count} Hard ({_type_label(hard_type)}) questions ({total} total).
+HARD STOP: You must generate EXACTLY {total} questions — {easy_count} Easy + {medium_count} Medium + {hard_count} Hard. Count your questions as you write them. Do NOT write question number {total + 1}. If you reach {total} questions, stop immediately.
 
 Return ONLY valid JSON (no markdown, no explanation, no extra text before or after):
 {{
@@ -130,7 +132,7 @@ Return ONLY valid JSON (no markdown, no explanation, no extra text before or aft
       "difficulty": "easy",
       "question_type": "mcq",
       "question_text": "Question text here.",
-      "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
+      "options": ["A. First option here", "B. Second option here", "C. Third option here", "D. Fourth option here"],
       "correct_answer": "A"
     }},
     {{
@@ -138,7 +140,7 @@ Return ONLY valid JSON (no markdown, no explanation, no extra text before or aft
       "difficulty": "medium",
       "question_type": "mcq",
       "question_text": "The following sentence contains an error based on the guidelines: \\"[example sentence with error].\" Which option correctly fixes it?",
-      "options": ["A. corrected version", "B. another option", "C. another option", "D. another option"],
+      "options": ["A. Corrected version here", "B. Another option here", "C. Another option here", "D. Another option here"],
       "correct_answer": "A"
     }},
     {{
@@ -158,11 +160,13 @@ Formatting rules:
 - Order: Easy questions first (indices 1–{easy_count}), then Medium ({easy_count+1}–{easy_count+medium_count}), then Hard ({easy_count+medium_count+1}–{total})
 - Include the difficulty field for every question
 - Use "question_type": "mcq" or "question_type": "descriptive"
-- Generate exactly {total} questions — no more, no fewer"""
+- The "questions" array must contain EXACTLY {total} items — no more, no fewer"""
 
     raw = _call_ai(prompt)
     data = _extract_json(raw)
-    return data.get("questions", [])
+    questions = data.get("questions", [])
+    # Enforce exact count — truncate silently if AI returns too many
+    return questions[:total]
 
 
 def _evaluate_attempt(questions: List[TrainingQuestion], answers: List[dict]) -> dict:

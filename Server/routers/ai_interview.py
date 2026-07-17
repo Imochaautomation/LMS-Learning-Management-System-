@@ -14,7 +14,7 @@ from config import OPENROUTER_API_KEY, MODEL_NAME
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 def _build_system_prompt(user, profile=None) -> str:
-    """Build a fully personalised interview system prompt from employee profile data."""
+    """Build a fully personalized interview system prompt from employee profile data."""
     dept = (user.department or "").strip()
     designation = (user.designation or "").strip()
     experience = (user.experience or "").strip()
@@ -45,7 +45,7 @@ def _build_system_prompt(user, profile=None) -> str:
         skill_areas = "talent acquisition, performance management, employee engagement, HRIS tools, conflict resolution, learning & development, and HR compliance"
     elif any(k in dept_lower or k in desig_lower for k in ["ops", "operations", "supply", "logistics", "project", "program"]):
         domain = "operations and project management"
-        skill_areas = "project planning, Agile/Scrum, process optimisation, stakeholder communication, risk management, resource allocation, and operational metrics"
+        skill_areas = "project planning, Agile/Scrum, process optimization, stakeholder communication, risk management, resource allocation, and operational metrics"
     elif any(k in dept_lower or k in desig_lower for k in ["content", "edit", "write", "publish", "media", "journalism"]):
         domain = "content creation and editorial"
         skill_areas = "writing, editing, grammar, style guides, SEO writing, content strategy, storytelling, research, fact-checking, and publishing workflows"
@@ -74,7 +74,7 @@ Tailor your questions to probe whether their current skills align with these goa
 Identify gaps between where they are now and where they want to reach."""
 
     return f"""You are Jarvis, an expert AI skill interviewer for iMocha's Learning Management platform.
-You are interviewing {user.name}, currently working as a {designation or 'professional'} in {dept or 'the organisation'}.
+You are interviewing {user.name}, currently working as a {designation or 'professional'} in {dept or 'the organization'}.
 Your job is to conduct a friendly, conversational skill assessment focused on the {domain}.
 {profile_block}
 {goal_instruction}
@@ -108,7 +108,7 @@ TOPIC DIVERSITY — CRITICAL RULE: You MUST spread your questions across at leas
 
 
 def _build_analysis_prompt(user, profile=None) -> str:
-    """Build a personalised analysis prompt that knows the employee's domain and goals."""
+    """Build a personalized analysis prompt that knows the employee's domain and goals."""
     dept = (user.department or "").strip()
     designation = (user.designation or "").strip()
     experience = (user.experience or "").strip()
@@ -122,7 +122,7 @@ Designation: {designation or 'N/A'} | Department: {dept or 'N/A'} | Experience: 
     if resume_summary:
         profile_section += f"\nProfessional Background: {resume_summary[:500]}"
 
-    return f"""You are an expert skill analyst. Based on the interview conversation below, generate a detailed, personalised skill gap analysis for this employee.
+    return f"""You are an expert skill analyst. Based on the interview conversation below, generate a detailed, personalized skill gap analysis for this employee.
 
 {profile_section}
 
@@ -184,7 +184,7 @@ Rules for areas_of_improvement:
 Rules for course_recommendations:
 - Recommend MAXIMUM 12 courses. Focus on weak areas (High/Medium severity).
 - Courses MUST be relevant to the employee's role ({designation or 'N/A'}) and department ({dept or 'N/A'}).
-- If they have learning goals, prioritise courses that help achieve those goals.
+- If they have learning goals, prioritize courses that help achieve those goals.
 
 COURSE TYPE — set "course_type" for every course using EXACTLY one of these values, in PRIORITY ORDER (recommend higher-priority types first, they should appear earlier in the list):
   1. "video_free_cert"  — Video course with certificate, completely FREE (Google Digital Garage, freeCodeCamp with cert, Khan Academy, Harvard CS50, Coursera fully-free-with-cert). Set "free": true.
@@ -384,7 +384,7 @@ async def interview(
         learning_goals = (profile.learning_goals or "").strip() if profile else ""
         resume_summary = (profile.summary or "").strip() if profile else ""
 
-        consultant_ctx = f"User profile: {designation or 'Professional'} in {dept or 'the organisation'}."
+        consultant_ctx = f"User profile: {designation or 'Professional'} in {dept or 'the organization'}."
         if learning_goals:
             consultant_ctx += f" Stated learning goals: {learning_goals}."
         if resume_summary:
@@ -426,7 +426,7 @@ async def interview(
     messages = list(session.messages or [])
     messages.append({"role": "user", "content": req.answer})
 
-    # Fetch profile for personalised context
+    # Fetch profile for personalized context
     profile = db.query(Profile).filter(Profile.user_id == user.id).first()
 
     # Build LLM context using dynamic profile-aware prompt
@@ -491,7 +491,7 @@ async def interview(
         elif any(k in dept_lower or k in desig_lower for k in ["sales", "business development", "account"]):
             fallback_topics = ["your sales process", "handling objections", "CRM tools you use", "your best deal and how you closed it", "pipeline management", "prospecting strategies", "customer relationship building", "meeting sales targets"]
         elif any(k in dept_lower or k in desig_lower for k in ["product", "ux", "design"]):
-            fallback_topics = ["how you prioritise features", "your user research process", "a product decision you made", "working with engineering teams", "metrics you track", "handling stakeholder conflicts", "your roadmapping process", "A/B testing experience"]
+            fallback_topics = ["how you prioritize features", "your user research process", "a product decision you made", "working with engineering teams", "metrics you track", "handling stakeholder conflicts", "your roadmapping process", "A/B testing experience"]
         elif any(k in dept_lower or k in desig_lower for k in ["market", "growth", "brand", "seo"]):
             fallback_topics = ["your go-to marketing channels", "a campaign you led", "analytics tools you use", "SEO or content strategy", "measuring campaign ROI", "audience targeting", "brand messaging", "growth experiments you've run"]
         else:
@@ -653,7 +653,7 @@ async def generate_analysis(
     if not session:
         raise HTTPException(status_code=404, detail="No completed interview found. Please complete the AI interview first.")
 
-    # Fetch profile for personalised analysis
+    # Fetch profile for personalized analysis
     target_user = db.query(User).filter(User.id == lookup_id).first() or user
     profile = db.query(Profile).filter(Profile.user_id == lookup_id).first()
 
