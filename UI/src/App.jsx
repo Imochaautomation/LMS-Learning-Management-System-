@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NavigationGuardProvider } from './context/NavigationGuardContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/Auth/LoginPage';
@@ -35,6 +36,7 @@ function RootRedirect() {
 export default function App() {
   return (
     <AuthProvider>
+      <NavigationGuardProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<RootRedirect />} />
@@ -86,6 +88,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </NavigationGuardProvider>
     </AuthProvider>
   );
 }

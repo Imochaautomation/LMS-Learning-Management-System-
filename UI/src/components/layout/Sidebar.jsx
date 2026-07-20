@@ -1,5 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigationGuard } from '../../context/NavigationGuardContext';
+import { ShieldAlert } from 'lucide-react';
 import {
   Home, BookOpen, FileText, GraduationCap, Users, LogOut,
   UserCircle, FolderOpen, UserPlus, ChevronRight, Brain
@@ -11,7 +14,17 @@ const ORANGE = '#F05A28';
 export default function Sidebar() {
   const { user, logout, avatarUrl } = useAuth();
   const navigate = useNavigate();
+  const { blocked } = useNavigationGuard();
+  const [showWarning, setShowWarning] = useState(false);
   if (!user) return null;
+
+  const guardedNavigate = (e, to) => {
+    if (blocked) {
+      e.preventDefault();
+      setShowWarning(true);
+      setTimeout(() => setShowWarning(false), 3000);
+    }
+  };
 
   const isContentManager = user.role === 'manager' && (user.department || '') === 'Content';
   const isContentNewJoiner = user.role === 'new_joiner' && (user.manager_department || '') === 'Content';
@@ -59,6 +72,13 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 flex flex-col h-screen sticky top-0 overflow-hidden" style={{ background: NAVY }}>
+      {/* Navigation blocked warning */}
+      {showWarning && (
+        <div className="absolute inset-x-0 top-0 z-50 bg-red-600 px-3 py-2.5 flex items-start gap-2 shadow-lg">
+          <ShieldAlert className="w-4 h-4 text-white shrink-0 mt-0.5" />
+          <p className="text-xs text-white font-medium leading-snug">Submit the assessment before navigating away.</p>
+        </div>
+      )}
 
       {/* Logo header */}
       <div className="px-5 pt-6 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -121,6 +141,7 @@ export default function Sidebar() {
             <NavLink
               key={idx}
               to={item.to}
+              onClick={(e) => guardedNavigate(e, item.to)}
               end={!hasQueryParams && (item.to === '/training' || item.to === '/upskilling' || item.to === '/admin')}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group"
               style={({ isActive }) => {
@@ -146,7 +167,7 @@ export default function Sidebar() {
       {/* Sign out */}
       <div className="p-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <button
-          onClick={() => { logout(); navigate('/login'); }}
+          onClick={(e) => { if (blocked) { e.preventDefault(); setShowWarning(true); setTimeout(() => setShowWarning(false), 3000); return; } logout(); navigate('/login'); }}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-all"
           style={{ color: 'rgba(255,255,255,0.45)' }}
           onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#fca5a5'; }}
