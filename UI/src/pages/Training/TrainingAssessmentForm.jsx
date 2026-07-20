@@ -3,11 +3,11 @@
  * Route: /training/ai-assessments/:assessmentId
  */
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useBlocker } from 'react-router-dom';
 import api from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
-import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp, History, PlayCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp, History, PlayCircle, ShieldAlert } from 'lucide-react';
 
 const ORANGE = '#F05A28';
 const TEAL = '#0d9488';
@@ -120,6 +120,29 @@ export default function TrainingAssessmentForm() {
   const [error, setError] = useState(null);
   const [mode, setMode] = useState('loading'); // 'loading' | 'history' | 'taking' | 'result'
   const [startingNew, setStartingNew] = useState(false);
+  const [showBlockWarning, setShowBlockWarning] = useState(false);
+
+  const isTaking = mode === 'taking';
+
+  // Block React Router navigation (sidebar clicks, any route change) while test is active
+  const blocker = useBlocker(isTaking);
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      setShowBlockWarning(true);
+      blocker.reset(); // reject the navigation — stay on page
+    }
+  }, [blocker.state]);
+
+  // Block browser back button, tab close, and refresh while test is active
+  useEffect(() => {
+    if (!isTaking) return;
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isTaking]);
 
   useEffect(() => {
     const load = async () => {
@@ -371,6 +394,26 @@ export default function TrainingAssessmentForm() {
   // ── TAKING screen ────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      {/* Navigation blocked warning overlay */}
+      {showBlockWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 text-center">
+            <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert className="w-7 h-7 text-red-600" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">You cannot leave this page</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              You must answer all questions and submit the assessment before navigating away. Your attempt is in progress.
+            </p>
+            <button
+              onClick={() => setShowBlockWarning(false)}
+              className="w-full py-3 rounded-xl text-white font-semibold text-sm"
+              style={{ background: TEAL }}>
+              Continue Assessment
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${TEAL}, #134e4a)` }}>
         <h1 className="text-xl font-bold mb-1">{assessment?.title}</h1>
