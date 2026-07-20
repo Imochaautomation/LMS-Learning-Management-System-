@@ -9,12 +9,12 @@ import api from '../../api/client';
 import { Loader2, BookOpen, ChevronRight, Trophy, Award, Clock, CheckCircle2 } from 'lucide-react';
 
 function AccuracyBadge({ score }) {
-  if (score >= 95) return (
+  if (score >= 90) return (
     <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
       <Trophy className="w-3 h-3" /> Trophy
     </span>
   );
-  if (score >= 90) return (
+  if (score >= 80) return (
     <span className="inline-flex items-center gap-1 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
       <Award className="w-3 h-3" /> Badge
     </span>

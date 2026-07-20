@@ -896,10 +896,10 @@ export default function LearnerDetail() {
           </div>
           {/* Training Journey */}
           {(() => {
-            const aiBadges = trainingAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 90).length;
-            const aiTrophies = trainingAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 95).length;
-            const badgesCount = completedAssess.filter(a => a.score >= 90).length + aiBadges;
-            const trophiesCount = completedAssess.filter(a => a.score >= 95).length + aiTrophies;
+            const aiBadges = trainingAssessments.filter(a => a.best_score != null && a.best_score >= 80 && a.best_score < 90).length;
+            const aiTrophies = trainingAssessments.filter(a => a.best_score != null && a.best_score >= 90).length;
+            const badgesCount = completedAssess.filter(a => a.score >= 80 && a.score < 90).length + aiBadges;
+            const trophiesCount = completedAssess.filter(a => a.score >= 90).length + aiTrophies;
             const steps = [
               { label: '📚 SME Kit', done: true, desc: 'Training kit studied' },
               ...assessments.map((a, i) => ({
@@ -959,8 +959,8 @@ export default function LearnerDetail() {
               ...trainingAssessments.filter(a => a.best_score != null).map(a => a.best_score),
             ].filter(s => s != null);
             const avgScore = allScored.length > 0 ? Math.round(allScored.reduce((s, v) => s + v, 0) / allScored.length) : null;
-            const totalBadges = completedAssess.filter(a => a.score >= 90).length + trainingAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 90).length;
-            const totalTrophies = completedAssess.filter(a => a.score >= 95).length + trainingAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 95).length;
+            const totalBadges = completedAssess.filter(a => a.score >= 80 && a.score < 90).length + trainingAssessments.filter(a => a.best_score != null && a.best_score >= 80 && a.best_score < 90).length;
+            const totalTrophies = completedAssess.filter(a => a.score >= 90).length + trainingAssessments.filter(a => a.best_score != null && a.best_score >= 90).length;
             return (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-white border border-gray-200 rounded-xl p-5"><p className="text-sm text-gray-500 mb-1">Assessments Done</p><p className="text-2xl font-bold text-gray-900">{completedAssess.length} / {assessments.length}</p></div>

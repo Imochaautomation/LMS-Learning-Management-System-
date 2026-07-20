@@ -245,21 +245,18 @@ export default function TrainingAssessmentForm() {
       <div className="space-y-6">
         <BackButton to="/training/ai-assessments" label="Back to Assessments" />
 
-        <div className={`rounded-2xl p-6 text-white ${passed ? (score >= 95 ? 'bg-gradient-to-r from-amber-500 to-yellow-500' : 'bg-gradient-to-r from-emerald-500 to-teal-600') : 'bg-gradient-to-r from-amber-500 to-orange-500'}`}>
+        <div className={`rounded-2xl p-6 text-white ${score >= 90 ? 'bg-gradient-to-r from-amber-500 to-yellow-500' : score >= 80 ? 'bg-gradient-to-r from-purple-500 to-indigo-600' : passed ? 'bg-gradient-to-r from-emerald-500 to-teal-600' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`}>
           <div className="flex items-center gap-4">
-            {passed ? <Trophy className="w-12 h-12 text-yellow-300" /> : <AlertTriangle className="w-12 h-12 text-white/80" />}
+            {score >= 90 ? <Trophy className="w-12 h-12 text-yellow-300" /> : passed ? <Trophy className="w-12 h-12 text-white/80" /> : <AlertTriangle className="w-12 h-12 text-white/80" />}
             <div>
               <h1 className="text-2xl font-bold">
-                {score === 100 ? '🌟 Perfect Score!' : passed ? '🎉 You Passed!' : 'Keep Practicing'}
+                {score === 100 ? '🌟 Perfect Score!' : score >= 90 ? '🏆 Trophy Earned!' : score >= 80 ? '🏅 Badge Earned!' : passed ? '🎉 You Passed!' : 'Keep Practicing'}
               </h1>
-              {score >= 95 && score < 100 && passed && (
-                <span className="inline-block text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full mt-1">🏆 Trophy Earned!</span>
+              {score >= 90 && (
+                <span className="inline-block text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full mt-1">🏆 Trophy</span>
               )}
-              {score >= 90 && score < 95 && passed && (
-                <span className="inline-block text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full mt-1">🏅 Badge Earned!</span>
-              )}
-              {score === 100 && (
-                <span className="inline-block text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full mt-1">🏆 Trophy Earned!</span>
+              {score >= 80 && score < 90 && (
+                <span className="inline-block text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full mt-1">🏅 Badge</span>
               )}
               <p className="text-white/80 text-sm mt-0.5">{assessment?.title}</p>
             </div>
@@ -374,7 +371,6 @@ export default function TrainingAssessmentForm() {
   // ── TAKING screen ────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      <BackButton to="/training/ai-assessments" label="Back to Assessments" />
 
       <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${TEAL}, #134e4a)` }}>
         <h1 className="text-xl font-bold mb-1">{assessment?.title}</h1>

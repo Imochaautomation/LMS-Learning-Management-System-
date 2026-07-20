@@ -24,13 +24,13 @@ export default function TrainingDashboard() {
   const submitted = assessments.filter((a) => a.status === 'submitted' || a.status === 'reviewed');
 
   // Badges and trophies from file-upload assessments
-  const fileBadges = reviewed.filter(a => a.score >= 90).length;
-  const fileTrophies = reviewed.filter(a => a.score >= 95).length;
+  const fileBadges = reviewed.filter(a => a.score >= 80 && a.score < 90).length;
+  const fileTrophies = reviewed.filter(a => a.score >= 90).length;
   const fileAvgScore = reviewed.length ? reviewed.reduce((s, a) => s + (a.score || 0), 0) / reviewed.length : 0;
 
   // Badges and trophies from AI quiz assessments
-  const aiBadges = aiAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 90).length;
-  const aiTrophies = aiAssessments.filter(a => a.passed && a.best_score != null && a.best_score >= 95).length;
+  const aiBadges = aiAssessments.filter(a => a.best_score != null && a.best_score >= 80 && a.best_score < 90).length;
+  const aiTrophies = aiAssessments.filter(a => a.best_score != null && a.best_score >= 90).length;
   const aiScored = aiAssessments.filter(a => a.best_score != null);
   const aiAvgScore = aiScored.length ? aiScored.reduce((s, a) => s + (a.best_score || 0), 0) / aiScored.length : 0;
 
@@ -96,12 +96,12 @@ export default function TrainingDashboard() {
         <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-100 rounded-xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
           <Award className="w-5 h-5 text-purple-500 mx-auto mb-1" />
           <div className="text-xl font-bold text-purple-600">{badges}</div>
-          <div className="text-xs text-gray-500">Badges (90%+)</div>
+          <div className="text-xs text-gray-500">Badges (80–89%)</div>
         </div>
         <div className="bg-gradient-to-br from-white to-amber-50 border border-amber-100 rounded-xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
           <Trophy className="w-5 h-5 text-amber-500 mx-auto mb-1" />
           <div className="text-xl font-bold text-amber-600">{trophies}</div>
-          <div className="text-xs text-gray-500">Trophies (95%+)</div>
+          <div className="text-xs text-gray-500">Trophies (90%+)</div>
         </div>
         <div className="bg-gradient-to-br from-white to-teal-50 border border-teal-100 rounded-xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
           <Star className="w-5 h-5 text-teal-500 mx-auto mb-1" />
@@ -148,11 +148,11 @@ export default function TrainingDashboard() {
         <div className="flex items-center gap-4 mt-3">
           <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-purple-200 shadow-sm">
             <Award className="w-4 h-4 text-purple-500" />
-            <span className="text-xs font-semibold text-gray-700">Accuracy &gt; 90% → <span className="text-purple-600">Badge</span></span>
+            <span className="text-xs font-semibold text-gray-700">80–89% → <span className="text-purple-600">Badge</span></span>
           </div>
           <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-amber-200 shadow-sm">
             <Trophy className="w-4 h-4 text-amber-500" />
-            <span className="text-xs font-semibold text-gray-700">Accuracy &gt; 95% → <span className="text-amber-600">Trophy</span></span>
+            <span className="text-xs font-semibold text-gray-700">90%+ → <span className="text-amber-600">Trophy</span></span>
           </div>
         </div>
       </div>

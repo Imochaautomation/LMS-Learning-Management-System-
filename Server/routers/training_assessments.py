@@ -584,9 +584,10 @@ def list_assessments_joiner(
             TrainingAttempt.assessment_id == a.id,
             TrainingAttempt.user_id == current_user.id,
         ).all()
-        d["attempt_count"] = len(attempts)
-        d["best_score"] = max((at.score for at in attempts if at.score is not None), default=None)
-        d["passed"] = any(at.passed for at in attempts)
+        evaluated = [at for at in attempts if at.status == "evaluated"]
+        d["attempt_count"] = len(evaluated)
+        d["best_score"] = max((at.score for at in evaluated if at.score is not None), default=None)
+        d["passed"] = any(at.passed for at in evaluated)
         result.append(d)
     return result
 
@@ -828,7 +829,7 @@ def submit_attempt(
     passed = score >= a.pass_threshold
     attempt.score = score
     attempt.passed = passed
-    attempt.trophy_awarded = passed
+    attempt.trophy_awarded = score >= 90
     attempt.ai_feedback = {"overall": overall_feedback}
     attempt.status = "evaluated"
     attempt.evaluated_at = datetime.utcnow()
