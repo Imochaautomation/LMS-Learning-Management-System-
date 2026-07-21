@@ -101,6 +101,50 @@ def _generate_questions(
         else:
             return f"{'Easy' if difficulty == 'Easy' else difficulty} questions test {'direct recall of specific facts' if difficulty == 'Easy' else ('application of concepts' if difficulty == 'Medium' else 'analysis and critical evaluation of concepts')} from the content. Use descriptive/open-ended format (no options).{lang_note}"
 
+    # Build a per-difficulty type mandate that spells out EXACTLY which format each band must use.
+    def _mandate_line(label: str, count: int, t: str) -> str:
+        if count <= 0:
+            return f"- {label}: none requested."
+        fmt = "MCQ (exactly 4 options A/B/C/D, single-letter correct_answer)" if t == "mcq" else "Descriptive (options MUST be null, correct_answer starts with \"Model answer:\")"
+        return f"- All {count} {label} question(s) MUST be {fmt}. No exceptions."
+
+    type_mandate = "\n".join([
+        _mandate_line("Easy", easy_count, easy_type),
+        _mandate_line("Medium", medium_count, medium_type),
+        _mandate_line("Hard", hard_count, hard_type),
+    ])
+
+    # Build example question objects that match the ACTUAL selected type for each band,
+    # so the model mimics the correct format (it copies the example over abstract rules).
+    def _example_obj(order: int, difficulty: str, t: str) -> str:
+        if t == "mcq":
+            return f'''    {{
+      "order_index": {order},
+      "difficulty": "{difficulty}",
+      "question_type": "mcq",
+      "question_text": "Question text here.",
+      "options": ["A. First option here", "B. Second option here", "C. Third option here", "D. Fourth option here"],
+      "correct_answer": "A"
+    }}'''
+        return f'''    {{
+      "order_index": {order},
+      "difficulty": "{difficulty}",
+      "question_type": "descriptive",
+      "question_text": "Question text here.",
+      "options": null,
+      "correct_answer": "Model answer: ..."
+    }}'''
+
+    example_objs = []
+    ex_order = 1
+    if easy_count > 0:
+        example_objs.append(_example_obj(ex_order, "easy", easy_type)); ex_order += 1
+    if medium_count > 0:
+        example_objs.append(_example_obj(ex_order, "medium", medium_type)); ex_order += 1
+    if hard_count > 0:
+        example_objs.append(_example_obj(ex_order, "hard", hard_type)); ex_order += 1
+    example_block = ",\n".join(example_objs)
+
     prompt = f"""You are an expert trainer creating a training assessment based exclusively on the SME Kit content provided below.
 
 Follow these rules strictly:
@@ -123,6 +167,9 @@ ABSOLUTE PROHIBITION — these question types are forbidden and will invalidate 
 - Do NOT generate questions about the document format, file type, or how the content was provided.
 - If the content is too short or unclear to support a question, skip that concept — do not pad with meta-questions.
 
+QUESTION TYPE MANDATE — this is non-negotiable and overrides any pattern you might infer from the examples below:
+{type_mandate}
+
 Before generating questions, identify: (a) the document's actual topic, and (b) four to six specific rules or concepts it covers. Base ALL questions exclusively on those concepts from the content text.
 
 [START OF CONTENT]
@@ -131,33 +178,10 @@ Before generating questions, identify: (a) the document's actual topic, and (b) 
 
 HARD STOP: You must generate EXACTLY {total} questions — {easy_count} Easy + {medium_count} Medium + {hard_count} Hard. Count your questions as you write them. Do NOT write question number {total + 1}. If you reach {total} questions, stop immediately.
 
-Return ONLY valid JSON (no markdown, no explanation, no extra text before or after):
+Return ONLY valid JSON (no markdown, no explanation, no extra text before or after). The example below shows the EXACT format required for each difficulty band in this assessment — follow the question_type shown for each:
 {{
   "questions": [
-    {{
-      "order_index": 1,
-      "difficulty": "easy",
-      "question_type": "mcq",
-      "question_text": "Question text here.",
-      "options": ["A. First option here", "B. Second option here", "C. Third option here", "D. Fourth option here"],
-      "correct_answer": "A"
-    }},
-    {{
-      "order_index": 2,
-      "difficulty": "medium",
-      "question_type": "mcq",
-      "question_text": "The following sentence contains an error based on the guidelines: \\"[example sentence with error].\" Which option correctly fixes it?",
-      "options": ["A. Corrected version here", "B. Another option here", "C. Another option here", "D. Another option here"],
-      "correct_answer": "A"
-    }},
-    {{
-      "order_index": 4,
-      "difficulty": "hard",
-      "question_type": "descriptive",
-      "question_text": "Question text here.",
-      "options": null,
-      "correct_answer": "Model answer: ..."
-    }}
+{example_block}
   ]
 }}
 
