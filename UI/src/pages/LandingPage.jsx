@@ -258,7 +258,7 @@ export default function LandingPage() {
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4">For Roles</p>
               <ul className="space-y-2.5">
-                {['Employees', 'Managers', 'Admins'].map((item) => (
+                {['New Joiners', 'Employees', 'Managers', 'Admins'].map((item) => (
                   <li key={item}>
                     <Link to="/login" className="text-sm text-blue-200/60 hover:text-white transition-colors">{item}</Link>
                   </li>

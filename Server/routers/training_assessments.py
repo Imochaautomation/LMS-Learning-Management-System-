@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from auth import require_role
-from models import User, SmeKit, SmeKitFileV2, TrainingAssessment, TrainingQuestion, TrainingAttempt, TrainingAnswer
+from models import User, SmeKit, SmeKitFileV2, TrainingAssessment, TrainingQuestion, TrainingAttempt, TrainingAnswer, Notification
 from schemas import (
     GenerateAssessmentRequest, TrainingAssessmentOut, TrainingQuestionOut,
     SubmitAttemptRequest, TrainingAttemptOut,
@@ -436,6 +436,14 @@ def generate_assessment(
             correct_answer=qd.get("correct_answer"),
         )
         db.add(q)
+
+    # Notify the new joiner that a quiz has been assigned
+    db.add(Notification(
+        user_id=payload.new_joiner_id,
+        title=f"New Quiz Assigned: {payload.title}",
+        message=f"{current_user.name} assigned you the quiz \"{payload.title}\" ({total} questions). Open AI Quizzes to take it.",
+        type="quiz_assigned",
+    ))
 
     db.commit()
     db.refresh(assessment)
@@ -857,6 +865,17 @@ def submit_attempt(
     attempt.ai_feedback = {"overall": overall_feedback}
     attempt.status = "evaluated"
     attempt.evaluated_at = datetime.utcnow()
+
+    # Notify the manager who created the quiz that the new joiner completed it
+    if a.created_by:
+        result_label = "passed" if passed else "did not pass"
+        db.add(Notification(
+            user_id=a.created_by,
+            title=f"Quiz Completed: {a.title}",
+            message=f"{current_user.name} completed \"{a.title}\" and {result_label} with a score of {round(score)}/100.",
+            type="quiz_completed",
+        ))
+
     db.commit()
     db.refresh(attempt)
     return _attempt_out(attempt)
