@@ -244,13 +244,34 @@ CRITICAL RULES:
 - MCQ: correct only if the user's letter matches the correct_answer letter (case-insensitive). Wrong otherwise — no partial credit for MCQ.
 - Descriptive (question_type = "descriptive" or "written"): partial credit allowed; compare the user's answer against the model answer and use your judgment.
 - score = (correct_count + 0.5 * partial_count) / {total_q} * 100, rounded to 1 decimal.
-- Be constructive and specific in explanations. Reference the actual content from the question."""
+- ai_explanation is REQUIRED for EVERY question and must NEVER be empty — this applies to correct, wrong, and partial answers alike.
+- In ai_explanation, ALWAYS state the correct answer using its full text, not just the option letter. For MCQ, write out the actual option wording (e.g. 'The correct answer is "They" — used when the subject's gender is unspecified.'), NEVER just 'The correct answer is A'.
+- For a wrong answer, briefly explain why the chosen answer is incorrect AND state the full correct answer text. For a correct answer, briefly confirm why it is right.
+- Be constructive and specific. Reference the actual content from the question."""
 
     raw = _call_ai(prompt)
     return _extract_json(raw)
 
 
 # ── Serialisers ──────────────────────────────────────────────────────────────
+
+def _correct_answer_display(q) -> str:
+    """Human-readable correct answer: the full option text for MCQ (not just the
+    letter), or the model answer text for descriptive questions."""
+    raw = (q.correct_answer or "").strip()
+    if q.question_type == "mcq" and q.options:
+        letter = raw[:1].upper()
+        for opt in q.options:
+            o = str(opt).strip()
+            # options look like "A. text" or "A) text"
+            if o[:1].upper() == letter and (len(o) < 2 or o[1] in ".)- "):
+                return o
+        return raw
+    # Descriptive: strip the "Model answer:" prefix for a cleaner display
+    if raw.lower().startswith("model answer:"):
+        return raw[len("model answer:"):].strip()
+    return raw
+
 
 def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=False, generation=None) -> dict:
     d = {
@@ -317,6 +338,7 @@ def _attempt_out(attempt: TrainingAttempt) -> dict:
             a["options"] = ans.question.options
             a["order_index"] = ans.question.order_index
             a["correct_answer"] = ans.question.correct_answer
+            a["correct_answer_text"] = _correct_answer_display(ans.question)
         answers_out.append(a)
     # Sort by order_index so they display in the right sequence
     answers_out.sort(key=lambda x: x.get("order_index", 0))
@@ -837,11 +859,24 @@ def submit_attempt(
         for q in questions:
             user_ans = (answer_map.get(q.id) or "").strip().upper()
             correct = (q.correct_answer or "").strip().upper()
+            correct_text = _correct_answer_display(q)
             if q.question_type == "mcq" and user_ans and correct and user_ans == correct:
                 correct_count += 1
-                evals[q.id] = {"question_id": q.id, "is_correct": True, "ai_flag": "correct", "ai_explanation": ""}
+                evals[q.id] = {
+                    "question_id": q.id, "is_correct": True, "ai_flag": "correct",
+                    "ai_explanation": f"Correct. The right answer is: {correct_text}",
+                }
             elif q.question_type == "mcq":
-                evals[q.id] = {"question_id": q.id, "is_correct": False, "ai_flag": "wrong", "ai_explanation": ""}
+                evals[q.id] = {
+                    "question_id": q.id, "is_correct": False, "ai_flag": "wrong",
+                    "ai_explanation": f"The correct answer is: {correct_text}",
+                }
+            else:
+                # Descriptive — cannot auto-grade; show the model answer for reference
+                evals[q.id] = {
+                    "question_id": q.id, "is_correct": None, "ai_flag": "partial",
+                    "ai_explanation": f"This answer could not be auto-evaluated. Model answer for reference: {correct_text}",
+                }
         score = round((correct_count / total_q) * 100, 1) if total_q > 0 else 0.0
         overall_feedback = "Descriptive answers could not be AI-evaluated at this time. MCQ answers have been auto-graded."
 

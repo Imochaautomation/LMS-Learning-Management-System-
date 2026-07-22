@@ -5,7 +5,6 @@ import api from '../../api/client';
 import { Send, Loader2, User, CheckCircle, ExternalLink, Mic, MicOff, ArrowLeft } from 'lucide-react';
 import { ToastContainer, useToast } from '../../components/shared/Toast';
 
-const MIN_QUESTIONS = 15;
 const MAX_QUESTIONS = 15;
 
 const cleanText = (t) => t.replace(/\*+/g, '').trim();
@@ -44,7 +43,7 @@ export default function ChatbotInterview() {
   const silenceTimerRef = useRef(null);
   const [voiceBars, setVoiceBars] = useState([0, 0, 0, 0, 0]);
 
-  const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI Skill Consultant from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time. After ${MIN_QUESTIONS} questions you can wrap up early.\n\nLet's get started!`;
+  const welcome = `Hi ${user?.name?.split(' ')[0] || 'there'}! I'm Jarvis, your AI Skills Consultant from iMocha.\n\nI'll ask you ${MAX_QUESTIONS} short, focused questions to understand your strengths and find growth opportunities. There are no right or wrong answers — just be honest!\n\nYou can ask me to clarify any question at any time.\n\nLet's get started!`;
 
   const [chatBlocks, setChatBlocks] = useState([]);
   const [input, setInput] = useState('');
@@ -61,7 +60,6 @@ export default function ChatbotInterview() {
   const [viewingSession, setViewingSession] = useState(null);
   const { toasts, removeToast, toast } = useToast();
 
-  const canFinishEarly = questionIndex >= MIN_QUESTIONS && !finished && !awaitingWrapup;
   const progress = Math.min((questionIndex / MAX_QUESTIONS) * 100, 100);
 
   // Cleanup mic + audio context on unmount
@@ -299,10 +297,7 @@ export default function ChatbotInterview() {
           appendMessage({ role: 'bot', text: `That wraps up all ${MAX_QUESTIONS} questions! Before I generate your skill analysis, is there anything you'd like to add or clarify? Just type your response, or click "Finish & Generate Report" when you're ready.` });
           setAwaitingWrapup(true);
         } else {
-          const earlyHint = nextQ === MIN_QUESTIONS
-            ? '\n\n(You can now finish early and get your recommendations, or continue for a deeper analysis.)'
-            : '';
-          appendMessage({ role: 'bot', text: reply + earlyHint });
+          appendMessage({ role: 'bot', text: reply });
         }
       } else {
         appendMessage({ role: 'bot', text: reply });
@@ -346,23 +341,6 @@ export default function ChatbotInterview() {
     if (finalNote) appendMessage({ role: 'user', text: finalNote });
     appendMessage({ role: 'bot', text: 'All done! Generating your personalized skill gap analysis and course recommendations now. This takes a moment.' });
     resetTextarea();
-    setAwaitingWrapup(false);
-    setFinished(true);
-    setLoading(false);
-  };
-
-  const finishEarly = async () => {
-    setLoading(true);
-    try {
-      await api.post('/ai/interview', {
-        question_index: questionIndex,
-        answer: 'I would like to finish the interview now.',
-        total_questions: MAX_QUESTIONS,
-        force_complete: true,
-      });
-    } catch {}
-    appendMessage({ role: 'user', text: "I'd like to finish now and get my recommendations." });
-    appendMessage({ role: 'bot', text: `You've answered ${questionIndex} questions — that's a solid foundation. Generating your skill analysis now!` });
     setAwaitingWrapup(false);
     setFinished(true);
     setLoading(false);
@@ -493,18 +471,12 @@ export default function ChatbotInterview() {
             </button>
             <img src="/jarvis-avatar.png" alt="Jarvis" className="w-12 h-12 rounded-2xl object-cover shadow-inner" />
             <div>
-              <h1 className="text-lg font-bold">Jarvis · AI Skill Consultant</h1>
+              <h1 className="text-lg font-bold">Jarvis · AI Skills Consultant</h1>
               <p className="text-orange-100 text-sm">
                 {awaitingWrapup ? 'Wrapping up — confirm to finish' : finished ? 'Interview complete' : `${questionIndex} of ${MAX_QUESTIONS} answered`}
               </p>
             </div>
           </div>
-          {canFinishEarly && (
-            <button onClick={finishEarly}
-              className="text-xs px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors font-medium">
-              Finish Early
-            </button>
-          )}
         </div>
         <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
           <div className="h-full bg-white/80 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
