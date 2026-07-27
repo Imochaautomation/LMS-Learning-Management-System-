@@ -14,7 +14,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-4">
             <img src="/logoimocha.png" alt="iMocha" className="h-10 w-auto" />
             <div className="h-6 w-px bg-gray-200" />
-            <span className="text-sm font-bold tracking-widest uppercase" style={{ color: NAVY, letterSpacing: '0.08em' }}>AI Learning Space</span>
+            <span className="text-sm font-bold tracking-widest uppercase" style={{ color: NAVY, letterSpacing: '0.08em' }}>AI Skill Navigator</span>
           </div>
           <div className="flex items-center gap-4">
             <Link to="/login" className="text-base font-medium text-gray-500 hover:text-gray-900 px-5 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">

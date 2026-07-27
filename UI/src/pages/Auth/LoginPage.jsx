@@ -60,7 +60,7 @@ export default function LoginPage() {
         <div className="relative flex items-center gap-2">
           <img src="/logoimocha.png" alt="iMocha" className="h-8 w-auto" style={{ filter: 'brightness(0) invert(1)' }} />
           <div className="h-5 w-px bg-white/20 mx-1" />
-          <span className="text-white/60 text-xs font-semibold tracking-wide uppercase">AI Learning Space</span>
+          <span className="text-white/60 text-xs font-semibold tracking-wide uppercase">AI Skill Navigator</span>
         </div>
 
         {/* Hero copy */}

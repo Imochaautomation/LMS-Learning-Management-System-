@@ -9,3 +9,4 @@ from routers.ai_recommend import router as ai_recommend_router
 from routers.notifications import router as notifications_router
 from routers.training_smekit import router as training_smekit_router
 from routers.training_assessments import router as training_assessments_router
+from routers.analytics import router as analytics_router

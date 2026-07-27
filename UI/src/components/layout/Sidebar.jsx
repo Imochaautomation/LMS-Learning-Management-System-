@@ -5,7 +5,7 @@ import { useNavigationGuard } from '../../context/NavigationGuardContext';
 import { ShieldAlert } from 'lucide-react';
 import {
   Home, BookOpen, FileText, GraduationCap, Users, LogOut,
-  UserCircle, FolderOpen, UserPlus, ChevronRight, Brain
+  UserCircle, FolderOpen, UserPlus, ChevronRight, Brain, BarChart2
 } from 'lucide-react';
 
 const NAVY = '#1E1040';
@@ -35,22 +35,26 @@ export default function Sidebar() {
       { to: '/training', label: 'Dashboard', icon: Home },
       { to: '/training/sme-kit', label: 'SME Training Kit', icon: BookOpen },
       { to: '/training/ai-assessments', label: 'AI Quizzes', icon: Brain },
+      { to: '/training/analytics', label: 'Analytics', icon: BarChart2 },
     ];
   } else if (user.role === 'employee') {
     items = [
       { to: '/upskilling', label: 'Dashboard', icon: Home },
       { to: '/upskilling/courses', label: 'My Courses', icon: GraduationCap },
       { to: '/upskilling/profile', label: 'My Profile', icon: UserCircle },
+      { to: '/upskilling/analytics', label: 'Analytics', icon: BarChart2 },
     ];
   } else if (user.role === 'manager') {
     items = [
       { to: '/manager?tab=learners', label: 'Learners', icon: Users },
       { to: '/manager/sme-kits', label: 'SME Kits', icon: BookOpen },
+      { to: '/manager/analytics', label: 'Analytics', icon: BarChart2 },
     ];
   } else if (user.role === 'admin') {
     items = [
       { to: '/admin', label: 'Overview', icon: Home },
       { to: '/admin/users', label: 'Users', icon: Users },
+      { to: '/admin/analytics', label: 'Analytics', icon: BarChart2 },
     ];
   }
 
@@ -84,7 +88,7 @@ export default function Sidebar() {
       <div className="px-5 pt-6 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <img src="/logoimocha.png" alt="iMocha" className="h-8 w-auto mb-3" style={{ filter: 'brightness(0) invert(1)' }} />
         <p className="text-xs font-medium tracking-wider uppercase" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>
-          AI Learning Space
+          AI Skill Navigator
         </p>
       </div>
 

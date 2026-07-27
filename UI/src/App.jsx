@@ -20,6 +20,10 @@ import LearnerDetail from './pages/Manager/LearnerDetail';
 import SmeKitManager from './pages/Manager/SmeKitManager';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import UserManagement from './pages/Admin/UserManagement';
+import ManagerAnalytics from './pages/Analytics/ManagerAnalytics';
+import AdminAnalytics from './pages/Analytics/AdminAnalytics';
+import EmployeeAnalytics from './pages/Analytics/EmployeeAnalytics';
+import NewJoinerAnalytics from './pages/Analytics/NewJoinerAnalytics';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -53,6 +57,7 @@ export default function App() {
             <Route path="/training/courses" element={<TrainingCourses />} />
             <Route path="/training/ai-assessments" element={<AIAssessments />} />
             <Route path="/training/ai-assessments/:assessmentId" element={<TrainingAssessmentForm />} />
+            <Route path="/training/analytics" element={<NewJoinerAnalytics />} />
           </Route>
 
           <Route element={
@@ -64,6 +69,7 @@ export default function App() {
             <Route path="/upskilling/courses" element={<UpskillCourses />} />
             <Route path="/upskilling/profile" element={<ProfileSetup />} />
             <Route path="/upskilling/interview" element={<ChatbotInterview />} />
+            <Route path="/upskilling/analytics" element={<EmployeeAnalytics />} />
           </Route>
 
           <Route element={
@@ -74,6 +80,7 @@ export default function App() {
             <Route path="/manager" element={<ManagerDashboard />} />
             <Route path="/manager/learner/:id" element={<LearnerDetail />} />
             <Route path="/manager/sme-kits" element={<SmeKitManager />} />
+            <Route path="/manager/analytics" element={<ManagerAnalytics />} />
           </Route>
 
           <Route element={
@@ -83,6 +90,7 @@ export default function App() {
           }>
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<UserManagement />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
