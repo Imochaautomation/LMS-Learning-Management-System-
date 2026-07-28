@@ -18,22 +18,10 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="LMS Platform API", version="2.0.0")
 
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "https://ailearningspace.up.railway.app",  # production frontend
-]
-# Also allow any extra origins set via FRONTEND_URL env var (comma-separated)
-for _url in os.getenv("FRONTEND_URL", "").split(","):
-    _url = _url.strip().rstrip("/")
-    if _url and _url not in origins:
-        origins.append(_url)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -596,7 +596,7 @@ export default function UpskillDashboard() {
           ) : (
             <>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Step 2: AI Skill Assessment Interview</h2>
-              <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">Complete a 10-question interview with our AI. It will analyze your skills, identify gaps, and recommend personalized courses.</p>
+              <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">Complete a 15-question interview with our AI. It will analyze your skills, identify gaps, and recommend personalized courses.</p>
               <button onClick={() => navigate('/upskilling/interview')} className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 text-white font-semibold rounded-xl hover:bg-violet-700 shadow-lg shadow-violet-200 transition-all">
                 <Bot className="w-5 h-5" /> Start AI Interview →
               </button>

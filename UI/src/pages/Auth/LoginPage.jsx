@@ -79,7 +79,7 @@ export default function LoginPage() {
 
           <div className="space-y-4">
             {[
-              { icon: Brain,    color: ORANGE,    bg: 'rgba(240,90,40,0.15)',  label: 'AI Interview Engine',   sub: 'Adaptive 10-question skill assessment' },
+              { icon: Brain,    color: ORANGE,    bg: 'rgba(240,90,40,0.15)',  label: 'AI Interview Engine',   sub: 'Adaptive 15-question skill assessment' },
               { icon: BarChart3, color: '#A78BFA', bg: 'rgba(167,139,250,0.15)', label: 'Skill Gap Analysis',    sub: 'Visual reports with learning roadmaps' },
               { icon: BookOpen, color: '#38BDF8',  bg: 'rgba(56,189,248,0.15)', label: 'Personalized Courses',  sub: 'AI-matched to your specific gaps' },
             ].map(({ icon: Icon, color, bg, label, sub }) => (
