@@ -54,6 +54,16 @@ def _gap_severity(avg):
     return "Low"
 
 
+# Sub-departments that roll up into a parent department
+_DEPT_PARENT = {
+    "Editing": "Content",
+}
+
+def _norm_dept(dept):
+    """Normalize sub-department names to their parent department."""
+    return _DEPT_PARENT.get(dept or "Unknown", dept or "Unknown")
+
+
 def _aggregate_skills(sessions):
     """Return {skill: [scores]} from a list of InterviewSessions."""
     totals: dict = defaultdict(list)
@@ -305,32 +315,36 @@ def admin_analytics(
     for u in all_users:
         role_counts[u.role] += 1
 
-    # Department comparison
+    # Department comparison (normalize sub-depts to parent)
     dept_users: dict = defaultdict(int)
     for u in all_users:
-        dept_users[u.department or "Unknown"] += 1
+        dept_users[_norm_dept(u.department)] += 1
 
-    dept_courses = {
-        (r[0] or "Unknown"): r[1]
-        for r in db.query(User.department, func.count(UserCourse.id))
+    # Raw dept → metric counts, then re-key through normalizer
+    def _norm_counts(rows):
+        result: dict = defaultdict(int)
+        for raw_dept, cnt in rows:
+            result[_norm_dept(raw_dept)] += cnt
+        return result
+
+    dept_courses = _norm_counts(
+        db.query(User.department, func.count(UserCourse.id))
         .join(UserCourse, UserCourse.user_id == User.id)
         .filter(UserCourse.status == "completed")
         .group_by(User.department).all()
-    }
-    dept_interviews = {
-        (r[0] or "Unknown"): r[1]
-        for r in db.query(User.department, func.count(InterviewSession.id))
+    )
+    dept_interviews = _norm_counts(
+        db.query(User.department, func.count(InterviewSession.id))
         .join(InterviewSession, InterviewSession.user_id == User.id)
         .filter(InterviewSession.status == "completed")
         .group_by(User.department).all()
-    }
-    dept_passed_map = {
-        (r[0] or "Unknown"): r[1]
-        for r in db.query(User.department, func.count(TrainingAttempt.id))
+    )
+    dept_passed_map = _norm_counts(
+        db.query(User.department, func.count(TrainingAttempt.id))
         .join(TrainingAttempt, TrainingAttempt.user_id == User.id)
         .filter(TrainingAttempt.passed == True)
         .group_by(User.department).all()
-    }
+    )
 
     dept_comparison = sorted(
         [

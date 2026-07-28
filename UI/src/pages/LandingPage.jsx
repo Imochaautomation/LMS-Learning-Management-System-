@@ -237,7 +237,7 @@ export default function LandingPage() {
             <div className="md:col-span-2">
               <img src="/logoimocha.png" alt="iMocha" className="h-8 w-auto mb-4" style={{ filter: 'brightness(0) invert(1)' }} />
               <p className="text-sm text-blue-200/70 leading-relaxed max-w-xs mb-5">
-                The AI-powered skills intelligence platform for smarter workforce decisions — continuous upskilling, skill visibility, and business agility.
+                The AI Skill Navigator platform for smarter workforce decisions — continuous upskilling, skill visibility, and business agility.
               </p>
               <p className="text-xs font-bold uppercase tracking-widest" style={{ color: ORANGE }}>Skills Visibility. Business Agility.</p>
             </div>
