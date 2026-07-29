@@ -425,7 +425,8 @@ export default function UpskillDashboard() {
   const [sessionId, setSessionId] = useState(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState(null);
-  const [leaderboard, setLeaderboard] = useState([]);
+  const [topTrophies, setTopTrophies] = useState([]);
+  const [topBadges, setTopBadges] = useState([]);
 
   const fetchAnalysis = () =>
     api.get('/ai/skill-analysis').then((data) => {
@@ -445,7 +446,7 @@ export default function UpskillDashboard() {
       api.get('/profile/me').then(setProfile).catch(() => setProfile(null)),
       fetchAnalysis(),
       api.get('/courses/my').then(setCourses).catch(() => setCourses([])),
-      api.get('/analytics/leaderboard/team').then(d => setLeaderboard(d.leaderboard || [])).catch(() => {}),
+      api.get('/analytics/leaderboard/team').then(d => { setTopTrophies(d.top_trophies || []); setTopBadges(d.top_badges || []); }).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -510,6 +511,26 @@ export default function UpskillDashboard() {
         <h1 className="text-2xl font-bold">Welcome, {user?.name}! 🚀</h1>
         <p className="text-orange-100 text-sm mt-1">Your upskilling journey — follow the steps below to get started!</p>
         {user?.manager_name && <p className="text-orange-200 text-xs mt-2">Manager: {user.manager_name}</p>}
+        {(topTrophies.length > 0 || topBadges.length > 0) && (
+          <div className="mt-4 pt-3 border-t border-white/20 grid grid-cols-2 gap-x-6 gap-y-1">
+            <div>
+              <p className="text-[11px] font-semibold text-white/60 mb-1.5 uppercase tracking-wide">🏆 Top Trophies</p>
+              {topTrophies.map((m, i) => (
+                <p key={m.id} className="text-xs text-white/90 leading-5">
+                  {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-semibold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.trophies}
+                </p>
+              ))}
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-white/60 mb-1.5 uppercase tracking-wide">🏅 Top Badges</p>
+              {topBadges.map((m, i) => (
+                <p key={m.id} className="text-xs text-white/90 leading-5">
+                  {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-semibold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.badges}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Step Progress */}
@@ -554,38 +575,6 @@ export default function UpskillDashboard() {
           ))}
         </div>
       </div>
-
-      {/* Team Leaderboard */}
-      {leaderboard.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h2 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-            🏆 Team Leaderboard — Top Earners
-            <span className="text-xs text-gray-400 font-normal ml-auto">Encourage your peers!</span>
-          </h2>
-          <div className="space-y-2">
-            {leaderboard.map((member, i) => (
-              <div key={member.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${member.is_self ? 'bg-orange-50 border border-orange-200' : 'bg-gray-50'}`}>
-                <span className="text-xl shrink-0">{['🥇', '🥈', '🥉'][i]}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">
-                    {member.name}
-                    {member.is_self && <span className="ml-2 text-xs font-normal" style={{ color: '#F05A28' }}>(You)</span>}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
-                    <Trophy className="w-3.5 h-3.5" /> {member.trophies}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-lg">
-                    <Award className="w-3.5 h-3.5" /> {member.badges}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-[10px] text-gray-400 mt-3">🏆 Trophies = courses completed &nbsp;·&nbsp; 🏅 Badges = courses in progress</p>
-        </div>
-      )}
 
       {currentStep === 1 && (
         <div className="border-2 rounded-2xl p-8 text-center" style={{ background: 'rgba(240,90,40,0.04)', borderColor: 'rgba(240,90,40,0.3)' }}>

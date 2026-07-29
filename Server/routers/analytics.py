@@ -821,5 +821,6 @@ def team_leaderboard(
                 "is_self": uid == current_user.id,
             })
 
-    leaderboard.sort(key=lambda x: (-x["trophies"], -x["badges"], x["name"]))
-    return {"leaderboard": leaderboard[:3], "role_type": current_user.role}
+    top_trophies = sorted(leaderboard, key=lambda x: (-x["trophies"], x["name"]))[:3]
+    top_badges   = sorted(leaderboard, key=lambda x: (-x["badges"],   x["name"]))[:3]
+    return {"top_trophies": top_trophies, "top_badges": top_badges, "role_type": current_user.role}
