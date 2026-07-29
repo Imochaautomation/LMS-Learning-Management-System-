@@ -18,6 +18,7 @@ import ChatbotInterview from './pages/Upskilling/ChatbotInterview';
 import ManagerDashboard from './pages/Manager/ManagerDashboard';
 import LearnerDetail from './pages/Manager/LearnerDetail';
 import SmeKitManager from './pages/Manager/SmeKitManager';
+import ManagerQuizzes from './pages/Manager/ManagerQuizzes';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import UserManagement from './pages/Admin/UserManagement';
 import ManagerAnalytics from './pages/Analytics/ManagerAnalytics';
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="/manager" element={<ManagerDashboard />} />
             <Route path="/manager/learner/:id" element={<LearnerDetail />} />
             <Route path="/manager/sme-kits" element={<SmeKitManager />} />
+            <Route path="/manager/quizzes" element={<ManagerQuizzes />} />
             <Route path="/manager/analytics" element={<ManagerAnalytics />} />
           </Route>
 

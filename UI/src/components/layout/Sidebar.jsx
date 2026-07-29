@@ -5,7 +5,7 @@ import { useNavigationGuard } from '../../context/NavigationGuardContext';
 import { ShieldAlert } from 'lucide-react';
 import {
   Home, BookOpen, FileText, GraduationCap, Users, LogOut,
-  UserCircle, FolderOpen, UserPlus, ChevronRight, Brain, BarChart2
+  UserCircle, FolderOpen, UserPlus, ChevronRight, Brain, BarChart2, ClipboardList
 } from 'lucide-react';
 
 const NAVY = '#1E1040';
@@ -48,6 +48,7 @@ export default function Sidebar() {
     items = [
       { to: '/manager?tab=learners', label: 'Learners', icon: Users },
       { to: '/manager/sme-kits', label: 'SME Kits', icon: BookOpen },
+      { to: '/manager/quizzes', label: 'Quizzes', icon: ClipboardList },
       { to: '/manager/analytics', label: 'Analytics', icon: BarChart2 },
     ];
   } else if (user.role === 'admin') {

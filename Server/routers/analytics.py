@@ -745,3 +745,81 @@ def new_joiner_analytics(
         "timeline":          timeline[-20:],
         "insights":          insights,
     }
+
+
+# ── Team Leaderboard ──────────────────────────────────────────────────────────
+
+@router.get("/leaderboard/team")
+def team_leaderboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("new_joiner", "employee")),
+):
+    """Top 3 badge/trophy earners on the current user's team (same manager, same role)."""
+    if not current_user.manager_id:
+        return {"leaderboard": [], "role_type": current_user.role}
+
+    teammates = (
+        db.query(User)
+        .filter(
+            User.manager_id == current_user.manager_id,
+            User.role == current_user.role,
+        )
+        .all()
+    )
+    if not teammates:
+        return {"leaderboard": [], "role_type": current_user.role}
+
+    team_ids = [u.id for u in teammates]
+    user_map = {u.id: u for u in teammates}
+    leaderboard = []
+
+    if current_user.role == "new_joiner":
+        # Trophies = quizzes scored 90%+, Badges = quizzes scored 80–89%
+        attempts = (
+            db.query(TrainingAttempt)
+            .filter(
+                TrainingAttempt.user_id.in_(team_ids),
+                TrainingAttempt.status == "evaluated",
+            )
+            .all()
+        )
+        best_per: dict = defaultdict(dict)
+        for a in attempts:
+            if a.score is not None:
+                prev = best_per[a.user_id].get(a.assessment_id)
+                if prev is None or a.score > prev:
+                    best_per[a.user_id][a.assessment_id] = a.score
+        for uid in team_ids:
+            u = user_map[uid]
+            scores = list(best_per.get(uid, {}).values())
+            trophies = sum(1 for s in scores if s >= 90)
+            badges   = sum(1 for s in scores if 80 <= s < 90)
+            leaderboard.append({
+                "id": uid, "name": u.name, "role": u.role,
+                "trophies": trophies, "badges": badges,
+                "is_self": uid == current_user.id,
+            })
+    else:
+        # Employee: trophies = completed courses, badges = started courses
+        courses = (
+            db.query(UserCourse)
+            .filter(UserCourse.user_id.in_(team_ids))
+            .all()
+        )
+        course_map: dict = defaultdict(lambda: {"trophies": 0, "badges": 0})
+        for c in courses:
+            if c.status == "completed":
+                course_map[c.user_id]["trophies"] += 1
+            elif c.status == "started":
+                course_map[c.user_id]["badges"] += 1
+        for uid in team_ids:
+            u = user_map[uid]
+            cm = course_map[uid]
+            leaderboard.append({
+                "id": uid, "name": u.name, "role": u.role,
+                "trophies": cm["trophies"], "badges": cm["badges"],
+                "is_self": uid == current_user.id,
+            })
+
+    leaderboard.sort(key=lambda x: (-x["trophies"], -x["badges"], x["name"]))
+    return {"leaderboard": leaderboard[:3], "role_type": current_user.role}

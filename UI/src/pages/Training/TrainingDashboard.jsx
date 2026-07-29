@@ -8,12 +8,14 @@ export default function TrainingDashboard() {
   const { user } = useAuth();
   const [assessments, setAssessments] = useState([]);
   const [aiAssessments, setAiAssessments] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       api.get('/assessments/my').catch(() => []),
       api.get('/training/assessments/mine').catch(() => []),
+      api.get('/analytics/leaderboard/team').then(d => setLeaderboard(d.leaderboard || [])).catch(() => {}),
     ]).then(([fileAssessments, aiQuizzes]) => {
       setAssessments(fileAssessments);
       setAiAssessments(aiQuizzes);
@@ -109,6 +111,38 @@ export default function TrainingDashboard() {
           <div className="text-xs text-gray-500">Avg Accuracy</div>
         </div>
       </div>
+
+      {/* Team Leaderboard */}
+      {leaderboard.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h2 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+            🏆 Team Leaderboard — Top Earners
+            <span className="text-xs text-gray-400 font-normal ml-auto">Encourage your peers!</span>
+          </h2>
+          <div className="space-y-2">
+            {leaderboard.map((member, i) => (
+              <div key={member.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${member.is_self ? 'bg-teal-50 border border-teal-200' : 'bg-gray-50'}`}>
+                <span className="text-xl shrink-0">{['🥇', '🥈', '🥉'][i]}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {member.name}
+                    {member.is_self && <span className="ml-2 text-xs text-teal-600 font-normal">(You)</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
+                    <Trophy className="w-3.5 h-3.5" /> {member.trophies}
+                  </span>
+                  <span className="flex items-center gap-1 text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-lg">
+                    <Award className="w-3.5 h-3.5" /> {member.badges}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-400 mt-3">🏆 Trophies = 90%+ score &nbsp;·&nbsp; 🏅 Badges = 80–89% score</p>
+        </div>
+      )}
 
       {/* Training Journey */}
       <div className="bg-white border border-gray-200 rounded-xl p-6">
