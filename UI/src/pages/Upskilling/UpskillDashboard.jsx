@@ -502,30 +502,34 @@ export default function UpskillDashboard() {
   return (
     <div className="space-y-6">
       {/* Hero */}
-      <div className="rounded-2xl p-6 text-white" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-2xl">{level.emoji}</span>
-          <span className="text-sm font-medium bg-white/20 px-3 py-1 rounded-full">{level.title}</span>
-          <span className="text-sm bg-amber-400/30 px-2 py-0.5 rounded-full">🏆 {completed.length} Trophies</span>
+      <div className="rounded-2xl p-6 text-white flex items-start justify-between gap-4" style={{ background: 'linear-gradient(to right, #F05A28, #c2410c)' }}>
+        {/* Left — welcome text */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">{level.emoji}</span>
+            <span className="text-sm font-medium bg-white/20 px-3 py-1 rounded-full">{level.title}</span>
+            <span className="text-sm bg-amber-400/30 px-2 py-0.5 rounded-full">🏆 {completed.length} Trophies</span>
+          </div>
+          <h1 className="text-2xl font-bold">Welcome, {user?.name}! 🚀</h1>
+          <p className="text-orange-100 text-sm mt-1">Your upskilling journey — follow the steps below to get started!</p>
+          {user?.manager_name && <p className="text-orange-200 text-xs mt-2">Manager: {user.manager_name}</p>}
         </div>
-        <h1 className="text-2xl font-bold">Welcome, {user?.name}! 🚀</h1>
-        <p className="text-orange-100 text-sm mt-1">Your upskilling journey — follow the steps below to get started!</p>
-        {user?.manager_name && <p className="text-orange-200 text-xs mt-2">Manager: {user.manager_name}</p>}
+        {/* Right — leaderboard */}
         {(topTrophies.length > 0 || topBadges.length > 0) && (
-          <div className="mt-4 pt-3 border-t border-white/20 grid grid-cols-2 gap-x-6 gap-y-1">
+          <div className="shrink-0 hidden sm:grid grid-cols-2 gap-x-5 gap-y-1 border-l border-white/20 pl-5">
             <div>
-              <p className="text-[11px] font-semibold text-white/60 mb-1.5 uppercase tracking-wide">🏆 Top Trophies</p>
+              <p className="text-[10px] font-semibold text-white/55 mb-1.5 uppercase tracking-wide">🏆 Top Trophies</p>
               {topTrophies.map((m, i) => (
-                <p key={m.id} className="text-xs text-white/90 leading-5">
-                  {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-semibold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.trophies}
+                <p key={m.id} className="text-xs text-white/90 leading-5 whitespace-nowrap">
+                  {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-bold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.trophies}
                 </p>
               ))}
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-white/60 mb-1.5 uppercase tracking-wide">🏅 Top Badges</p>
+              <p className="text-[10px] font-semibold text-white/55 mb-1.5 uppercase tracking-wide">🏅 Top Badges</p>
               {topBadges.map((m, i) => (
-                <p key={m.id} className="text-xs text-white/90 leading-5">
-                  {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-semibold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.badges}
+                <p key={m.id} className="text-xs text-white/90 leading-5 whitespace-nowrap">
+                  {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-bold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.badges}
                 </p>
               ))}
             </div>

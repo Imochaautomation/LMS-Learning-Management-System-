@@ -75,12 +75,11 @@ export default function TrainingDashboard() {
   return (
     <div className="space-y-6">
       {/* Hero — Deep Teal gradient */}
-      <div className="bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-800 rounded-2xl p-6 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -translate-y-16 translate-x-16" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-400/10 rounded-full translate-y-10 -translate-x-10" />
-        <div className="absolute top-6 right-24 w-2 h-2 bg-amber-400/60 rounded-full" />
-        <div className="absolute top-14 right-40 w-1.5 h-1.5 bg-teal-300/40 rounded-full" />
-        <div className="relative">
+      <div className="bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-800 rounded-2xl p-6 text-white relative overflow-hidden flex items-start justify-between gap-4">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -translate-y-16 translate-x-16 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-400/10 rounded-full translate-y-10 -translate-x-10 pointer-events-none" />
+        {/* Left — welcome text */}
+        <div className="relative flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-sm font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">🌱 New Joiner</span>
             <span className="text-sm bg-purple-400/25 px-2.5 py-0.5 rounded-full">🏅 {badges} Badges</span>
@@ -91,27 +90,28 @@ export default function TrainingDashboard() {
           {user?.manager_name && (
             <p className="text-teal-200/70 text-xs mt-2">🧑‍💼 Manager: {user.manager_name}</p>
           )}
-          {(topTrophies.length > 0 || topBadges.length > 0) && (
-            <div className="mt-4 pt-3 border-t border-white/20 grid grid-cols-2 gap-x-6 gap-y-1">
-              <div>
-                <p className="text-[11px] font-semibold text-white/60 mb-1.5 uppercase tracking-wide">🏆 Top Trophies</p>
-                {topTrophies.map((m, i) => (
-                  <p key={m.id} className="text-xs text-white/90 leading-5">
-                    {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-semibold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.trophies}
-                  </p>
-                ))}
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold text-white/60 mb-1.5 uppercase tracking-wide">🏅 Top Badges</p>
-                {topBadges.map((m, i) => (
-                  <p key={m.id} className="text-xs text-white/90 leading-5">
-                    {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-semibold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.badges}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+        {/* Right — leaderboard */}
+        {(topTrophies.length > 0 || topBadges.length > 0) && (
+          <div className="relative shrink-0 hidden sm:grid grid-cols-2 gap-x-5 gap-y-1 border-l border-white/20 pl-5">
+            <div>
+              <p className="text-[10px] font-semibold text-white/55 mb-1.5 uppercase tracking-wide">🏆 Top Trophies</p>
+              {topTrophies.map((m, i) => (
+                <p key={m.id} className="text-xs text-white/90 leading-5 whitespace-nowrap">
+                  {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-bold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.trophies}
+                </p>
+              ))}
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold text-white/55 mb-1.5 uppercase tracking-wide">🏅 Top Badges</p>
+              {topBadges.map((m, i) => (
+                <p key={m.id} className="text-xs text-white/90 leading-5 whitespace-nowrap">
+                  {['🥇','🥈','🥉'][i]} <span className={m.is_self ? 'font-bold' : ''}>{m.name}{m.is_self ? ' (You)' : ''}</span> — {m.badges}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stats Strip */}
