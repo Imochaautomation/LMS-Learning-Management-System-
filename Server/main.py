@@ -16,8 +16,9 @@ from config import UPLOAD_DIR
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="LMS Platform API", version="2.0.0")
+app = FastAPI(title="LMS Platform API", version="2.6.0")
 
+# Open CORS — JWT is sent as Bearer header, not a cookie, so credentials=False is correct.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,7 +48,7 @@ app.include_router(analytics_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "2.0.0"}
+    return {"status": "ok", "version": "2.6.0"}
 
 
 @app.on_event("startup")
