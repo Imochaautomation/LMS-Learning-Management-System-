@@ -57,7 +57,9 @@ export default function ProfileSetup() {
   const update = (field) => (e) => { setForm((f) => ({ ...f, [field]: e.target.value })); setSaved(false); setErrors((p) => ({ ...p, [field]: '' })); };
   const step1Ok = form.name.trim().length >= 2 && form.designation.trim().length >= 2 && form.experience;
   const step2Ok = form.summary.trim().length > 20;
-  const allFilled = step1Ok && step2Ok && form.goals.trim().length >= 10;
+  const goalsWordCount = form.goals.trim() ? form.goals.trim().split(/\s+/).filter(Boolean).length : 0;
+  const goalsMinWords = 30;
+  const allFilled = step1Ok && step2Ok && goalsWordCount >= goalsMinWords;
 
   const tryNextStep = (from) => {
     const errs = {};
@@ -81,7 +83,7 @@ export default function ProfileSetup() {
     e.preventDefault();
     const errs = {};
     if (!form.goals.trim()) errs.goals = 'Please describe your learning goals';
-    else if (form.goals.trim().length < 10) errs.goals = 'Please write at least 10 characters';
+    else if (goalsWordCount < goalsMinWords) errs.goals = `Please write at least ${goalsMinWords} words (you have ${goalsWordCount})`;
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
     setSaving(true);
@@ -323,9 +325,14 @@ export default function ProfileSetup() {
               <textarea value={form.goals} onChange={update('goals')} rows={4}
                 className={`w-full px-4 py-3 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-400 resize-none transition-all ${errors.goals ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
                 placeholder="What skills do you want to learn? What are your career aspirations? Any domain you're curious about..." />
-              {errors.goals
-                ? <p className="text-xs text-red-500 mt-1.5">{errors.goals}</p>
-                : <p className="text-xs text-gray-400 mt-1.5">Not restricted to your current role — explore any domain!</p>}
+              <div className="flex items-center justify-between mt-1.5">
+                {errors.goals
+                  ? <p className="text-xs text-red-500">{errors.goals}</p>
+                  : <p className="text-xs text-gray-400">Not restricted to your current role — explore any domain!</p>}
+                <p className={`text-xs font-medium shrink-0 ml-2 ${goalsWordCount >= goalsMinWords ? 'text-emerald-600' : goalsWordCount > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                  {goalsWordCount} / {goalsMinWords} words min
+                </p>
+              </div>
             </div>
 
             {/* Resume Upload */}

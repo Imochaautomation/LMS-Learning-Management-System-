@@ -48,7 +48,7 @@ export default function Sidebar() {
     items = [
       { to: '/manager?tab=learners', label: 'Learners', icon: Users },
       { to: '/manager/sme-kits', label: 'SME Kits', icon: BookOpen },
-      { to: '/manager/quizzes', label: 'Quizzes', icon: ClipboardList },
+      { to: '/manager/quizzes', label: 'AI Quizzes', icon: ClipboardList },
       { to: '/manager/analytics', label: 'Analytics', icon: BarChart2 },
     ];
   } else if (user.role === 'admin') {

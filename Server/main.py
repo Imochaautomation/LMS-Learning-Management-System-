@@ -224,6 +224,21 @@ def startup():
         except Exception:
             pass
 
+    # Make creator/uploader columns nullable so deleting a user doesn't cascade-fail (v2.6)
+    if "sqlite" not in db_url_str:
+        for stmt in [
+            "ALTER TABLE sme_kits ALTER COLUMN created_by DROP NOT NULL",
+            "ALTER TABLE sme_kit_files_v2 ALTER COLUMN uploaded_by DROP NOT NULL",
+            "ALTER TABLE training_assessments ALTER COLUMN created_by DROP NOT NULL",
+            "ALTER TABLE training_assessments ALTER COLUMN new_joiner_id DROP NOT NULL",
+        ]:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(stmt))
+                    conn.commit()
+            except Exception:
+                pass
+
     # Create training module tables (v2.2) — create_all handles new tables but not column additions
     Base.metadata.create_all(bind=engine)
 

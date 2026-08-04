@@ -946,3 +946,42 @@ def get_attempt(
     if current_user.role == "new_joiner" and attempt.user_id != current_user.id:
         raise HTTPException(403, "Not your attempt")
     return _attempt_out(attempt)
+
+
+@router.post("/assessments/{assessment_id}/request-attempt")
+def request_new_attempt(
+    assessment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("new_joiner")),
+):
+    """New joiner requests a new attempt after exhausting the 3-attempt limit."""
+    a = db.query(TrainingAssessment).filter(
+        TrainingAssessment.id == assessment_id,
+        TrainingAssessment.new_joiner_id == current_user.id,
+    ).first()
+    if not a:
+        raise HTTPException(404, "Assessment not found")
+
+    evaluated = db.query(TrainingAttempt).filter(
+        TrainingAttempt.assessment_id == assessment_id,
+        TrainingAttempt.user_id == current_user.id,
+        TrainingAttempt.status == "evaluated",
+    ).all()
+    has_passed = any(at.passed for at in evaluated)
+    if has_passed:
+        raise HTTPException(400, "You have already passed this assessment")
+    if len(evaluated) < 3:
+        raise HTTPException(400, "You have not yet used all 3 attempts")
+
+    # Notify the manager
+    if current_user.manager_id:
+        notif = Notification(
+            user_id=current_user.manager_id,
+            title="New Attempt Request",
+            message=f"{current_user.name} has used all 3 attempts on '{a.title}' without passing and is requesting a new attempt.",
+            type="warning",
+        )
+        db.add(notif)
+        db.commit()
+
+    return {"ok": True, "message": "Request sent to your manager."}

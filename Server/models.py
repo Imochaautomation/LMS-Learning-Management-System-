@@ -171,7 +171,7 @@ class SmeKit(Base):
     description = Column(Text, nullable=True)
     department = Column(String(100), nullable=True)
     sub_department = Column(String(100), nullable=True)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=_now)
 
     creator = relationship("User", foreign_keys=[created_by])
@@ -189,7 +189,7 @@ class SmeKitFileV2(Base):
     file_path = Column(String(500), nullable=True)   # for uploaded files
     youtube_url = Column(String(500), nullable=True) # for YouTube links
     transcript = Column(Text, nullable=True)         # extracted/uploaded transcript
-    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=_now)
 
     kit = relationship("SmeKit", back_populates="files")
@@ -217,8 +217,8 @@ class TrainingAssessment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(300), nullable=False)
-    new_joiner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    new_joiner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     sme_kit_id = Column(Integer, ForeignKey("sme_kits.id"), nullable=True)
     source_file_ids = Column(JSON, default=list)  # list of SmeKitFileV2 ids used
     total_questions = Column(Integer, default=10)

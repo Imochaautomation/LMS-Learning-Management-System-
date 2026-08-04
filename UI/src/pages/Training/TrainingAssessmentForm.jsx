@@ -8,7 +8,7 @@ import { useParams } from 'react-router-dom';
 import api from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import { useNavigationGuard } from '../../context/NavigationGuardContext';
-import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp, History, PlayCircle, ShieldAlert } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp, History, PlayCircle, ShieldAlert, Send } from 'lucide-react';
 
 const ORANGE = '#F05A28';
 const TEAL = '#0d9488';
@@ -121,6 +121,7 @@ export default function TrainingAssessmentForm() {
   const [error, setError] = useState(null);
   const [mode, setMode] = useState('loading'); // 'loading' | 'history' | 'taking' | 'result'
   const [startingNew, setStartingNew] = useState(false);
+  const [requestingSent, setRequestingSent] = useState(false);
   const { setBlocked } = useNavigationGuard();
 
   const isTaking = mode === 'taking';
@@ -357,14 +358,38 @@ export default function TrainingAssessmentForm() {
           <h2 className="font-semibold text-gray-900 flex items-center gap-2">
             <History className="w-4 h-4 text-gray-500" /> Attempt History
           </h2>
-          <button
-            onClick={startAttempt}
-            disabled={startingNew}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
-            style={{ background: ORANGE }}>
-            {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-            {startingNew ? 'Preparing new questions…' : hasPassed ? 'Take Again' : 'Start New Attempt'}
-          </button>
+          {(() => {
+            const failedCount = pastAttempts.filter(a => a.status === 'evaluated' && !a.passed).length;
+            const attemptLimitReached = !hasPassed && failedCount >= 3;
+            if (hasPassed) return null; // hide button when already passed
+            if (attemptLimitReached) {
+              return (
+                <button
+                  onClick={async () => {
+                    if (requestingSent) return;
+                    try {
+                      await api.post(`/training/assessments/${assessmentId}/request-attempt`, {});
+                      setRequestingSent(true);
+                    } catch (e) { setRequestingSent(true); }
+                  }}
+                  disabled={requestingSent}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border-2 border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:bg-amber-100">
+                  <Send className="w-4 h-4" />
+                  {requestingSent ? 'Request Sent ✓' : 'Request New Attempt from Manager'}
+                </button>
+              );
+            }
+            return (
+              <button
+                onClick={startAttempt}
+                disabled={startingNew}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
+                style={{ background: ORANGE }}>
+                {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                {startingNew ? 'Preparing new questions…' : 'Start New Attempt'}
+              </button>
+            );
+          })()}
         </div>
 
         {pastAttempts.length === 0 ? (
@@ -383,6 +408,15 @@ export default function TrainingAssessmentForm() {
                 defaultOpen={idx === 0}
               />
             ))}
+          </div>
+        )}
+        {!hasPassed && pastAttempts.filter(a => a.status === 'evaluated' && !a.passed).length >= 3 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Attempt limit reached</p>
+              <p className="text-xs text-amber-700 mt-0.5">You have used all 3 attempts. Click "Request New Attempt from Manager" above to ask your manager to unlock another try.</p>
+            </div>
           </div>
         )}
       </div>

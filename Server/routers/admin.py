@@ -154,76 +154,92 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Null out manager_id for any users who report to this person
-    db.query(User).filter(User.manager_id == user_id).update({"manager_id": None})
+    try:
+        # 1. Null out manager_id for subordinates
+        db.query(User).filter(User.manager_id == user_id).update({"manager_id": None})
 
-    # Delete all child records that FK-reference this user
-    db.query(Notification).filter(Notification.user_id == user_id).delete()
-    db.query(InterviewSession).filter(InterviewSession.user_id == user_id).delete()
-    db.query(CourseCompletion).filter(CourseCompletion.user_id == user_id).delete()
-    db.query(UserCourse).filter(UserCourse.user_id == user_id).delete()
-    db.query(CourseAssignment).filter(
-        (CourseAssignment.user_id == user_id) | (CourseAssignment.assigned_by == user_id)
-    ).delete(synchronize_session=False)
-    db.query(AssessmentAssignment).filter(
-        (AssessmentAssignment.user_id == user_id) | (AssessmentAssignment.assigned_by == user_id)
-    ).delete(synchronize_session=False)
-    # SME Kit assignments (old + new schema)
-    db.query(SmeKitAssignment).filter(
-        (SmeKitAssignment.user_id == user_id) | (SmeKitAssignment.assigned_by == user_id)
-    ).delete(synchronize_session=False)
-    db.query(SmeKitAssignmentV2).filter(
-        (SmeKitAssignmentV2.user_id == user_id) | (SmeKitAssignmentV2.assigned_by == user_id)
-    ).delete(synchronize_session=False)
-    # SME Kits created by this user — null out creator rather than cascade-delete content
-    db.query(SmeKit).filter(SmeKit.created_by == user_id).update({"created_by": None}, synchronize_session=False)
-    db.query(SmeKitFileV2).filter(SmeKitFileV2.uploaded_by == user_id).update({"uploaded_by": None}, synchronize_session=False)
-    db.query(Profile).filter(Profile.user_id == user_id).delete()
+        # 2. Standard per-user records
+        db.query(Notification).filter(Notification.user_id == user_id).delete()
+        db.query(InterviewSession).filter(InterviewSession.user_id == user_id).delete()
+        db.query(CourseCompletion).filter(CourseCompletion.user_id == user_id).delete()
+        db.query(UserCourse).filter(UserCourse.user_id == user_id).delete()
+        db.query(CourseAssignment).filter(
+            (CourseAssignment.user_id == user_id) | (CourseAssignment.assigned_by == user_id)
+        ).delete(synchronize_session=False)
+        db.query(AssessmentAssignment).filter(
+            (AssessmentAssignment.user_id == user_id) | (AssessmentAssignment.assigned_by == user_id)
+        ).delete(synchronize_session=False)
 
-    # Training assessment data (new AI quiz system)
-    # Delete answers → attempts first, then null out FK on assessments assigned to this joiner
-    joiner_assessment_ids = [
-        a.id for a in db.query(TrainingAssessment.id).filter(
-            TrainingAssessment.new_joiner_id == user_id
-        ).all()
-    ]
-    if joiner_assessment_ids:
-        attempt_ids = [
-            t.id for t in db.query(TrainingAttempt.id).filter(
-                TrainingAttempt.assessment_id.in_(joiner_assessment_ids)
+        # 3. SME Kit assignments (old + new schema)
+        db.query(SmeKitAssignment).filter(
+            (SmeKitAssignment.user_id == user_id) | (SmeKitAssignment.assigned_by == user_id)
+        ).delete(synchronize_session=False)
+        db.query(SmeKitAssignmentV2).filter(
+            (SmeKitAssignmentV2.user_id == user_id) | (SmeKitAssignmentV2.assigned_by == user_id)
+        ).delete(synchronize_session=False)
+
+        # 4. SME Kit files uploaded by this user — null out (column is now nullable)
+        db.query(SmeKitFileV2).filter(SmeKitFileV2.uploaded_by == user_id).update(
+            {"uploaded_by": None}, synchronize_session=False
+        )
+        # SME Kits created by this user — null out creator (column is now nullable)
+        db.query(SmeKit).filter(SmeKit.created_by == user_id).update(
+            {"created_by": None}, synchronize_session=False
+        )
+
+        # 5. Training: assessments where this user is the new joiner — delete cascade
+        joiner_assessment_ids = [
+            a[0] for a in db.query(TrainingAssessment.id).filter(
+                TrainingAssessment.new_joiner_id == user_id
             ).all()
         ]
-        if attempt_ids:
+        if joiner_assessment_ids:
+            attempt_ids = [
+                t[0] for t in db.query(TrainingAttempt.id).filter(
+                    TrainingAttempt.assessment_id.in_(joiner_assessment_ids)
+                ).all()
+            ]
+            if attempt_ids:
+                db.query(TrainingAnswer).filter(
+                    TrainingAnswer.attempt_id.in_(attempt_ids)
+                ).delete(synchronize_session=False)
+            db.query(TrainingAttempt).filter(
+                TrainingAttempt.assessment_id.in_(joiner_assessment_ids)
+            ).delete(synchronize_session=False)
+            db.query(TrainingQuestion).filter(
+                TrainingQuestion.assessment_id.in_(joiner_assessment_ids)
+            ).delete(synchronize_session=False)
+            db.query(TrainingAssessment).filter(
+                TrainingAssessment.id.in_(joiner_assessment_ids)
+            ).delete(synchronize_session=False)
+
+        # 6. Training: assessments created by this user (manager) — null out creator
+        db.query(TrainingAssessment).filter(
+            TrainingAssessment.created_by == user_id
+        ).update({"created_by": None}, synchronize_session=False)
+
+        # 7. Any remaining attempts by this user (on other assessments)
+        remaining_attempt_ids = [
+            t[0] for t in db.query(TrainingAttempt.id).filter(
+                TrainingAttempt.user_id == user_id
+            ).all()
+        ]
+        if remaining_attempt_ids:
             db.query(TrainingAnswer).filter(
-                TrainingAnswer.attempt_id.in_(attempt_ids)
+                TrainingAnswer.attempt_id.in_(remaining_attempt_ids)
             ).delete(synchronize_session=False)
         db.query(TrainingAttempt).filter(
-            TrainingAttempt.assessment_id.in_(joiner_assessment_ids)
-        ).delete(synchronize_session=False)
-        db.query(TrainingQuestion).filter(
-            TrainingQuestion.assessment_id.in_(joiner_assessment_ids)
-        ).delete(synchronize_session=False)
-        db.query(TrainingAssessment).filter(
-            TrainingAssessment.id.in_(joiner_assessment_ids)
-        ).delete(synchronize_session=False)
-    # Assessments created by this user (manager) — null out creator
-    db.query(TrainingAssessment).filter(
-        TrainingAssessment.created_by == user_id
-    ).update({"created_by": None}, synchronize_session=False)
-    # Attempts by this user on other assessments
-    other_attempt_ids = [
-        t.id for t in db.query(TrainingAttempt.id).filter(
             TrainingAttempt.user_id == user_id
-        ).all()
-    ]
-    if other_attempt_ids:
-        db.query(TrainingAnswer).filter(
-            TrainingAnswer.attempt_id.in_(other_attempt_ids)
         ).delete(synchronize_session=False)
-    db.query(TrainingAttempt).filter(
-        TrainingAttempt.user_id == user_id
-    ).delete(synchronize_session=False)
 
-    db.delete(user)
-    db.commit()
-    return {"ok": True}
+        # 8. Profile
+        db.query(Profile).filter(Profile.user_id == user_id).delete()
+
+        # 9. Delete the user
+        db.delete(user)
+        db.commit()
+        return {"ok": True}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
