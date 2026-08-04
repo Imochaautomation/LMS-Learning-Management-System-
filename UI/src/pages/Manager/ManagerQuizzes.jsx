@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
-import { Search, Trophy, Award, CheckCircle, XCircle, Loader2, ChevronRight, RefreshCw } from 'lucide-react';
+import { Search, Trophy, Award, CheckCircle, XCircle, Loader2, ChevronRight, RefreshCw, ThumbsUp, ThumbsDown, Bell } from 'lucide-react';
 
 const ORANGE = '#F05A28';
 
@@ -10,14 +10,31 @@ export default function ManagerQuizzes() {
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all'); // all | passed | failed | not_attempted
+  const [filter, setFilter] = useState('all'); // all | passed | failed | not_attempted | pending
+  const [actionLoading, setActionLoading] = useState({}); // { [assessmentId]: 'approving'|'rejecting' }
 
-  useEffect(() => {
+  const reload = () => {
     api.get('/training/assessments')
       .then(setAssessments)
       .catch(() => setAssessments([]))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { reload(); }, []);
+
+  const handleApprove = async (id) => {
+    setActionLoading(p => ({ ...p, [id]: 'approving' }));
+    try { await api.post(`/training/assessments/${id}/approve-attempt`, {}); reload(); }
+    catch (e) { alert(e.message); }
+    finally { setActionLoading(p => { const n = {...p}; delete n[id]; return n; }); }
+  };
+
+  const handleReject = async (id) => {
+    setActionLoading(p => ({ ...p, [id]: 'rejecting' }));
+    try { await api.post(`/training/assessments/${id}/reject-attempt`, {}); reload(); }
+    catch (e) { alert(e.message); }
+    finally { setActionLoading(p => { const n = {...p}; delete n[id]; return n; }); }
+  };
 
   const filtered = assessments.filter(a => {
     const matchSearch = !search ||
@@ -29,10 +46,13 @@ export default function ManagerQuizzes() {
       filter === 'passed' ? a.passed :
       filter === 'failed' ? (a.attempt_count > 0 && !a.passed) :
       filter === 'not_attempted' ? a.attempt_count === 0 :
+      filter === 'pending' ? a.attempt_request_status === 'pending' :
       true;
 
     return matchSearch && matchFilter;
   });
+
+  const pendingCount = assessments.filter(a => a.attempt_request_status === 'pending').length;
 
   const stats = {
     total: assessments.length,
@@ -59,9 +79,16 @@ export default function ManagerQuizzes() {
     <div className="space-y-6">
       <BackButton to="/manager" label="Back to Manager" />
 
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">New Joiner Quizzes</h1>
-        <p className="text-sm text-gray-500 mt-1">All AI-generated quizzes assigned to your new joiners.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">New Joiner Quizzes</h1>
+          <p className="text-sm text-gray-500 mt-1">All AI-generated quizzes assigned to your new joiners.</p>
+        </div>
+        {pendingCount > 0 && (
+          <div className="shrink-0 flex items-center gap-2 bg-amber-50 border border-amber-300 text-amber-800 text-sm font-semibold px-4 py-2 rounded-xl">
+            <Bell className="w-4 h-4" /> {pendingCount} Attempt Request{pendingCount > 1 ? 's' : ''} Pending
+          </div>
+        )}
       </div>
 
       {/* Stats strip */}
@@ -97,6 +124,7 @@ export default function ManagerQuizzes() {
         <div className="flex gap-1.5">
           {[
             { key: 'all', label: 'All' },
+            { key: 'pending', label: `⏳ Requests (${pendingCount})` },
             { key: 'passed', label: 'Passed' },
             { key: 'failed', label: 'Not Passed' },
             { key: 'not_attempted', label: 'Not Attempted' },
@@ -130,6 +158,7 @@ export default function ManagerQuizzes() {
                   <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Attempts</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Best Score</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Attempt Request</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
@@ -174,6 +203,39 @@ export default function ManagerQuizzes() {
                               <XCircle className="w-3 h-3" /> Not Passed
                             </span>
                         }
+                      </td>
+                      {/* Attempt Request column */}
+                      <td className="px-4 py-3.5 text-center">
+                        {a.attempt_request_status === 'pending' ? (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleApprove(a.id)}
+                              disabled={!!actionLoading[a.id]}
+                              title="Approve new attempt"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 disabled:opacity-50 transition-colors">
+                              {actionLoading[a.id] === 'approving' ? <Loader2 className="w-3 h-3 animate-spin" /> : <ThumbsUp className="w-3 h-3" />}
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleReject(a.id)}
+                              disabled={!!actionLoading[a.id]}
+                              title="Reject request"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors">
+                              {actionLoading[a.id] === 'rejecting' ? <Loader2 className="w-3 h-3 animate-spin" /> : <ThumbsDown className="w-3 h-3" />}
+                              Reject
+                            </button>
+                          </div>
+                        ) : a.attempt_request_status === 'approved' ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            <CheckCircle className="w-3 h-3" /> Approved
+                          </span>
+                        ) : a.attempt_request_status === 'rejected' ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                            <XCircle className="w-3 h-3" /> Rejected
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 text-right">
                         {a.new_joiner_id && (

@@ -363,6 +363,27 @@ export default function TrainingAssessmentForm() {
             const attemptLimitReached = !hasPassed && failedCount >= 3;
             if (hasPassed) return null; // hide button when already passed
             if (attemptLimitReached) {
+              const reqStatus = assessment?.attempt_request_status;
+              if (reqStatus === 'approved') return null; // start button shown below
+              if (reqStatus === 'pending') {
+                return (
+                  <span className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl">
+                    <Send className="w-4 h-4" /> Request Pending…
+                  </span>
+                );
+              }
+              if (reqStatus === 'rejected') {
+                return (
+                  <button
+                    onClick={async () => {
+                      try { await api.post(`/training/assessments/${assessmentId}/request-attempt`, {}); setAssessment(a => ({...a, attempt_request_status: 'pending'})); }
+                      catch (e) {}
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border-2 border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-all">
+                    <Send className="w-4 h-4" /> Re-request New Attempt
+                  </button>
+                );
+              }
               return (
                 <button
                   onClick={async () => {
@@ -370,12 +391,26 @@ export default function TrainingAssessmentForm() {
                     try {
                       await api.post(`/training/assessments/${assessmentId}/request-attempt`, {});
                       setRequestingSent(true);
+                      setAssessment(a => ({...a, attempt_request_status: 'pending'}));
                     } catch (e) { setRequestingSent(true); }
                   }}
                   disabled={requestingSent}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border-2 border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:bg-amber-100">
                   <Send className="w-4 h-4" />
                   {requestingSent ? 'Request Sent ✓' : 'Request New Attempt from Manager'}
+                </button>
+              );
+            }
+            // If approved, show the start button
+            if (!hasPassed && assessment?.attempt_request_status === 'approved') {
+              return (
+                <button
+                  onClick={startAttempt}
+                  disabled={startingNew}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
+                  style={{ background: '#10b981' }}>
+                  {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                  {startingNew ? 'Preparing new questions…' : 'Start Approved Attempt'}
                 </button>
               );
             }
@@ -411,13 +446,44 @@ export default function TrainingAssessmentForm() {
           </div>
         )}
         {!hasPassed && pastAttempts.filter(a => a.status === 'evaluated' && !a.passed).length >= 3 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-amber-800">Attempt limit reached</p>
-              <p className="text-xs text-amber-700 mt-0.5">You have used all 3 attempts. Click "Request New Attempt from Manager" above to ask your manager to unlock another try.</p>
-            </div>
-          </div>
+          <>
+            {assessment?.attempt_request_status === 'pending' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-start gap-3">
+                <Send className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">Request sent — awaiting manager approval</p>
+                  <p className="text-xs text-blue-700 mt-0.5">Your manager will review your request and unlock a new attempt if approved.</p>
+                </div>
+              </div>
+            )}
+            {assessment?.attempt_request_status === 'approved' && (
+              <div className="bg-emerald-50 border border-emerald-300 rounded-xl px-4 py-3 flex items-start gap-3">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800">Request approved! Start your new attempt above.</p>
+                  <p className="text-xs text-emerald-700 mt-0.5">Your manager has unlocked one more attempt for you.</p>
+                </div>
+              </div>
+            )}
+            {assessment?.attempt_request_status === 'rejected' && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3">
+                <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-red-700">Request rejected</p>
+                  <p className="text-xs text-red-600 mt-0.5">Your manager has declined the request. Please speak with them for guidance.</p>
+                </div>
+              </div>
+            )}
+            {!assessment?.attempt_request_status && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Attempt limit reached</p>
+                  <p className="text-xs text-amber-700 mt-0.5">You have used all 3 attempts. Click "Request New Attempt from Manager" above to ask your manager to unlock another try.</p>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     );

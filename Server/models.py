@@ -229,6 +229,7 @@ class TrainingAssessment(Base):
     hard_count = Column(Integer, default=0)
     pass_threshold = Column(Integer, default=70)  # percentage
     status = Column(String(20), default="pending")  # pending, active, completed
+    attempt_request_status = Column(String(20), nullable=True)  # null | pending | approved | rejected
     created_at = Column(DateTime, server_default=_now)
 
     new_joiner = relationship("User", foreign_keys=[new_joiner_id])

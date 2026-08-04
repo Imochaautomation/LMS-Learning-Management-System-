@@ -289,6 +289,7 @@ def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=F
         "hard_count": a.hard_count or 0,
         "pass_threshold": a.pass_threshold,
         "status": a.status,
+        "attempt_request_status": a.attempt_request_status,
         "created_at": a.created_at,
         "new_joiner_name": a.new_joiner.name if a.new_joiner else None,
         "creator_name": a.creator.name if a.creator else None,
@@ -694,6 +695,21 @@ def start_attempt(
     if in_progress:
         return _attempt_out(in_progress)
 
+    # Enforce 3-attempt limit
+    evaluated = db.query(TrainingAttempt).filter(
+        TrainingAttempt.assessment_id == assessment_id,
+        TrainingAttempt.user_id == current_user.id,
+        TrainingAttempt.status == "evaluated",
+    ).all()
+    has_passed = any(at.passed for at in evaluated)
+    failed_count = sum(1 for at in evaluated if not at.passed)
+    if not has_passed and failed_count >= 3:
+        if a.attempt_request_status != "approved":
+            raise HTTPException(403, "Attempt limit reached. Request a new attempt from your manager.")
+        # Consume the approval — reset so the joiner must request again if they fail
+        a.attempt_request_status = None
+        db.flush()
+
     attempt_number = db.query(TrainingAttempt).filter(
         TrainingAttempt.assessment_id == assessment_id,
         TrainingAttempt.user_id == current_user.id,
@@ -973,6 +989,9 @@ def request_new_attempt(
     if len(evaluated) < 3:
         raise HTTPException(400, "You have not yet used all 3 attempts")
 
+    # Mark request as pending on the assessment
+    a.attempt_request_status = "pending"
+
     # Notify the manager
     if current_user.manager_id:
         notif = Notification(
@@ -982,6 +1001,57 @@ def request_new_attempt(
             type="warning",
         )
         db.add(notif)
-        db.commit()
-
+    db.commit()
     return {"ok": True, "message": "Request sent to your manager."}
+
+
+@router.post("/assessments/{assessment_id}/approve-attempt")
+def approve_attempt_request(
+    assessment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager", "admin")),
+):
+    """Manager approves a new joiner's request for an extra attempt."""
+    a = db.query(TrainingAssessment).filter(TrainingAssessment.id == assessment_id).first()
+    if not a:
+        raise HTTPException(404, "Assessment not found")
+    if current_user.role == "manager" and a.created_by != current_user.id:
+        raise HTTPException(403, "Not your assessment")
+
+    a.attempt_request_status = "approved"
+
+    if a.new_joiner_id:
+        db.add(Notification(
+            user_id=a.new_joiner_id,
+            title="Attempt Request Approved",
+            message=f"Your manager approved a new attempt for '{a.title}'. You can now start a new attempt.",
+            type="info",
+        ))
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/assessments/{assessment_id}/reject-attempt")
+def reject_attempt_request(
+    assessment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager", "admin")),
+):
+    """Manager rejects a new joiner's request for an extra attempt."""
+    a = db.query(TrainingAssessment).filter(TrainingAssessment.id == assessment_id).first()
+    if not a:
+        raise HTTPException(404, "Assessment not found")
+    if current_user.role == "manager" and a.created_by != current_user.id:
+        raise HTTPException(403, "Not your assessment")
+
+    a.attempt_request_status = "rejected"
+
+    if a.new_joiner_id:
+        db.add(Notification(
+            user_id=a.new_joiner_id,
+            title="Attempt Request Rejected",
+            message=f"Your manager has rejected your request for a new attempt on '{a.title}'. Please speak to your manager for more information.",
+            type="warning",
+        ))
+    db.commit()
+    return {"ok": True}

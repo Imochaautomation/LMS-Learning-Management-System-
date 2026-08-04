@@ -224,6 +224,22 @@ def startup():
         except Exception:
             pass
 
+    # Add attempt_request_status to training_assessments (v2.7)
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_assessments ADD COLUMN attempt_request_status VARCHAR(20)"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_assessments ADD COLUMN IF NOT EXISTS attempt_request_status VARCHAR(20)"))
+                conn.commit()
+        except Exception:
+            pass
+
     # Make creator/uploader columns nullable so deleting a user doesn't cascade-fail (v2.6)
     if "sqlite" not in db_url_str:
         for stmt in [
