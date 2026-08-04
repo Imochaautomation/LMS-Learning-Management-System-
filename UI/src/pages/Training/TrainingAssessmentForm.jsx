@@ -364,7 +364,18 @@ export default function TrainingAssessmentForm() {
             if (hasPassed) return null; // hide button when already passed
             if (attemptLimitReached) {
               const reqStatus = assessment?.attempt_request_status;
-              if (reqStatus === 'approved') return null; // start button shown below
+              if (reqStatus === 'approved') {
+                return (
+                  <button
+                    onClick={startAttempt}
+                    disabled={startingNew}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
+                    style={{ background: '#10b981' }}>
+                    {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                    {startingNew ? 'Preparing new questions…' : 'Start Approved Attempt →'}
+                  </button>
+                );
+              }
               if (reqStatus === 'pending') {
                 return (
                   <span className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl">
@@ -398,19 +409,6 @@ export default function TrainingAssessmentForm() {
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border-2 border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:bg-amber-100">
                   <Send className="w-4 h-4" />
                   {requestingSent ? 'Request Sent ✓' : 'Request New Attempt from Manager'}
-                </button>
-              );
-            }
-            // If approved, show the start button
-            if (!hasPassed && assessment?.attempt_request_status === 'approved') {
-              return (
-                <button
-                  onClick={startAttempt}
-                  disabled={startingNew}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
-                  style={{ background: '#10b981' }}>
-                  {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-                  {startingNew ? 'Preparing new questions…' : 'Start Approved Attempt'}
                 </button>
               );
             }
