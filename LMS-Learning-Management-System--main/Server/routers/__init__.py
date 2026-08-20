@@ -1,0 +1,12 @@
+from routers.auth_router import router as auth_router
+from routers.admin import router as admin_router
+from routers.profile import router as profile_router
+from routers.assessments import router as assessments_router
+from routers.courses import router as courses_router
+from routers.banks import router as banks_router
+from routers.ai_interview import router as ai_interview_router
+from routers.ai_recommend import router as ai_recommend_router
+from routers.notifications import router as notifications_router
+from routers.training_smekit import router as training_smekit_router
+from routers.training_assessments import router as training_assessments_router
+from routers.analytics import router as analytics_router
