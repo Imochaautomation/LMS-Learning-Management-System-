@@ -1,0 +1,495 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import api, { API_HOST } from '../../api/client';
+import { ToastContainer, useToast } from '../../components/shared/Toast';
+import {
+  Users, Bell, Loader2,
+  ExternalLink, Search, Trash2, Upload,
+  ChevronRight, AlertTriangle,
+  ChevronLeft, CheckSquare, Square, MailCheck
+} from 'lucide-react';
+
+const roleLabel = { new_joiner: 'New Joiner', employee: 'Employee' };
+const roleBadge = { new_joiner: 'bg-emerald-50 text-emerald-700', employee: 'bg-indigo-50 text-indigo-700' };
+const categoryIcon = { 'Style Guide': '📘', 'Formatting': '📋', 'Reference': '📎', 'Examples': '📝' };
+
+const PAGE_SIZE = 6;
+
+function Pagination({ current, total, onChange }) {
+  if (total <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-1 pt-4">
+      <button disabled={current <= 1} onClick={() => onChange(current - 1)}
+        className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {[...Array(total)].map((_, i) => (
+        <button key={i} onClick={() => onChange(i + 1)}
+          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+            current === i + 1 ? 'text-white' : 'text-gray-500 hover:bg-gray-100'
+          }`}
+          style={current === i + 1 ? { background: '#F05A28' } : {}}>{i + 1}</button>
+      ))}
+      <button disabled={current >= total} onClick={() => onChange(current + 1)}
+        className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+export default function ManagerDashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'learners';
+  const [tab, setTab] = useState(initialTab);
+  const { toasts, removeToast, toast } = useToast();
+
+  useEffect(() => { const t = searchParams.get('tab'); if (t) setTab(t); }, [searchParams]);
+
+  const [learners, setLearners] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [bank, setBank] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [bankSearch, setBankSearch] = useState('');
+  const [newAssessName, setNewAssessName] = useState('');
+  const [newAssessFile, setNewAssessFile] = useState(null);
+  const [uploadingBank, setUploadingBank] = useState(false);
+  const [courseBank, setCourseBank] = useState([]);
+  const [courseSearch, setCourseSearch] = useState('');
+  const [addingCourse, setAddingCourse] = useState(false);
+  const [newCourse, setNewCourse] = useState({ title: '', provider: '', duration: '', free: true, category: 'Editing Skills', tag: 'Gap-Fill', link: '' });
+  const [smeKit, setSmeKit] = useState([]);
+  const [smeUploadName, setSmeUploadName] = useState('');
+  const [smeUploadCategory, setSmeUploadCategory] = useState('Style Guide');
+  const [smeFile, setSmeFile] = useState(null);
+  const [uploadingSme, setUploadingSme] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(null);
+
+  // Pagination states
+  const [learnerPage, setLearnerPage] = useState(1);
+  const [notifPage, setNotifPage] = useState(1);
+  const [bankPage, setBankPage] = useState(1);
+  const [smePage, setSmePage] = useState(1);
+
+  // Notification multi-select
+  const [selectedNotifs, setSelectedNotifs] = useState([]);
+
+  // Multi-select for Assessment Bank & SME Kit
+  const [selectedBank, setSelectedBank] = useState([]);
+  const [selectedSme, setSelectedSme] = useState([]);
+
+  // SME Kit assignment count (read-only — assignment happens in LearnerDetail)
+  const [smeAssignments, setSmeAssignments] = useState([]); // [{id, file_id, user_id, ...}]
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/admin/users').then((all) => {
+        const myTeam = all.filter((u) => u.manager_id === user?.id && (u.role === 'new_joiner' || u.role === 'employee'));
+        setLearners(myTeam);
+      }).catch(() => { setLearners([]); }),
+      api.get('/notifications').then(setNotifications).catch(() => setNotifications([])),
+      api.get('/banks/assessments').then(setBank).catch(() => {}),
+      api.get('/banks/courses').then(setCourseBank).catch(() => {}),
+      api.get('/banks/sme-kit').then(setSmeKit).catch(() => {}),
+      api.get('/banks/smekit/assignments').then(setSmeAssignments).catch(() => {}),
+    ]).finally(() => setLoading(false));
+  }, [user]);
+
+  const filteredBank = bank.filter((a) => a.name.toLowerCase().includes(bankSearch.toLowerCase()));
+  const filteredCourses = courseBank.filter((c) => c.title.toLowerCase().includes(courseSearch.toLowerCase()));
+  const newJoiners = learners.filter((l) => l.role === 'new_joiner');
+  const employees = learners.filter((l) => l.role === 'employee');
+
+  // Pagination helpers
+  const paginate = (arr, page) => arr.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = (arr) => Math.max(1, Math.ceil(arr.length / PAGE_SIZE));
+
+  const addToBank = async () => {
+    if (!newAssessName.trim()) { toast.warning('Please enter an assessment name.'); return; }
+    if (!newAssessFile) { toast.warning('Please attach a file for the assessment.'); return; }
+    try {
+      const fd = new FormData(); fd.append('name', newAssessName); fd.append('difficulty', 'Intermediate'); fd.append('file_type', newAssessFile?.name?.split('.').pop()?.toUpperCase() || 'Word');
+      if (newAssessFile) fd.append('file', newAssessFile);
+      const res = await api.upload('/banks/assessments', fd);
+      setBank((p) => [...p, res]);
+      toast.success(`Assessment "${newAssessName}" uploaded successfully!`);
+    } catch (e) { toast.error(`Failed to upload assessment: ${e.message}`); }
+    setNewAssessName(''); setNewAssessFile(null); setUploadingBank(false);
+  };
+  const addCourse = async () => {
+    const errs = {};
+    if (!newCourse.title.trim()) errs.title = 'Course title is required';
+    if (!newCourse.provider.trim()) errs.provider = 'Provider is required';
+    if (newCourse.link && !/^https?:\/\/.+/.test(newCourse.link.trim())) errs.link = 'Must be a valid URL (https://...)';
+    if (Object.keys(errs).length) { setCourseFormErrors(errs); return; }
+    setCourseFormErrors({});
+    try {
+      const res = await api.post('/banks/courses', newCourse);
+      setCourseBank((p) => [...p, res]);
+      toast.success(`Course "${newCourse.title}" added!`);
+    } catch (e) { toast.error(`Failed to add course: ${e.message}`); }
+    setNewCourse({ title: '', provider: '', duration: '', free: true, category: 'Editing Skills', tag: 'Gap-Fill', link: '' }); setAddingCourse(false);
+  };
+  const addSmeFile = async () => {
+    if (!smeUploadName.trim()) { toast.warning('Please enter a file name.'); return; }
+    if (!smeFile) { toast.warning('Please attach a file.'); return; }
+    try {
+      const fd = new FormData(); fd.append('name', smeUploadName); fd.append('category', smeUploadCategory); fd.append('file_type', smeFile?.name?.split('.').pop()?.toUpperCase() || 'PDF');
+      if (smeFile) fd.append('file', smeFile);
+      const res = await api.upload('/banks/sme-kit', fd);
+      setSmeKit((p) => [...p, res]);
+      toast.success(`SME file "${smeUploadName}" uploaded!`);
+    } catch (e) { toast.error(`Failed to upload SME file: ${e.message}`); }
+    setSmeUploadName(''); setSmeFile(null); setUploadingSme(false);
+  };
+
+  const [courseFormErrors, setCourseFormErrors] = useState({});
+
+  const confirmDelete = async () => {
+    if (!deleteModal) return;
+    try {
+      if (deleteModal.type === 'bank') { await api.del(`/banks/assessments/${deleteModal.id}`); setBank((p) => p.filter((a) => a.id !== deleteModal.id)); }
+      if (deleteModal.type === 'course') { await api.del(`/banks/courses/${deleteModal.id}`); setCourseBank((p) => p.filter((c) => c.id !== deleteModal.id)); }
+      if (deleteModal.type === 'sme') { await api.del(`/banks/sme-kit/${deleteModal.id}`); setSmeKit((p) => p.filter((f) => f.id !== deleteModal.id)); }
+      toast.success(`"${deleteModal.name}" deleted.`);
+    } catch (e) { toast.error(`Failed to delete: ${e.message}`); }
+    setDeleteModal(null);
+  };
+
+  // Multi-select for Assessment Bank
+  const toggleBankSelect = (id) => setSelectedBank((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const selectAllBank = () => {
+    const visibleIds = paginate(filteredBank, bankPage).map((a) => a.id);
+    if (visibleIds.every((id) => selectedBank.includes(id))) setSelectedBank((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    else setSelectedBank((prev) => [...new Set([...prev, ...visibleIds])]);
+  };
+  const bulkDeleteBank = async () => {
+    if (selectedBank.length === 0) return;
+    try {
+      for (const id of selectedBank) { await api.del(`/banks/assessments/${id}`); }
+      setBank((prev) => prev.filter((a) => !selectedBank.includes(a.id)));
+      toast.success(`${selectedBank.length} assessment(s) deleted.`);
+      setSelectedBank([]);
+    } catch (e) { toast.error(`Failed to bulk delete: ${e.message}`); }
+  };
+
+  // Multi-select for SME Kit
+  const toggleSmeSelect = (id) => setSelectedSme((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const selectAllSme = () => {
+    const visibleIds = paginate(smeKit, smePage).map((f) => f.id);
+    if (visibleIds.every((id) => selectedSme.includes(id))) setSelectedSme((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    else setSelectedSme((prev) => [...new Set([...prev, ...visibleIds])]);
+  };
+  const bulkDeleteSme = async () => {
+    if (selectedSme.length === 0) return;
+    try {
+      for (const id of selectedSme) { await api.del(`/banks/sme-kit/${id}`); }
+      setSmeKit((prev) => prev.filter((f) => !selectedSme.includes(f.id)));
+      toast.success(`${selectedSme.length} SME file(s) deleted.`);
+      setSelectedSme([]);
+    } catch (e) { toast.error(`Failed to bulk delete: ${e.message}`); }
+  };
+
+  // Notification actions
+  const toggleNotifSelect = (id) => setSelectedNotifs((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const selectAllNotifs = () => {
+    if (selectedNotifs.length === notifications.length) setSelectedNotifs([]);
+    else setSelectedNotifs(notifications.map((n) => n.id));
+  };
+  const bulkMarkRead = async () => {
+    if (selectedNotifs.length === 0) return;
+    try {
+      await api.post('/notifications/bulk-read', selectedNotifs);
+      setNotifications((prev) => prev.map((n) => selectedNotifs.includes(n.id) ? { ...n, read: true } : n));
+      toast.success(`${selectedNotifs.length} notifications marked as read.`);
+      setSelectedNotifs([]);
+    } catch (e) { toast.error('Failed to mark notifications as read.'); }
+  };
+  const bulkDeleteNotifs = async () => {
+    if (selectedNotifs.length === 0) return;
+    try {
+      await api.post('/notifications/bulk-delete', selectedNotifs);
+      setNotifications((prev) => prev.filter((n) => !selectedNotifs.includes(n.id)));
+      toast.success(`${selectedNotifs.length} notifications deleted.`);
+      setSelectedNotifs([]);
+    } catch (e) { toast.error('Failed to delete notifications.'); }
+  };
+
+  const tabs = [
+    { id: 'learners', label: 'Learners', icon: Users },
+    { id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.filter((n) => !n.read).length },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+
+      <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-6 text-white">
+        <h1 className="text-2xl font-bold mb-1">Manager Dashboard</h1>
+        <p className="text-amber-100 text-sm">Manage your team — {newJoiners.length} new joiners, {employees.length} employees</p>
+      </div>
+
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {tabs.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <t.icon className="w-4 h-4" /> {t.label}
+            {t.count > 0 && <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">{t.count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* LEARNERS */}
+      {tab === 'learners' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-gray-900">My Team</h2>
+          {learners.length === 0 ? (
+            <div className="text-center py-12 text-gray-400"><Users className="w-10 h-10 mx-auto mb-3 opacity-50" /><p className="font-medium">No team members yet</p><p className="text-sm mt-1">Ask your Admin to create employee accounts and assign them to you.</p></div>
+          ) : (
+            <div className="space-y-3">
+              {paginate(learners, learnerPage).map((l) => {
+                const isNJ = l.role === 'new_joiner';
+                const initials = l.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                const dept = l.department || null;
+                return (
+                  <div key={l.id} onClick={() => navigate(`/manager/learner/${l.id}`)}
+                    className="bg-white rounded-2xl px-5 py-4 flex items-center justify-between cursor-pointer hover:shadow-md transition-all border border-gray-100 hover:border-gray-300">
+                    <div className="flex items-center gap-4">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-sm"
+                        style={{ background: isNJ ? '#0d9488' : '#F05A28' }}>
+                        {initials}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-900 text-sm">{l.name}</span>
+                          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${isNJ ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                            {roleLabel[l.role]}
+                          </span>
+                          {dept && (
+                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
+                              {dept}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400">{l.email}</p>
+                      </div>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); navigate(`/manager/learner/${l.id}`); }}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl border transition-all"
+                      style={{ background: '#F05A28', color: '#fff', border: 'none' }}>
+                      View Profile <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <Pagination current={learnerPage} total={totalPages(learners)} onChange={setLearnerPage} />
+        </div>
+      )}
+
+      {/* NOTIFICATIONS */}
+      {tab === 'notifications' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900">Notifications</h2>
+            {notifications.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button onClick={selectAllNotifs}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+                  {selectedNotifs.length === notifications.length ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                  {selectedNotifs.length === notifications.length ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedNotifs.length > 0 && (
+                  <>
+                    <button onClick={bulkMarkRead}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50">
+                      <MailCheck className="w-3.5 h-3.5" /> Mark Read ({selectedNotifs.length})
+                    </button>
+                    <button onClick={bulkDeleteNotifs}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
+                      <Trash2 className="w-3.5 h-3.5" /> Delete ({selectedNotifs.length})
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          {notifications.length === 0 ? <p className="text-center text-gray-400 py-8">No notifications yet.</p> : (
+            <>
+              {paginate(notifications, notifPage).map((n) => (
+                <div key={n.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
+                  selectedNotifs.includes(n.id) ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200' :
+                  n.read ? 'bg-white border-gray-100' : 'bg-amber-50 border-amber-100'
+                }`}>
+                  <button onClick={() => toggleNotifSelect(n.id)} className="shrink-0 p-0.5">
+                    {selectedNotifs.includes(n.id)
+                      ? <CheckSquare className="w-4.5 h-4.5 text-indigo-600" />
+                      : <Square className="w-4.5 h-4.5 text-gray-300 hover:text-gray-500" />}
+                  </button>
+                  <Bell className={`w-4 h-4 shrink-0 ${n.read ? 'text-gray-400' : 'text-indigo-500'}`} />
+                  <p className="text-sm text-gray-700 flex-1">{n.message}</p>
+                  <span className="text-xs text-gray-400 shrink-0">{n.created_at?.split('T')[0]}</span>
+                </div>
+              ))}
+              <Pagination current={notifPage} total={totalPages(notifications)} onChange={setNotifPage} />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ASSESSMENT BANK */}
+      {tab === 'bank' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-gray-900">Assessment Bank</h2>
+            <div className="flex items-center gap-2">
+              {selectedBank.length > 0 && (
+                <button onClick={bulkDeleteBank}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete ({selectedBank.length})
+                </button>
+              )}
+              <button onClick={() => setUploadingBank(!uploadingBank)} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700"><Upload className="w-4 h-4" /> Upload</button>
+            </div>
+          </div>
+          {uploadingBank && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-5">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Name *</label><input value={newAssessName} onChange={(e) => setNewAssessName(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg" /></div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">File *</label><input type="file" onChange={(e) => setNewAssessFile(e.target.files[0])} className="w-full text-sm" /></div>
+              </div>
+              <div className="flex gap-2 mt-3"><button disabled={!newAssessName.trim()} onClick={addToBank} className="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg disabled:opacity-50">Add</button><button onClick={() => setUploadingBank(false)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button></div>
+            </div>
+          )}
+          <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input placeholder="Search..." value={bankSearch} onChange={(e) => setBankSearch(e.target.value)} className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg" /></div>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-gray-50 border-b">
+                <th className="text-left px-3 py-3">
+                  <button onClick={selectAllBank} className="p-0.5">
+                    {paginate(filteredBank, bankPage).every((a) => selectedBank.includes(a.id)) && paginate(filteredBank, bankPage).length > 0
+                      ? <CheckSquare className="w-4 h-4 text-indigo-600" />
+                      : <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />}
+                  </button>
+                </th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Assessment</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Action</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100">{paginate(filteredBank, bankPage).map((a) => (
+                <tr key={a.id} className={`hover:bg-gray-50 ${selectedBank.includes(a.id) ? 'bg-indigo-50' : ''}`}>
+                  <td className="px-3 py-3.5">
+                    <button onClick={() => toggleBankSelect(a.id)} className="p-0.5">
+                      {selectedBank.includes(a.id)
+                        ? <CheckSquare className="w-4 h-4 text-indigo-600" />
+                        : <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />}
+                    </button>
+                  </td>
+                  <td className="px-5 py-3.5 font-medium text-gray-900">{a.name}</td>
+                  <td className="px-5 py-3.5 text-right flex items-center justify-end gap-1">
+                    {a.file_path && <a href={`${API_HOST}${a.file_path}`} target="_blank" rel="noreferrer" className="px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 flex items-center gap-1"><ExternalLink className="w-3 h-3" /> View</a>}
+                    <button onClick={() => setDeleteModal({ type: 'bank', id: a.id, name: a.name })} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <p className="text-xs text-gray-400 text-center">{bank.length} assessments</p>
+          <Pagination current={bankPage} total={totalPages(filteredBank)} onChange={setBankPage} />
+        </div>
+      )}
+
+
+      {/* SME KIT */}
+      {tab === 'smekit' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-gray-900">📚 SME Training Kit</h2>
+            <div className="flex items-center gap-2">
+              {selectedSme.length > 0 && (
+                <button onClick={bulkDeleteSme}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete ({selectedSme.length})
+                </button>
+              )}
+              <button onClick={() => setUploadingSme(!uploadingSme)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700"><Upload className="w-4 h-4" /> Upload File</button>
+            </div>
+          </div>
+          {uploadingSme && (
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-5">
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Name *</label><input value={smeUploadName} onChange={(e) => setSmeUploadName(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg" /></div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Category</label><select value={smeUploadCategory} onChange={(e) => setSmeUploadCategory(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white"><option>Style Guide</option><option>Formatting</option><option>Reference</option><option>Examples</option></select></div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">File *</label><input type="file" onChange={(e) => setSmeFile(e.target.files[0])} className="w-full text-sm" /></div>
+              </div>
+              <div className="flex gap-2 mt-3"><button disabled={!smeUploadName.trim()} onClick={addSmeFile} className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg disabled:opacity-50">Add</button><button onClick={() => setUploadingSme(false)} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button></div>
+            </div>
+          )}
+          {/* Select all for SME */}
+          <div className="flex items-center gap-2">
+            <button onClick={selectAllSme}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+              {paginate(smeKit, smePage).every((f) => selectedSme.includes(f.id)) && paginate(smeKit, smePage).length > 0
+                ? <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
+                : <Square className="w-3.5 h-3.5" />}
+              {paginate(smeKit, smePage).every((f) => selectedSme.includes(f.id)) && paginate(smeKit, smePage).length > 0 ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+          <div className="space-y-2">{paginate(smeKit, smePage).map((f) => {
+            const assignCount = smeAssignments.filter((a) => a.file_id === f.id).length;
+            return (
+              <div key={f.id} className={`bg-white border rounded-xl px-5 py-3.5 flex items-center justify-between hover:shadow-sm ${selectedSme.includes(f.id) ? 'border-indigo-200 bg-indigo-50 ring-1 ring-indigo-200' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => toggleSmeSelect(f.id)} className="p-0.5 shrink-0">
+                    {selectedSme.includes(f.id)
+                      ? <CheckSquare className="w-4 h-4 text-indigo-600" />
+                      : <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />}
+                  </button>
+                  <span className="text-lg">{categoryIcon[f.category] || '📄'}</span>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">{f.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{f.category}</span>
+                      <span className="text-xs text-gray-400">{f.file_type}</span>
+                      {assignCount > 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">
+                          Assigned to {assignCount} learner{assignCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  {f.file_path && (
+                    <a href={`${API_HOST}${f.file_path}`} target="_blank" rel="noreferrer"
+                      className="px-2.5 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 flex items-center gap-1">
+                      <ExternalLink className="w-3 h-3" /> View
+                    </a>
+                  )}
+                  <button onClick={() => setDeleteModal({ type: 'sme', id: f.id, name: f.name })} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              </div>
+            );
+          })}</div>
+          <p className="text-xs text-gray-400 text-center">{smeKit.length} files · Assign files to learners from their profile page</p>
+          <Pagination current={smePage} total={totalPages(smeKit)} onChange={setSmePage} />
+        </div>
+      )}
+
+
+      {/* DELETE MODAL */}
+      {deleteModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setDeleteModal(null)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900 mb-2">Confirm Delete</h3>
+            <p className="text-sm text-gray-600 mb-4">Are you sure you want to delete <strong>{deleteModal.name}</strong>?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteModal(null)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
+              <button onClick={confirmDelete} className="px-4 py-2 text-sm text-white bg-red-600 rounded-xl hover:bg-red-700">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
