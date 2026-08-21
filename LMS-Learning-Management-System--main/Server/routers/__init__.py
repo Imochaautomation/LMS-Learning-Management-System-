@@ -10,3 +10,5 @@ from routers.notifications import router as notifications_router
 from routers.training_smekit import router as training_smekit_router
 from routers.training_assessments import router as training_assessments_router
 from routers.analytics import router as analytics_router
+from routers.video_assignments import router as video_assignments_router
+

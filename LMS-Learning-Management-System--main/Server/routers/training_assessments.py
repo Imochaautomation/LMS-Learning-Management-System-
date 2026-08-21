@@ -14,7 +14,7 @@ GET    /training/attempts/{attempt_id}    — attempt detail with per-answer fla
 import io
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -77,11 +77,36 @@ def _build_content_context(files: List[SmeKitFileV2]) -> str:
     return "\n\n---\n\n".join(parts) if parts else "No content available."
 
 
+_EDITING_KIT_NAME_SIGNALS = (
+    "eeoc", "content valid", "editing check", "editing guide",
+    "style guide", "qc checklist", "content editing", "proofreading",
+    "content qc", "editing qc",
+)
+
+def _is_editing_kit(kit_name: str, content: str) -> bool:
+    """Return True when the kit is an editing/EEOC-rule kit.
+
+    Detection is two-tier:
+    1. Kit name contains a known signal keyword (fast, explicit).
+    2. The document's opening text contains 2+ EEOC/editing markers (catches
+       kits with generic names but clearly editing-checklist content).
+    """
+    if any(sig in (kit_name or "").lower() for sig in _EDITING_KIT_NAME_SIGNALS):
+        return True
+    excerpt = content[:2000].lower()
+    content_signals = (
+        "eeoc", "content validation checklist", "editing checklist",
+        "sensitive keyword", "filler word", "uk english", "us english style",
+    )
+    return sum(1 for sig in content_signals if sig in excerpt) >= 2
+
+
 def _generate_questions(
     content: str,
     easy_count: int, easy_type: str,
     medium_count: int, medium_type: str,
     hard_count: int, hard_type: str,
+    kit_name: str = "",
 ) -> List[dict]:
     total = easy_count + medium_count + hard_count
 
@@ -145,7 +170,70 @@ def _generate_questions(
         example_objs.append(_example_obj(ex_order, "hard", hard_type)); ex_order += 1
     example_block = ",\n".join(example_objs)
 
-    prompt = f"""You are an expert trainer creating a training assessment based exclusively on the SME Kit content provided below.
+    # ── Editing / EEOC kit: scenario-based application questions ─────────────
+    if _is_editing_kit(kit_name, content):
+        prompt = f"""You are a training assessment designer. The document below is a content-editing or content-validation guideline — for example, an EEOC compliance checklist, a US English style guide, or an editing QC checklist.
+
+Your task is to generate {total} scenario-based "content validation" questions that test whether a candidate can correctly judge whether a given passage must be FLAGGED based on the rules in this document. Do NOT generate recall questions.
+
+[START OF CONTENT]
+{content}
+[END OF CONTENT]
+
+HOW TO WRITE EACH QUESTION:
+1. Extract one rule from the document (e.g., "replace gendered pronouns with gender-neutral ones", "filler words like 'consider' or 'just' must be removed", "real company names must be replaced with dummy names", "sensitive keywords like 'hacker' or 'fight' must be flagged").
+2. Invent 2–4 sentences of realistic business/training content. For most difficulty levels, include EXACTLY ONE violation of the rule you extracted. For Hard questions (see below), the violation may be subtle or the passage may appear to violate a rule but actually not.
+3. THE question_text MUST follow this EXACT two-part format — separate the passage from the question stem with the literal string "\\n---\\n":
+   "[Your invented passage text here]\\n---\\nQuestion: Should this text be flagged based on the content validation checklist? Why?"
+   Do NOT embed the passage inside the question stem. The passage always comes before the separator.
+4. Write EXACTLY 4 MCQ options. Each option MUST start with "Yes." or "No." followed by a full-sentence explanation:
+   - The CORRECT option: either "Yes. The passage should be flagged because [specific rule it violates]." or "No. The passage is acceptable because [specific reason it does not violate any rule]."
+   - The three WRONG options: plausible-sounding "Yes." or "No." answers with incorrect reasoning. Mix Yes and No answers across the four options so not all are Yes or all are No.
+   Keep all four options similar in length and grammatical structure.
+5. The correct_answer is the single letter (A, B, C, or D) that corresponds to the correct option.
+
+DIFFICULTY LEVELS:
+- Easy ({easy_count} question(s)): The passage has an obvious, single violation that any trained editor would catch immediately. The correct answer is clearly "Yes, flag it."
+  Rule patterns: filler words ("Consider", "just", "simply"), UK-vs-US spelling ("organise" → "organize", "lorry" → "truck"), unspecified-gender subject referred to as "he" or "she" instead of "they", second-person "you" used in a question subject.
+- Medium ({medium_count} question(s)): The violation requires consciously applying a specific rule. The correct answer may be "Yes" or "No" depending on the scenario.
+  Rule patterns: real company or brand names that must be replaced with dummy names, product names with wrong capitalization ("mysql" instead of "MySQL"), hint/bias words that reveal the answer ("obviously", "clearly"), answer options in the original question that are unequal in length or complexity, missing Oxford comma, sensitivity keywords used in a non-clinical context ("hacker", "fight", "explosion").
+- Hard ({hard_count} question(s)): Nuanced judgment is required. Vary between passages that SHOULD be flagged and passages that SHOULD NOT.
+  Rule patterns for "should flag": nationality- or religion-based comparisons wrapped in neutral business language; embedded stereotyping that looks compliant on the surface; content where only one of several factors actually triggers the rule.
+  Rule patterns for "should not flag": content that MENTIONS restricted topics only in the context of describing the review process itself (e.g., "this checklist identifies filler words such as 'consider'"); a passage that uses a sensitivity keyword in a clearly clinical or factual context.
+
+ABSOLUTE RULES:
+- Every question_text MUST contain the literal separator "\\n---\\n" between the passage and "Question: Should this text be flagged...?". No exceptions.
+- Do NOT generate recall questions ("What does the checklist say about X?").
+- Do NOT copy sentences from the document as the passage — invent fresh examples.
+- Vary the industry/domain across questions (banking, logistics, retail, IT, HR, healthcare, legal, finance, customer service, etc.) — do not reuse the same domain more than twice.
+- All four MCQ options must be comparable in length and start with "Yes." or "No.".
+- Use US English throughout: American spelling, Oxford comma, double quotation marks, active voice.
+- No "you" in passages or question stems. Neutral, professional third-person language.
+
+QUESTION TYPE MANDATE — non-negotiable:
+{type_mandate}
+
+HARD STOP: Generate EXACTLY {total} questions — {easy_count} Easy + {medium_count} Medium + {hard_count} Hard.
+
+Return ONLY valid JSON (no markdown, no explanation, no extra text):
+{{
+  "questions": [
+{example_block}
+  ]
+}}
+
+Formatting rules:
+- question_text: MUST be "[passage text]\\n---\\nQuestion: Should this text be flagged based on the content validation checklist? Why?" — the separator \\n---\\n is mandatory.
+- MCQ: exactly 4 options labeled "A. Yes/No. [explanation]"; correct_answer is the single letter only (A, B, C, or D).
+- Descriptive: options is null; correct_answer starts with "Model answer:"
+- Order: Easy questions first (indices 1–{easy_count}), then Medium ({easy_count+1}–{easy_count+medium_count}), then Hard ({easy_count+medium_count+1}–{total})
+- Include the difficulty field for every question
+- Use "question_type": "mcq" or "question_type": "descriptive"
+- The "questions" array must contain EXACTLY {total} items — no more, no fewer"""
+
+    else:
+        # ── Standard kit: content-recall / concept-application questions ─────
+        prompt = f"""You are an expert trainer creating a training assessment based exclusively on the SME Kit content provided below.
 
 Follow these rules strictly:
 1. Every question must be directly answerable ONLY from the text between [START OF CONTENT] and [END OF CONTENT] below. Do not use outside knowledge or general facts.
@@ -239,13 +327,13 @@ Return ONLY valid JSON (no markdown, no explanation):
 CRITICAL RULES:
 - The evaluations array MUST have exactly {total_q} entries — one per question, in the same order.
 - "question_id" in each evaluation MUST be copied exactly from the question_id field in the input — do NOT substitute or invent new IDs.
-- In "overall_feedback" and "ai_explanation", ALWAYS refer to questions by their "question_number" (e.g. "Question 3", "Q5"), NEVER by their "question_id" (which is an internal database ID, not a sequence number).
+- In "overall_feedback" and "ai_explanation", ALWAYS refer to questions by their "question_number" (e.g., "Question 3", "Q5"), NEVER by their "question_id" (which is an internal database ID, not a sequence number).
 - ai_flag must be "correct", "wrong", or "partial" — nothing else.
 - MCQ: correct only if the user's letter matches the correct_answer letter (case-insensitive). Wrong otherwise — no partial credit for MCQ.
 - Descriptive (question_type = "descriptive" or "written"): partial credit allowed; compare the user's answer against the model answer and use your judgment.
 - score = (correct_count + 0.5 * partial_count) / {total_q} * 100, rounded to 1 decimal.
 - ai_explanation is REQUIRED for EVERY question and must NEVER be empty — this applies to correct, wrong, and partial answers alike.
-- In ai_explanation, ALWAYS state the correct answer using its full text, not just the option letter. For MCQ, write out the actual option wording (e.g. 'The correct answer is "They" — used when the subject's gender is unspecified.'), NEVER just 'The correct answer is A'.
+- In ai_explanation, ALWAYS state the correct answer using its full text, not just the option letter. For MCQ, write out the actual option wording (e.g., "The correct answer is 'They' — used when the subject's gender is unspecified."), NEVER just "The correct answer is A".
 - For a wrong answer, briefly explain why the chosen answer is incorrect AND state the full correct answer text. For a correct answer, briefly confirm why it is right.
 - Be constructive and specific. Reference the actual content from the question."""
 
@@ -414,6 +502,7 @@ def generate_assessment(
         payload.easy_count, easy_type,
         payload.medium_count, medium_type,
         payload.hard_count, hard_type,
+        kit_name=kit.name or "",
     )
 
     total = payload.easy_count + payload.medium_count + payload.hard_count
@@ -639,9 +728,20 @@ def list_assessments_joiner(
             TrainingAttempt.user_id == current_user.id,
         ).all()
         evaluated = [at for at in attempts if at.status == "evaluated"]
+        failed_count = sum(1 for at in evaluated if not at.passed)
+        has_passed = any(at.passed for at in evaluated)
+        max_allowed = 3 + (a.retake_grants or 0)
         d["attempt_count"] = len(evaluated)
         d["best_score"] = max((at.score for at in evaluated if at.score is not None), default=None)
-        d["passed"] = any(at.passed for at in evaluated)
+        d["passed"] = has_passed
+        d["failed_count"] = failed_count
+        d["max_attempts_reached"] = failed_count >= max_allowed and not has_passed
+        # Check if joiner already has a pending retake request sitting in the manager's inbox
+        marker = f"[retake-req:{a.id}:{current_user.id}]"
+        d["retake_requested"] = db.query(Notification).filter(
+            Notification.type == "retake_requested",
+            Notification.message.contains(marker),
+        ).first() is not None
         result.append(d)
     return result
 
@@ -693,6 +793,44 @@ def start_attempt(
     ).first()
     if in_progress:
         return _attempt_out(in_progress)
+
+    # Block if joiner has 3 failed attempts and has not yet passed
+    evaluated = db.query(TrainingAttempt).filter(
+        TrainingAttempt.assessment_id == assessment_id,
+        TrainingAttempt.user_id == current_user.id,
+        TrainingAttempt.status == "evaluated",
+    ).all()
+    failed_count = sum(1 for at in evaluated if not at.passed)
+    max_allowed = 3 + (a.retake_grants or 0)
+    if failed_count >= max_allowed and not any(at.passed for at in evaluated):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "max_attempts_reached", "message": "Maximum attempts reached. Please request a new attempt from your manager."},
+        )
+
+    # A failed assessment can only be retaken after a 60-minute cooling-off
+    # period. Enforce this on the server so refreshing or calling the API
+    # directly cannot bypass the restriction.
+    latest_failed = max(
+        (at for at in evaluated if not at.passed and at.submitted_at),
+        key=lambda at: at.submitted_at,
+        default=None,
+    )
+    if latest_failed:
+        available_at = latest_failed.submitted_at + timedelta(minutes=60)
+        now = datetime.utcnow()
+        if now < available_at:
+            wait_seconds = max(1, int((available_at - now).total_seconds()))
+            wait_minutes = (wait_seconds + 59) // 60
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "retake_cooldown",
+                    "message": f"Retake available in {wait_minutes} minute(s).",
+                    "wait_seconds": wait_seconds,
+                    "available_at": available_at.isoformat(),
+                },
+            )
 
     attempt_number = db.query(TrainingAttempt).filter(
         TrainingAttempt.assessment_id == assessment_id,
@@ -932,6 +1070,116 @@ def list_attempts(
         TrainingAttempt.assessment_id == assessment_id,
     ).order_by(TrainingAttempt.attempt_number.desc()).all()
     return [_attempt_out(at) for at in attempts]
+
+
+@router.post("/assessments/{assessment_id}/request-retake", response_model=dict)
+def request_retake(
+    assessment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("new_joiner")),
+):
+    a = db.query(TrainingAssessment).filter(TrainingAssessment.id == assessment_id).first()
+    if not a or a.new_joiner_id != current_user.id:
+        raise HTTPException(404, "Assessment not found")
+
+    evaluated = db.query(TrainingAttempt).filter(
+        TrainingAttempt.assessment_id == assessment_id,
+        TrainingAttempt.user_id == current_user.id,
+        TrainingAttempt.status == "evaluated",
+    ).all()
+    failed_count = sum(1 for at in evaluated if not at.passed)
+    if failed_count < 3 or any(at.passed for at in evaluated):
+        raise HTTPException(400, "Retake request not applicable")
+
+    if not a.created_by:
+        raise HTTPException(400, "No manager assigned to this assessment")
+
+    # Prevent duplicate notifications for the same request
+    marker = f"[retake-req:{assessment_id}:{current_user.id}]"
+    existing = db.query(Notification).filter(
+        Notification.user_id == a.created_by,
+        Notification.type == "retake_requested",
+        Notification.message.contains(marker),
+    ).first()
+    if existing:
+        return {"ok": True, "already_requested": True}
+
+    db.add(Notification(
+        user_id=a.created_by,
+        title=f"Retake Request: {a.title}",
+        message=(
+            f"{current_user.name} has used all 3 attempts for \"{a.title}\" "
+            f"and is requesting a new attempt. {marker}"
+        ),
+        type="retake_requested",
+    ))
+    db.commit()
+    return {"ok": True, "already_requested": False}
+
+
+@router.post("/assessments/{assessment_id}/approve-retake", response_model=dict)
+def approve_retake(
+    assessment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager", "admin")),
+):
+    a = db.query(TrainingAssessment).filter(TrainingAssessment.id == assessment_id).first()
+    if not a:
+        raise HTTPException(404, "Assessment not found")
+
+    # Grant one extra attempt
+    a.retake_grants = (a.retake_grants or 0) + 1
+
+    # Remove the pending notification so it disappears from the manager's list
+    marker = f"[retake-req:{assessment_id}:{a.new_joiner_id}]"
+    pending = db.query(Notification).filter(
+        Notification.user_id == current_user.id,
+        Notification.type == "retake_requested",
+        Notification.message.contains(marker),
+    ).first()
+    if pending:
+        db.delete(pending)
+
+    # Notify the joiner
+    db.add(Notification(
+        user_id=a.new_joiner_id,
+        title=f"Retake Approved: {a.title}",
+        message=f"Your manager approved a new attempt for \"{a.title}\". You can now retake the assessment.",
+        type="retake_approved",
+    ))
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/assessments/{assessment_id}/reject-retake", response_model=dict)
+def reject_retake(
+    assessment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager", "admin")),
+):
+    a = db.query(TrainingAssessment).filter(TrainingAssessment.id == assessment_id).first()
+    if not a:
+        raise HTTPException(404, "Assessment not found")
+
+    # Remove the pending notification
+    marker = f"[retake-req:{assessment_id}:{a.new_joiner_id}]"
+    pending = db.query(Notification).filter(
+        Notification.user_id == current_user.id,
+        Notification.type == "retake_requested",
+        Notification.message.contains(marker),
+    ).first()
+    if pending:
+        db.delete(pending)
+
+    # Notify the joiner
+    db.add(Notification(
+        user_id=a.new_joiner_id,
+        title=f"Retake Not Approved: {a.title}",
+        message=f"Your manager reviewed your retake request for \"{a.title}\" and it was not approved at this time.",
+        type="retake_rejected",
+    ))
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/attempts/{attempt_id}", response_model=dict)

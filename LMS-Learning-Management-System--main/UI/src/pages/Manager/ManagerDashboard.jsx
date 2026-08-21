@@ -7,7 +7,8 @@ import {
   Users, Bell, Loader2,
   ExternalLink, Search, Trash2, Upload,
   ChevronRight, AlertTriangle,
-  ChevronLeft, CheckSquare, Square, MailCheck
+  ChevronLeft, CheckSquare, Square, MailCheck,
+  CheckCircle2, XCircle, RefreshCw
 } from 'lucide-react';
 
 const roleLabel = { new_joiner: 'New Joiner', employee: 'Employee' };
@@ -208,6 +209,24 @@ export default function ManagerDashboard() {
       setSelectedNotifs([]);
     } catch (e) { toast.error('Failed to mark notifications as read.'); }
   };
+  // Retake approve / reject
+  const [retakeActing, setRetakeActing] = useState(null); // notif id being acted on
+  const handleRetake = async (notif, action) => {
+    const match = notif.message.match(/\[retake-req:(\d+):(\d+)\]/);
+    if (!match) return;
+    const assessmentId = match[1];
+    setRetakeActing(notif.id);
+    try {
+      await api.post(`/training/assessments/${assessmentId}/${action}-retake`);
+      setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
+      toast.success(action === 'approve' ? 'Retake approved — joiner has been notified.' : 'Request rejected — joiner has been notified.');
+    } catch (e) {
+      toast.error(`Failed: ${e.message}`);
+    } finally {
+      setRetakeActing(null);
+    }
+  };
+
   const bulkDeleteNotifs = async () => {
     if (selectedNotifs.length === 0) return;
     try {
@@ -319,21 +338,59 @@ export default function ManagerDashboard() {
           </div>
           {notifications.length === 0 ? <p className="text-center text-gray-400 py-8">No notifications yet.</p> : (
             <>
-              {paginate(notifications, notifPage).map((n) => (
-                <div key={n.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
-                  selectedNotifs.includes(n.id) ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200' :
-                  n.read ? 'bg-white border-gray-100' : 'bg-amber-50 border-amber-100'
-                }`}>
-                  <button onClick={() => toggleNotifSelect(n.id)} className="shrink-0 p-0.5">
-                    {selectedNotifs.includes(n.id)
-                      ? <CheckSquare className="w-4.5 h-4.5 text-indigo-600" />
-                      : <Square className="w-4.5 h-4.5 text-gray-300 hover:text-gray-500" />}
-                  </button>
-                  <Bell className={`w-4 h-4 shrink-0 ${n.read ? 'text-gray-400' : 'text-indigo-500'}`} />
-                  <p className="text-sm text-gray-700 flex-1">{n.message}</p>
-                  <span className="text-xs text-gray-400 shrink-0">{n.created_at?.split('T')[0]}</span>
-                </div>
-              ))}
+              {paginate(notifications, notifPage).map((n) => {
+                const isRetake = n.type === 'retake_requested';
+                const isActing = retakeActing === n.id;
+                return (
+                  <div key={n.id} className={`flex items-start gap-3 px-4 py-3 rounded-xl border transition-all ${
+                    isRetake ? 'bg-orange-50 border-orange-200' :
+                    selectedNotifs.includes(n.id) ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200' :
+                    n.read ? 'bg-white border-gray-100' : 'bg-amber-50 border-amber-100'
+                  }`}>
+                    {!isRetake && (
+                      <button onClick={() => toggleNotifSelect(n.id)} className="shrink-0 p-0.5 mt-0.5">
+                        {selectedNotifs.includes(n.id)
+                          ? <CheckSquare className="w-4 h-4 text-indigo-600" />
+                          : <Square className="w-4 h-4 text-gray-300 hover:text-gray-500" />}
+                      </button>
+                    )}
+                    <div className="shrink-0 mt-0.5">
+                      {isRetake
+                        ? <RefreshCw className="w-4 h-4 text-orange-500" />
+                        : <Bell className={`w-4 h-4 ${n.read ? 'text-gray-400' : 'text-indigo-500'}`} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {n.title && <p className="text-xs font-semibold text-gray-800 mb-0.5">{n.title}</p>}
+                      <p className="text-sm text-gray-700 leading-snug">
+                        {isRetake
+                          ? n.message.replace(/\[retake-req:\d+:\d+\]/, '').trim()
+                          : n.message}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">{n.created_at?.split('T')[0]}</p>
+                    </div>
+                    {isRetake ? (
+                      <div className="flex gap-2 shrink-0 self-center">
+                        <button
+                          onClick={() => handleRetake(n, 'approve')}
+                          disabled={isActing}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:opacity-50 transition-colors">
+                          {isActing ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleRetake(n, 'reject')}
+                          disabled={isActing}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 transition-colors">
+                          {isActing ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                          Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400 shrink-0 self-start mt-0.5">{n.created_at?.split('T')[0]}</span>
+                    )}
+                  </div>
+                );
+              })}
               <Pagination current={notifPage} total={totalPages(notifications)} onChange={setNotifPage} />
             </>
           )}
@@ -493,3 +550,4 @@ export default function ManagerDashboard() {
     </div>
   );
 }
+

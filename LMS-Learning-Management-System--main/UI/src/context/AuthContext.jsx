@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem('lms_avatar') || null);
+  const [activeView, setActiveView] = useState(localStorage.getItem('lms_active_view') || null);
 
   useEffect(() => {
     const token = localStorage.getItem('lms_token');
@@ -43,7 +44,9 @@ export function AuthProvider({ children }) {
     const res = await api.post('/auth/login', body);
     localStorage.setItem('lms_token', res.token);
     localStorage.setItem('lms_user', JSON.stringify(res.user));
+    localStorage.setItem('lms_active_view', res.user.role);
     setUser(res.user);
+    setActiveView(res.user.role);
     return res.user;
   };
 
@@ -51,8 +54,15 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('lms_token');
     localStorage.removeItem('lms_user');
     localStorage.removeItem('lms_avatar');
+    localStorage.removeItem('lms_active_view');
     setUser(null);
     setAvatarUrl(null);
+    setActiveView(null);
+  };
+
+  const switchView = (view) => {
+    localStorage.setItem('lms_active_view', view);
+    setActiveView(view);
   };
 
   const roleRoute = (role) => {
@@ -66,10 +76,11 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, roleRoute, avatarUrl, setAvatarUrl }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, roleRoute, avatarUrl, setAvatarUrl, activeView, switchView }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export const useAuth = () => useContext(AuthContext);
+

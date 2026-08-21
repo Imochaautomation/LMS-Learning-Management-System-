@@ -19,6 +19,9 @@ import ManagerDashboard from './pages/Manager/ManagerDashboard';
 import LearnerDetail from './pages/Manager/LearnerDetail';
 import SmeKitManager from './pages/Manager/SmeKitManager';
 import ManagerQuizzes from './pages/Manager/ManagerQuizzes';
+import ManagerVideoAssignments from './pages/Manager/ManagerVideoAssignments';
+import VideoAssignments from './pages/Training/VideoAssignments';
+import UpskillingVideoAssignments from './pages/Upskilling/VideoAssignments';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import UserManagement from './pages/Admin/UserManagement';
 import ManagerAnalytics from './pages/Analytics/ManagerAnalytics';
@@ -27,7 +30,7 @@ import EmployeeAnalytics from './pages/Analytics/EmployeeAnalytics';
 import NewJoinerAnalytics from './pages/Analytics/NewJoinerAnalytics';
 
 function RootRedirect() {
-  const { user, loading } = useAuth();
+  const { user, loading, activeView } = useAuth();
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#F05A28', borderTopColor: 'transparent' }} />
@@ -35,7 +38,7 @@ function RootRedirect() {
   );
   if (!user) return <LandingPage />;
   const routes = { admin: '/admin', manager: '/manager', new_joiner: '/training', employee: '/upskilling' };
-  return <Navigate to={routes[user.role] || '/login'} replace />;
+  return <Navigate to={routes[activeView || user.role] || '/login'} replace />;
 }
 
 export default function App() {
@@ -58,6 +61,7 @@ export default function App() {
             <Route path="/training/courses" element={<TrainingCourses />} />
             <Route path="/training/ai-assessments" element={<AIAssessments />} />
             <Route path="/training/ai-assessments/:assessmentId" element={<TrainingAssessmentForm />} />
+            <Route path="/training/video-assignments" element={<VideoAssignments />} />
             <Route path="/training/analytics" element={<NewJoinerAnalytics />} />
           </Route>
 
@@ -70,6 +74,7 @@ export default function App() {
             <Route path="/upskilling/courses" element={<UpskillCourses />} />
             <Route path="/upskilling/profile" element={<ProfileSetup />} />
             <Route path="/upskilling/interview" element={<ChatbotInterview />} />
+            <Route path="/upskilling/video-assignments" element={<UpskillingVideoAssignments />} />
             <Route path="/upskilling/analytics" element={<EmployeeAnalytics />} />
           </Route>
 
@@ -82,6 +87,7 @@ export default function App() {
             <Route path="/manager/learner/:id" element={<LearnerDetail />} />
             <Route path="/manager/sme-kits" element={<SmeKitManager />} />
             <Route path="/manager/quizzes" element={<ManagerQuizzes />} />
+            <Route path="/manager/video-assignments" element={<ManagerVideoAssignments />} />
             <Route path="/manager/analytics" element={<ManagerAnalytics />} />
           </Route>
 

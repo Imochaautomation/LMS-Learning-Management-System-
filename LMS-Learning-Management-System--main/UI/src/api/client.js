@@ -22,7 +22,14 @@ async function request(url, options = {}) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(err.detail || 'Request failed');
+    const detail = err.detail;
+    // detail can be a string or an object {code, message} from FastAPI structured errors
+    const msg = detail && typeof detail === 'object'
+      ? (detail.message || detail.code || JSON.stringify(detail))
+      : (detail || 'Request failed');
+    const error = new Error(msg);
+    error.code = detail?.code || null;
+    throw error;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -39,3 +46,4 @@ const api = {
 };
 
 export default api;
+

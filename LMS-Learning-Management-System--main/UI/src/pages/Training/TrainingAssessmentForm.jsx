@@ -8,10 +8,31 @@ import { useParams } from 'react-router-dom';
 import api from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import { useNavigationGuard } from '../../context/NavigationGuardContext';
-import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp, History, PlayCircle, ShieldAlert } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp, History, PlayCircle, ShieldAlert, Lock } from 'lucide-react';
 
 const ORANGE = '#F05A28';
 const TEAL = '#0d9488';
+
+// Renders question_text — if it contains the EEOC passage separator (\n---\n),
+// displays the passage in a distinct block followed by the question stem.
+function QuestionText({ text, className = '' }) {
+  const SEP = '\n---\n';
+  const idx = text ? text.indexOf(SEP) : -1;
+  if (idx === -1) {
+    return <p className={`text-sm font-medium text-gray-900 leading-relaxed ${className}`}>{text}</p>;
+  }
+  const passage = text.slice(0, idx).trim();
+  const questionStem = text.slice(idx + SEP.length).trim();
+  return (
+    <div className={className}>
+      <div className="bg-slate-50 border-l-4 border-slate-400 rounded-r-lg px-4 py-3 mb-2">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Passage</p>
+        <p className="text-sm text-slate-800 leading-relaxed">{passage}</p>
+      </div>
+      <p className="text-sm font-medium text-gray-900 leading-relaxed">{questionStem}</p>
+    </div>
+  );
+}
 
 function AttemptCard({ attempt, questions, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -79,7 +100,7 @@ function AttemptCard({ attempt, questions, defaultOpen = false }) {
                         )}
                         <span className="text-xs text-gray-400">Q{idx + 1}</span>
                       </div>
-                      <p className="text-sm font-medium text-gray-900 mb-1">{ans.question_text}</p>
+                      <QuestionText text={ans.question_text} className="mb-1" />
                       <div className="bg-gray-50 rounded-lg px-3 py-2 mb-1">
                         <p className="text-xs text-gray-500">Your answer:</p>
                         <p className="text-sm text-gray-800">{ans.answer_text || '(no answer)'}</p>
@@ -121,6 +142,8 @@ export default function TrainingAssessmentForm() {
   const [error, setError] = useState(null);
   const [mode, setMode] = useState('loading'); // 'loading' | 'history' | 'taking' | 'result'
   const [startingNew, setStartingNew] = useState(false);
+  const [maxReached, setMaxReached] = useState(false);
+  const [countdown, setCountdown] = useState(5);
   const { setBlocked } = useNavigationGuard();
 
   const isTaking = mode === 'taking';
@@ -130,6 +153,14 @@ export default function TrainingAssessmentForm() {
     setBlocked(isTaking);
     return () => setBlocked(false);
   }, [isTaking]);
+
+  // Auto-redirect countdown when all attempts exhausted
+  useEffect(() => {
+    if (!maxReached) return;
+    if (countdown <= 0) { navigate('/training/ai-assessments'); return; }
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [maxReached, countdown, navigate]);
 
   // Block browser back button, tab close, and refresh while test is active
   useEffect(() => {
@@ -191,6 +222,10 @@ export default function TrainingAssessmentForm() {
       setResult(null);
       setMode('taking');
     } catch (e) {
+      if (e.code === 'max_attempts_reached' || (e.message || '').includes('Maximum attempts')) {
+        setMaxReached(true);
+        return;
+      }
       setError(`Could not start attempt: ${e.message}`);
     } finally {
       setStartingNew(false);
@@ -215,6 +250,13 @@ export default function TrainingAssessmentForm() {
       setSubmitted(true);
       setMode('result');
       api.get(`/training/assessments/${assessmentId}/attempts`).then(setPastAttempts).catch(() => {});
+      // If this attempt failed, check whether attempts are now fully exhausted
+      if (!res.passed) {
+        api.get('/training/assessments/mine').then(list => {
+          const found = list.find(a => a.id === parseInt(assessmentId));
+          if (found?.max_attempts_reached) setMaxReached(true);
+        }).catch(() => {});
+      }
     } catch (e) {
       // AI evaluation can take 30-90s — the server may have finished even if the
       // network request timed out. Try to recover by re-fetching attempts.
@@ -247,6 +289,39 @@ export default function TrainingAssessmentForm() {
     );
   }
 
+  // ── ATTEMPTS EXHAUSTED screen ────────────────────────────────────────────────
+  if (maxReached) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 py-10">
+        <div className="bg-white rounded-2xl border border-red-200 shadow-sm p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5">
+            <Lock className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">All Attempts Used</h2>
+          <p className="text-sm font-semibold text-gray-600 mb-4">{assessment?.title}</p>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            You've used all available attempts for this assessment.
+            Please contact your manager to request a new attempt.
+          </p>
+          <div className="mt-5 bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
+            <p className="text-xs text-orange-700 font-medium">
+              Go back to the Assessments page and use the <strong>"Request Attempt"</strong> button to notify your manager.
+            </p>
+          </div>
+          <p className="text-xs text-gray-400 mt-5">
+            Redirecting in <span className="font-bold text-gray-700">{countdown}s</span>…
+          </p>
+          <button
+            onClick={() => navigate('/training/ai-assessments')}
+            className="mt-4 w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: ORANGE }}>
+            Go to Assessments Now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="space-y-4">
@@ -260,6 +335,8 @@ export default function TrainingAssessmentForm() {
   if (mode === 'result' && result) {
     const passed = result.passed;
     const score = result.score ?? 0;
+    // Disable retake if this attempt passed OR any previous attempt passed
+    const anyPassed = passed || pastAttempts.some(a => a.passed);
     const feedback = result.ai_feedback?.overall || '';
 
     return (
@@ -307,23 +384,33 @@ export default function TrainingAssessmentForm() {
 
         <AttemptCard attempt={result} questions={assessment?.questions || []} defaultOpen={true} />
 
-        <div className="flex gap-3">
-          {!passed && (
+        {maxReached ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-center">
+            <p className="text-sm font-semibold text-red-700 mb-1">All attempts used up</p>
+            <p className="text-xs text-gray-500">
+              Use the <strong>"Request Attempt"</strong> button on the Assessments page to ask your manager for a retake.
+            </p>
+            <p className="text-xs text-gray-400 mt-2">Redirecting in {countdown}s…</p>
+          </div>
+        ) : (
+          <div className="flex gap-3">
+            {!anyPassed && (
+              <button
+                onClick={startAttempt}
+                disabled={startingNew}
+                className="flex-1 py-3 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                style={{ background: ORANGE }}>
+                {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                {startingNew ? 'Preparing new questions…' : 'Retake Test'}
+              </button>
+            )}
             <button
-              onClick={startAttempt}
-              disabled={startingNew}
-              className="flex-1 py-3 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ background: ORANGE }}>
-              {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-              {startingNew ? 'Preparing new questions…' : 'Try Again'}
+              onClick={() => setMode('history')}
+              className="flex-1 py-3 rounded-xl text-gray-700 font-semibold text-sm border border-gray-200 hover:bg-gray-50 flex items-center justify-center gap-2">
+              <History className="w-4 h-4" /> View All Attempts
             </button>
-          )}
-          <button
-            onClick={() => setMode('history')}
-            className="flex-1 py-3 rounded-xl text-gray-700 font-semibold text-sm border border-gray-200 hover:bg-gray-50 flex items-center justify-center gap-2">
-            <History className="w-4 h-4" /> View All Attempts
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -357,14 +444,16 @@ export default function TrainingAssessmentForm() {
           <h2 className="font-semibold text-gray-900 flex items-center gap-2">
             <History className="w-4 h-4 text-gray-500" /> Attempt History
           </h2>
-          <button
-            onClick={startAttempt}
-            disabled={startingNew}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
-            style={{ background: ORANGE }}>
-            {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-            {startingNew ? 'Preparing new questions…' : hasPassed ? 'Take Again' : 'Start New Attempt'}
-          </button>
+          {!hasPassed && (
+            <button
+              onClick={startAttempt}
+              disabled={startingNew}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
+              style={{ background: ORANGE }}>
+              {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+              {startingNew ? 'Preparing new questions…' : 'Retake Test'}
+            </button>
+          )}
         </div>
 
         {pastAttempts.length === 0 ? (
@@ -429,7 +518,7 @@ export default function TrainingAssessmentForm() {
                     </span>
                   )}
                 </div>
-                <p className="text-sm font-medium text-gray-900 leading-relaxed">{q.question_text}</p>
+                <QuestionText text={q.question_text} />
               </div>
             </div>
 
@@ -472,3 +561,4 @@ export default function TrainingAssessmentForm() {
     </div>
   );
 }
+

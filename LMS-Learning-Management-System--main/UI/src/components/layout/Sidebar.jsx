@@ -5,18 +5,21 @@ import { useNavigationGuard } from '../../context/NavigationGuardContext';
 import { ShieldAlert } from 'lucide-react';
 import {
   Home, BookOpen, FileText, GraduationCap, Users, LogOut,
-  UserCircle, FolderOpen, UserPlus, ChevronRight, Brain, BarChart2, ClipboardList
+  UserCircle, FolderOpen, UserPlus, ChevronRight, Brain, BarChart2,
+  ArrowRightLeft, Video
 } from 'lucide-react';
 
 const NAVY = '#1E1040';
 const ORANGE = '#F05A28';
 
 export default function Sidebar() {
-  const { user, logout, avatarUrl } = useAuth();
+  const { user, logout, avatarUrl, activeView, switchView } = useAuth();
   const navigate = useNavigate();
   const { blocked } = useNavigationGuard();
   const [showWarning, setShowWarning] = useState(false);
   if (!user) return null;
+
+  const effectiveRole = activeView || user.role;
 
   const guardedNavigate = (e, to) => {
     if (blocked) {
@@ -26,32 +29,46 @@ export default function Sidebar() {
     }
   };
 
+  const handleSwitchView = () => {
+    if (blocked) { setShowWarning(true); setTimeout(() => setShowWarning(false), 3000); return; }
+    if (effectiveRole === 'manager') {
+      switchView('employee');
+      navigate('/upskilling');
+    } else {
+      switchView('manager');
+      navigate('/manager');
+    }
+  };
+
   const isContentManager = user.role === 'manager' && (user.department || '') === 'Content';
   const isContentNewJoiner = user.role === 'new_joiner' && (user.manager_department || '') === 'Content';
 
   let items = [];
-  if (user.role === 'new_joiner') {
+  if (effectiveRole === 'new_joiner') {
     items = [
       { to: '/training', label: 'Dashboard', icon: Home },
       { to: '/training/sme-kit', label: 'SME Training Kit', icon: BookOpen },
       { to: '/training/ai-assessments', label: 'AI Quizzes', icon: Brain },
+      { to: '/training/video-assignments', label: 'Video Assignments', icon: Video },
       { to: '/training/analytics', label: 'Analytics', icon: BarChart2 },
     ];
-  } else if (user.role === 'employee') {
+  } else if (effectiveRole === 'employee') {
     items = [
       { to: '/upskilling', label: 'Dashboard', icon: Home },
       { to: '/upskilling/courses', label: 'My Courses', icon: GraduationCap },
       { to: '/upskilling/profile', label: 'My Profile', icon: UserCircle },
+      { to: '/upskilling/video-assignments', label: 'Video Assignments', icon: Video },
       { to: '/upskilling/analytics', label: 'Analytics', icon: BarChart2 },
     ];
-  } else if (user.role === 'manager') {
+  } else if (effectiveRole === 'manager') {
     items = [
       { to: '/manager?tab=learners', label: 'Learners', icon: Users },
       { to: '/manager/sme-kits', label: 'SME Kits', icon: BookOpen },
-      { to: '/manager/quizzes', label: 'Quizzes', icon: ClipboardList },
+      { to: '/manager/quizzes', label: 'AI Quizzes', icon: Brain },
+      { to: '/manager/video-assignments', label: 'Video Assignments', icon: Video },
       { to: '/manager/analytics', label: 'Analytics', icon: BarChart2 },
     ];
-  } else if (user.role === 'admin') {
+  } else if (effectiveRole === 'admin') {
     items = [
       { to: '/admin', label: 'Overview', icon: Home },
       { to: '/admin/users', label: 'Users', icon: Users },
@@ -64,14 +81,14 @@ export default function Sidebar() {
     employee:   { label: 'Employee',   bg: 'rgba(99,102,241,0.18)', color: '#A5B4FC', border: 'rgba(99,102,241,0.35)' },
     manager:    { label: 'Manager',    bg: 'rgba(245,158,11,0.18)', color: '#FCD34D', border: 'rgba(245,158,11,0.35)' },
     admin:      { label: 'Admin',      bg: 'rgba(239,68,68,0.18)',  color: '#FCA5A5', border: 'rgba(239,68,68,0.35)' },
-  }[user.role];
+  }[effectiveRole];
 
   const avatarGradient = {
     admin:      'linear-gradient(135deg,#ef4444,#e11d48)',
     manager:    `linear-gradient(135deg,${ORANGE},#c2410c)`,
     employee:   'linear-gradient(135deg,#6366f1,#7c3aed)',
     new_joiner: 'linear-gradient(135deg,#10b981,#0d9488)',
-  }[user.role] || `linear-gradient(135deg,${ORANGE},#c2410c)`;
+  }[effectiveRole] || `linear-gradient(135deg,${ORANGE},#c2410c)`;
 
   const managerName = user.manager_name;
 
@@ -169,8 +186,24 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* Portal toggle (manager only) */}
+      {user.role === 'manager' && (
+        <div className="px-3 pb-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.75rem' }}>
+          <button
+            onClick={handleSwitchView}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-all"
+            style={{ color: effectiveRole === 'manager' ? '#A5B4FC' : '#FCD34D', background: effectiveRole === 'manager' ? 'rgba(99,102,241,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${effectiveRole === 'manager' ? 'rgba(99,102,241,0.25)' : 'rgba(245,158,11,0.25)'}` }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+          >
+            <ArrowRightLeft className="w-4 h-4 shrink-0" />
+            {effectiveRole === 'manager' ? 'Switch to Employee Portal' : 'Switch to Manager Portal'}
+          </button>
+        </div>
+      )}
+
       {/* Sign out */}
-      <div className="p-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="p-3" style={{ borderTop: user.role === 'manager' ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
         <button
           onClick={(e) => { if (blocked) { e.preventDefault(); setShowWarning(true); setTimeout(() => setShowWarning(false), 3000); return; } logout(); navigate('/login'); }}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full transition-all"
@@ -185,3 +218,4 @@ export default function Sidebar() {
     </aside>
   );
 }
+

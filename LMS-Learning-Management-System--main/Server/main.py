@@ -9,7 +9,7 @@ from routers import (
     courses_router, banks_router, ai_interview_router,
     ai_recommend_router, notifications_router,
     training_smekit_router, training_assessments_router,
-    analytics_router,
+    analytics_router, video_assignments_router,
 )
 from config import UPLOAD_DIR
 
@@ -44,6 +44,12 @@ app.include_router(notifications_router)
 app.include_router(training_smekit_router)
 app.include_router(training_assessments_router)
 app.include_router(analytics_router)
+app.include_router(video_assignments_router)
+
+
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "LMS Platform API", "version": "2.6.0"}
 
 
 @app.get("/health")
@@ -224,6 +230,19 @@ def startup():
         except Exception:
             pass
 
+    # Add retake_grants column to training_assessments (v2.7) — tracks manager-approved extra attempts
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_assessments ADD COLUMN retake_grants INTEGER DEFAULT 0"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE training_assessments ADD COLUMN IF NOT EXISTS retake_grants INTEGER DEFAULT 0"))
+            conn.commit()
+
     # Create training module tables (v2.2) — create_all handles new tables but not column additions
     Base.metadata.create_all(bind=engine)
 
@@ -239,3 +258,4 @@ def startup():
             db.close()
     except Exception:
         db.close()
+

@@ -226,20 +226,9 @@ export default function UserManagement() {
                 <option value="admin">Admin</option>
               </select>
             </div>
-            {(form.role === 'employee' || form.role === 'new_joiner') && (
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Assign Manager *</label>
-                <select value={form.manager_id} onChange={(e) => { setForm({ ...form, manager_id: e.target.value }); setFormErrors((p) => ({ ...p, manager_id: '' })); }}
-                  className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.manager_id ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
-                  <option value="">Select Manager</option>
-                  {managers.map((m) => <option key={m.id} value={m.id}>{m.name} — {m.department || 'No dept'}</option>)}
-                </select>
-                {formErrors.manager_id && <p className="text-xs text-red-500 mt-1">{formErrors.manager_id}</p>}
-              </div>
-            )}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Department *</label>
-              <select value={form.department} onChange={(e) => { setForm({ ...form, department: e.target.value }); setFormErrors((p) => ({ ...p, department: '' })); }}
+              <select value={form.department} onChange={(e) => { setForm({ ...form, department: e.target.value, manager_id: '' }); setFormErrors((p) => ({ ...p, department: '', manager_id: '' })); }}
                 className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.department ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
                 <option value="">Select Department</option>
                 <option value="Content">Content</option>
@@ -258,6 +247,19 @@ export default function UserManagement() {
               </select>
               {formErrors.department && <p className="text-xs text-red-500 mt-1">{formErrors.department}</p>}
             </div>
+            {(form.role === 'employee' || form.role === 'new_joiner') && form.department && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Manager *</label>
+                <select value={form.manager_id} onChange={(e) => { setForm({ ...form, manager_id: e.target.value }); setFormErrors((p) => ({ ...p, manager_id: '' })); }}
+                  className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.manager_id ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
+                  <option value="">Select Manager</option>
+                  {managers.filter((m) => m.department === form.department).map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+                {formErrors.manager_id && <p className="text-xs text-red-500 mt-1">{formErrors.manager_id}</p>}
+              </div>
+            )}
             <div className="sm:col-span-2 flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => { setShowForm(false); setFormErrors({}); }} className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
               <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2.5 text-white text-sm font-medium rounded-xl disabled:opacity-60"
@@ -402,7 +404,7 @@ export default function UserManagement() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
-                <select value={editForm.department} onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <select value={editForm.department} onChange={(e) => setEditForm({ ...editForm, department: e.target.value, manager_id: '' })} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200">
                   <option value="">Select Department</option>
                   <option value="Content">Content</option>
                   <option value="Customer Success">Customer Success</option>
@@ -419,13 +421,15 @@ export default function UserManagement() {
                   <option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option>
                 </select>
               </div>
-              {(editForm.role === 'employee' || editForm.role === 'new_joiner') && (
+              {(editForm.role === 'employee' || editForm.role === 'new_joiner') && editForm.department && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Manager *</label>
                   <select value={editForm.manager_id} onChange={(e) => { setEditForm({ ...editForm, manager_id: e.target.value }); setEditErrors((p) => ({ ...p, manager_id: '' })); }}
                     className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white ${editErrors.manager_id ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
                     <option value="">Select Manager</option>
-                    {managers.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.department || 'No dept'})</option>)}
+                    {managers.filter((m) => m.department === editForm.department).map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
                   </select>
                   {editErrors.manager_id && <p className="text-xs text-red-500 mt-1">{editErrors.manager_id}</p>}
                 </div>
@@ -472,3 +476,4 @@ export default function UserManagement() {
     </div>
   );
 }
+

@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
-import { Loader2, BookOpen, ChevronRight, Trophy, Award, Clock, CheckCircle2 } from 'lucide-react';
+import { Loader2, BookOpen, ChevronRight, Trophy, Award, CheckCircle2, Lock, Send } from 'lucide-react';
 
 function AccuracyBadge({ score }) {
   if (score >= 90) return (
@@ -29,13 +29,31 @@ export default function AIAssessments() {
   const navigate = useNavigate();
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [requestingId, setRequestingId] = useState(null);
 
-  useEffect(() => {
+  const fetchAssessments = () => {
     api.get('/training/assessments/mine')
       .then(setAssessments)
       .catch(() => setAssessments([]))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchAssessments(); }, []);
+
+  const handleRequestRetake = async (e, assessmentId) => {
+    e.stopPropagation();
+    setRequestingId(assessmentId);
+    try {
+      await api.post(`/training/assessments/${assessmentId}/request-retake`);
+      // Refresh from server so retake_requested comes from the source of truth
+      fetchAssessments();
+    } catch (_) {
+      // already requested or error — still refresh to sync state
+      fetchAssessments();
+    } finally {
+      setRequestingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -64,23 +82,43 @@ export default function AIAssessments() {
           {assessments.map((a) => {
             const hasPassed = a.passed;
             const hasAttempt = a.attempt_count > 0;
+            const isLocked = a.max_attempts_reached;
+            const isRequested = a.retake_requested;
+            const isRequesting = requestingId === a.id;
 
             return (
               <div
                 key={a.id}
-                onClick={() => navigate(`/training/ai-assessments/${a.id}`)}
-                className="bg-white border border-gray-200 rounded-2xl px-5 py-4 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-gray-300 transition-all">
+                onClick={() => !isLocked && navigate(`/training/ai-assessments/${a.id}`)}
+                className={`bg-white border rounded-2xl px-5 py-4 flex items-center justify-between transition-all ${
+                  isLocked
+                    ? 'border-red-100 bg-red-50 cursor-default'
+                    : 'border-gray-200 cursor-pointer hover:shadow-md hover:border-gray-300'
+                }`}>
+
                 <div className="flex items-center gap-4">
                   <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg shrink-0"
-                    style={{ background: hasPassed ? 'linear-gradient(135deg,#10b981,#0d9488)' : `linear-gradient(135deg,${TEAL},#134e4a)` }}>
-                    {hasPassed ? '🏆' : '🧠'}
+                    style={{
+                      background: hasPassed
+                        ? 'linear-gradient(135deg,#10b981,#0d9488)'
+                        : isLocked
+                        ? 'linear-gradient(135deg,#ef4444,#b91c1c)'
+                        : `linear-gradient(135deg,${TEAL},#134e4a)`,
+                    }}>
+                    {hasPassed ? '🏆' : isLocked ? <Lock className="w-5 h-5" /> : '🧠'}
                   </div>
+
                   <div>
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                       <span className="font-semibold text-gray-900 text-sm">{a.title}</span>
                       {hasPassed && (
                         <span className="flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-semibold">
                           <CheckCircle2 className="w-3 h-3" /> Passed
+                        </span>
+                      )}
+                      {isLocked && (
+                        <span className="flex items-center gap-1 text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-semibold">
+                          <Lock className="w-3 h-3" /> 3/3 Attempts Used
                         </span>
                       )}
                       {hasPassed && a.best_score != null && <AccuracyBadge score={a.best_score} />}
@@ -90,11 +128,13 @@ export default function AIAssessments() {
                         </span>
                       )}
                     </div>
+
                     <div className="flex items-center gap-3 text-xs text-gray-400">
                       <span>{a.kit_name || '📥 Excel Import'}</span>
                       <span>{a.total_questions} questions ({a.mcq_count} MCQ + {a.written_count} written)</span>
                       <span>Pass at {a.pass_threshold}%</span>
                     </div>
+
                     {hasAttempt && (
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-indigo-600 font-medium">{a.attempt_count} attempt{a.attempt_count > 1 ? 's' : ''}</span>
@@ -105,14 +145,46 @@ export default function AIAssessments() {
                         )}
                       </div>
                     )}
+
+                    {isLocked && (
+                      <p className="text-xs text-red-500 mt-1">
+                        All attempts exhausted. Request a new attempt from your manager.
+                      </p>
+                    )}
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-xs font-semibold px-3 py-1.5 rounded-xl ${hasAttempt ? (hasPassed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700') : 'text-white'}`}
-                    style={!hasAttempt ? { background: ORANGE } : {}}>
-                    {hasAttempt ? (hasPassed ? 'Review' : 'Retry') : 'Start'}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  {isLocked ? (
+                    <button
+                      onClick={(e) => !isRequested && !isRequesting && handleRequestRetake(e, a.id)}
+                      disabled={isRequested || isRequesting}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors ${
+                        isRequested
+                          ? 'bg-gray-100 text-gray-500 cursor-default'
+                          : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`}>
+                      {isRequesting
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : isRequested
+                        ? <CheckCircle2 className="w-3 h-3" />
+                        : <Send className="w-3 h-3" />}
+                      {isRequesting ? 'Sending...' : isRequested ? 'Request Sent' : 'Request Attempt'}
+                    </button>
+                  ) : (
+                    <>
+                      <span
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-xl ${
+                          hasAttempt
+                            ? hasPassed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                            : 'text-white'
+                        }`}
+                        style={!hasAttempt ? { background: ORANGE } : {}}>
+                        {hasAttempt ? (hasPassed ? 'Review' : 'Retry') : 'Start'}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -122,3 +194,4 @@ export default function AIAssessments() {
     </div>
   );
 }
+
