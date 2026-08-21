@@ -342,3 +342,68 @@ class Notification(Base):
 
     user = relationship("User")
 
+
+# ── Video Assignments Module ──────────────────────────────────────────────────
+
+class VideoContent(Base):
+    __tablename__ = "video_contents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(300), nullable=False)
+    description = Column(Text, nullable=True)
+    video_url = Column(String(1000), nullable=False)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    quiz_generated = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=_now)
+
+    uploader = relationship("User", foreign_keys=[uploaded_by])
+    questions = relationship("VideoQuizQuestion", back_populates="video", cascade="all, delete-orphan")
+    assignments = relationship("VideoAssignment", back_populates="video", cascade="all, delete-orphan")
+
+
+class VideoAssignment(Base):
+    __tablename__ = "video_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    video_id = Column(Integer, ForeignKey("video_contents.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    due_date = Column(DateTime, nullable=True)
+    status = Column(String(20), default="assigned")
+    progress_percent = Column(Integer, default=0)
+    quiz_passed = Column(Boolean, nullable=True)
+    assigned_at = Column(DateTime, server_default=_now)
+
+    video = relationship("VideoContent", back_populates="assignments")
+    user = relationship("User", foreign_keys=[user_id])
+    assigner = relationship("User", foreign_keys=[assigned_by])
+    attempts = relationship("VideoQuizAttempt", back_populates="assignment", cascade="all, delete-orphan")
+
+
+class VideoQuizQuestion(Base):
+    __tablename__ = "video_quiz_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    video_id = Column(Integer, ForeignKey("video_contents.id"), nullable=False)
+    question_text = Column(Text, nullable=False)
+    options = Column(JSON, nullable=False)
+    correct_index = Column(Integer, nullable=False)
+    generation = Column(Integer, default=1)
+
+    video = relationship("VideoContent", back_populates="questions")
+
+
+class VideoQuizAttempt(Base):
+    __tablename__ = "video_quiz_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    assignment_id = Column(Integer, ForeignKey("video_assignments.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    attempt_number = Column(Integer, default=1)
+    score = Column(Float, nullable=True)
+    passed = Column(Boolean, nullable=True)
+    submitted_at = Column(DateTime, server_default=_now)
+
+    assignment = relationship("VideoAssignment", back_populates="attempts")
+    user = relationship("User", foreign_keys=[user_id])
+

@@ -9,7 +9,7 @@ from routers import (
     courses_router, banks_router, ai_interview_router,
     ai_recommend_router, notifications_router,
     training_smekit_router, training_assessments_router,
-    analytics_router,
+    analytics_router, video_assignments_router,
 )
 from config import UPLOAD_DIR
 
@@ -44,6 +44,7 @@ app.include_router(notifications_router)
 app.include_router(training_smekit_router)
 app.include_router(training_assessments_router)
 app.include_router(analytics_router)
+app.include_router(video_assignments_router)
 
 
 @app.get("/health")

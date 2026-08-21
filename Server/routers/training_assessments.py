@@ -14,7 +14,7 @@ GET    /training/attempts/{attempt_id}    — attempt detail with per-answer fla
 import io
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -77,11 +77,30 @@ def _build_content_context(files: List[SmeKitFileV2]) -> str:
     return "\n\n---\n\n".join(parts) if parts else "No content available."
 
 
+_EDITING_KIT_NAME_SIGNALS = (
+    "eeoc", "content valid", "editing check", "editing guide",
+    "style guide", "qc checklist", "content editing", "proofreading",
+    "content qc", "editing qc",
+)
+
+
+def _is_editing_kit(kit_name: str, content: str) -> bool:
+    if any(signal in (kit_name or "").lower() for signal in _EDITING_KIT_NAME_SIGNALS):
+        return True
+    excerpt = content[:2000].lower()
+    signals = (
+        "eeoc", "content validation checklist", "editing checklist",
+        "sensitive keyword", "filler word", "uk english", "us english style",
+    )
+    return sum(1 for signal in signals if signal in excerpt) >= 2
+
+
 def _generate_questions(
     content: str,
     easy_count: int, easy_type: str,
     medium_count: int, medium_type: str,
     hard_count: int, hard_type: str,
+    kit_name: str = "",
 ) -> List[dict]:
     total = easy_count + medium_count + hard_count
 
@@ -145,7 +164,37 @@ def _generate_questions(
         example_objs.append(_example_obj(ex_order, "hard", hard_type)); ex_order += 1
     example_block = ",\n".join(example_objs)
 
-    prompt = f"""You are an expert trainer creating a training assessment based exclusively on the SME Kit content provided below.
+    if _is_editing_kit(kit_name, content):
+        prompt = f"""You are designing a content-validation assessment from the editing or EEOC guideline below.
+
+[START OF CONTENT]
+{content}
+[END OF CONTENT]
+
+Generate exactly {total} realistic scenario-based questions. Test whether a candidate can decide if an invented passage should be flagged under the guideline. Do not ask recall questions about what the document says or what the document is.
+
+For every question:
+1. Extract and apply a real rule from the guideline.
+2. Invent a fresh two-to-four-sentence workplace passage; do not copy the guideline.
+3. Use this exact question_text structure: "[passage]\\n---\\nQuestion: Should this text be flagged based on the content validation checklist? Why?"
+4. For MCQs, provide exactly four comparable options labeled A–D. Each option starts with "Yes." or "No." and gives a complete explanation. Mix Yes and No options.
+5. Store only A, B, C, or D in correct_answer.
+6. Easy scenarios contain an obvious single violation. Medium scenarios require applying a specific rule. Hard scenarios require nuanced judgment and must include both passages that should be flagged and passages that should not.
+7. Vary domains across questions. Use US English, double quotation marks, the Oxford comma, active voice, and neutral professional language.
+
+QUESTION TYPE MANDATE:
+{type_mandate}
+
+Return only valid JSON in this structure:
+{{
+  "questions": [
+{example_block}
+  ]
+}}
+
+The questions array must contain exactly {total} items: {easy_count} Easy, {medium_count} Medium, and {hard_count} Hard."""
+    else:
+        prompt = f"""You are an expert trainer creating a training assessment based exclusively on the SME Kit content provided below.
 
 Follow these rules strictly:
 1. Every question must be directly answerable ONLY from the text between [START OF CONTENT] and [END OF CONTENT] below. Do not use outside knowledge or general facts.
@@ -415,6 +464,7 @@ def generate_assessment(
         payload.easy_count, easy_type,
         payload.medium_count, medium_type,
         payload.hard_count, hard_type,
+        kit_name=kit.name or "",
     )
 
     total = payload.easy_count + payload.medium_count + payload.hard_count
@@ -710,6 +760,27 @@ def start_attempt(
         a.attempt_request_status = None
         db.flush()
 
+    latest_failed = max(
+        (attempt for attempt in evaluated if not attempt.passed and attempt.submitted_at),
+        key=lambda attempt: attempt.submitted_at,
+        default=None,
+    )
+    if latest_failed:
+        available_at = latest_failed.submitted_at + timedelta(minutes=60)
+        now = datetime.utcnow()
+        if now < available_at:
+            wait_seconds = max(1, int((available_at - now).total_seconds()))
+            wait_minutes = (wait_seconds + 59) // 60
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "retake_cooldown",
+                    "message": f"Retake available in {wait_minutes} minute(s).",
+                    "wait_seconds": wait_seconds,
+                    "available_at": available_at.isoformat(),
+                },
+            )
+
     attempt_number = db.query(TrainingAttempt).filter(
         TrainingAttempt.assessment_id == assessment_id,
         TrainingAttempt.user_id == current_user.id,
@@ -772,6 +843,7 @@ def start_attempt(
                 a.easy_count or 0, easy_type,
                 a.medium_count or 0, medium_type,
                 a.hard_count or 0, hard_type,
+                kit_name=a.kit.name if a.kit else "",
             )
             for qd in questions_data:
                 raw_type = qd.get("question_type", "descriptive")

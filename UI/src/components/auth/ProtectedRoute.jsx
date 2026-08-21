@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export default function ProtectedRoute({ children, roles }) {
-  const { user, loading } = useAuth();
+  const { user, loading, activeView } = useAuth();
 
   if (loading) {
     return (
@@ -14,7 +14,11 @@ export default function ProtectedRoute({ children, roles }) {
   }
 
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/login" replace />;
+  const effectiveRole = activeView || user.role;
+  if (roles && !roles.includes(user.role) && !roles.includes(effectiveRole)) {
+    const fallback = { manager: '/manager', employee: '/upskilling', admin: '/admin', new_joiner: '/training' };
+    return <Navigate to={fallback[user.role] || '/login'} replace />;
+  }
 
   return children;
 }
