@@ -13,6 +13,12 @@ import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, Che
 const ORANGE = '#F05A28';
 const TEAL = '#0d9488';
 
+function formatCooldown(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 function AttemptCard({ attempt, questions, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   // Use embedded question data from answers (works across generations), fall back to questions prop
@@ -122,6 +128,8 @@ export default function TrainingAssessmentForm() {
   const [mode, setMode] = useState('loading'); // 'loading' | 'history' | 'taking' | 'result'
   const [startingNew, setStartingNew] = useState(false);
   const [requestingSent, setRequestingSent] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const cooldownActive = cooldownSeconds > 0;
   const { setBlocked } = useNavigationGuard();
 
   const isTaking = mode === 'taking';
@@ -131,6 +139,14 @@ export default function TrainingAssessmentForm() {
     setBlocked(isTaking);
     return () => setBlocked(false);
   }, [isTaking]);
+
+  useEffect(() => {
+    if (!cooldownActive) return;
+    const timer = window.setInterval(() => {
+      setCooldownSeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldownActive]);
 
   // Block browser back button, tab close, and refresh while test is active
   useEffect(() => {
@@ -151,6 +167,7 @@ export default function TrainingAssessmentForm() {
           api.get(`/training/assessments/${assessmentId}/attempts`),
         ]);
         setAssessment(a);
+        setCooldownSeconds(a.retake_wait_seconds || 0);
         setPastAttempts(attempts);
 
         const inProgress = attempts.find(at => at.status === 'in_progress');
@@ -192,7 +209,11 @@ export default function TrainingAssessmentForm() {
       setResult(null);
       setMode('taking');
     } catch (e) {
-      setError(`Could not start attempt: ${e.message}`);
+      if (e.code === 'retake_cooldown') {
+        setCooldownSeconds(e.waitSeconds || 1);
+      } else {
+        setError(`Could not start attempt: ${e.message}`);
+      }
     } finally {
       setStartingNew(false);
       setLoading(false);
@@ -213,6 +234,7 @@ export default function TrainingAssessmentForm() {
     try {
       const res = await api.post(`/training/assessments/${assessmentId}/submit`, { answers: answersArray });
       setResult(res);
+      if (!res.passed) setCooldownSeconds(60 * 60);
       setSubmitted(true);
       setMode('result');
       api.get(`/training/assessments/${assessmentId}/attempts`).then(setPastAttempts).catch(() => {});
@@ -225,6 +247,7 @@ export default function TrainingAssessmentForm() {
         if (evaluated) {
           setPastAttempts(attempts);
           setResult(evaluated);
+          if (!evaluated.passed) setCooldownSeconds(60 * 60);
           setSubmitted(true);
           setMode('result');
           return;
@@ -309,14 +332,30 @@ export default function TrainingAssessmentForm() {
         <AttemptCard attempt={result} questions={assessment?.questions || []} defaultOpen={true} />
 
         <div className="flex gap-3">
-          {!passed && (
+          {!passed && result.attempt_number < 3 && (
             <button
               onClick={startAttempt}
-              disabled={startingNew}
+              disabled={startingNew || cooldownActive}
               className="flex-1 py-3 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: ORANGE }}>
               {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-              {startingNew ? 'Preparing new questions…' : 'Try Again'}
+              {startingNew ? 'Preparing new questions…' : cooldownActive ? `Retake available in ${formatCooldown(cooldownSeconds)}` : 'Retake Test'}
+            </button>
+          )}
+          {!passed && result.attempt_number >= 3 && (
+            <button
+              onClick={async () => {
+                if (requestingSent) return;
+                try {
+                  await api.post(`/training/assessments/${assessmentId}/request-attempt`, {});
+                  setRequestingSent(true);
+                  setAssessment((current) => ({ ...current, attempt_request_status: 'pending' }));
+                  setMode('history');
+                } catch (e) { setError(`Could not request a new attempt: ${e.message}`); }
+              }}
+              disabled={requestingSent}
+              className="flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 border-2 border-amber-400 text-amber-700 bg-amber-50 disabled:opacity-60">
+              <Send className="w-4 h-4" /> {requestingSent ? 'Request Sent ✓' : 'Request New Attempt from Manager'}
             </button>
           )}
           <button
@@ -354,6 +393,16 @@ export default function TrainingAssessmentForm() {
           )}
         </div>
 
+        {cooldownActive && !hasPassed && pastAttempts.filter(a => a.status === 'evaluated' && !a.passed).length < 3 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-start gap-3">
+            <History className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-blue-800">Retake available in {formatCooldown(cooldownSeconds)}</p>
+              <p className="text-xs text-blue-700 mt-0.5">A retake is available 60 minutes after completing a failed attempt.</p>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-900 flex items-center gap-2">
             <History className="w-4 h-4 text-gray-500" /> Attempt History
@@ -368,11 +417,11 @@ export default function TrainingAssessmentForm() {
                 return (
                   <button
                     onClick={startAttempt}
-                    disabled={startingNew}
+                    disabled={startingNew || cooldownActive}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
                     style={{ background: '#10b981' }}>
                     {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-                    {startingNew ? 'Preparing new questions…' : 'Start Approved Attempt →'}
+                    {startingNew ? 'Preparing new questions…' : cooldownActive ? `Available in ${formatCooldown(cooldownSeconds)}` : 'Start Approved Attempt →'}
                   </button>
                 );
               }
@@ -415,11 +464,11 @@ export default function TrainingAssessmentForm() {
             return (
               <button
                 onClick={startAttempt}
-                disabled={startingNew}
+                disabled={startingNew || cooldownActive}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
                 style={{ background: ORANGE }}>
                 {startingNew ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
-                {startingNew ? 'Preparing new questions…' : 'Start New Attempt'}
+                {startingNew ? 'Preparing new questions…' : cooldownActive ? `Retake available in ${formatCooldown(cooldownSeconds)}` : 'Retake Test'}
               </button>
             );
           })()}

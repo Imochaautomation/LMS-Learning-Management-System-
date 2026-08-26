@@ -208,7 +208,7 @@ def manager_analytics(
 
     # Monthly activity
     monthly = []
-    for start, end, label in _monthly_buckets(6):
+    for start, end, label in _monthly_buckets(12):
         m_att = [a for a in attempts if a.submitted_at and start <= a.submitted_at < end]
         m_courses = (
             db.query(UserCourse)

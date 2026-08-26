@@ -208,14 +208,16 @@ export default function ManagerDashboard() {
       setSelectedNotifs([]);
     } catch (e) { toast.error('Failed to mark notifications as read.'); }
   };
-  const bulkDeleteNotifs = async () => {
-    if (selectedNotifs.length === 0) return;
+
+  const markNotificationRead = async (notification) => {
+    if (notification.read) return;
+    setNotifications((prev) => prev.map((n) => n.id === notification.id ? { ...n, read: true } : n));
     try {
-      await api.post('/notifications/bulk-delete', selectedNotifs);
-      setNotifications((prev) => prev.filter((n) => !selectedNotifs.includes(n.id)));
-      toast.success(`${selectedNotifs.length} notifications deleted.`);
-      setSelectedNotifs([]);
-    } catch (e) { toast.error('Failed to delete notifications.'); }
+      await api.post(`/courses/notifications/${notification.id}/read`, {});
+    } catch (e) {
+      setNotifications((prev) => prev.map((n) => n.id === notification.id ? { ...n, read: false } : n));
+      toast.error('Failed to mark notification as read.');
+    }
   };
 
   const tabs = [
@@ -303,16 +305,10 @@ export default function ManagerDashboard() {
                   {selectedNotifs.length === notifications.length ? 'Deselect All' : 'Select All'}
                 </button>
                 {selectedNotifs.length > 0 && (
-                  <>
-                    <button onClick={bulkMarkRead}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50">
-                      <MailCheck className="w-3.5 h-3.5" /> Mark Read ({selectedNotifs.length})
-                    </button>
-                    <button onClick={bulkDeleteNotifs}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
-                      <Trash2 className="w-3.5 h-3.5" /> Delete ({selectedNotifs.length})
-                    </button>
-                  </>
+                  <button onClick={bulkMarkRead}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50">
+                    <MailCheck className="w-3.5 h-3.5" /> Mark Read ({selectedNotifs.length})
+                  </button>
                 )}
               </div>
             )}
@@ -320,17 +316,22 @@ export default function ManagerDashboard() {
           {notifications.length === 0 ? <p className="text-center text-gray-400 py-8">No notifications yet.</p> : (
             <>
               {paginate(notifications, notifPage).map((n) => (
-                <div key={n.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
+                <div key={n.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => markNotificationRead(n)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); markNotificationRead(n); } }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all cursor-pointer ${
                   selectedNotifs.includes(n.id) ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200' :
-                  n.read ? 'bg-white border-gray-100' : 'bg-amber-50 border-amber-100'
+                  n.read ? 'bg-white border-gray-100 hover:bg-gray-50' : 'bg-amber-50 border-amber-100 hover:bg-amber-100/60'
                 }`}>
-                  <button onClick={() => toggleNotifSelect(n.id)} className="shrink-0 p-0.5">
+                  <button onClick={(e) => { e.stopPropagation(); toggleNotifSelect(n.id); }} className="shrink-0 p-0.5" aria-label="Select notification">
                     {selectedNotifs.includes(n.id)
                       ? <CheckSquare className="w-4.5 h-4.5 text-indigo-600" />
                       : <Square className="w-4.5 h-4.5 text-gray-300 hover:text-gray-500" />}
                   </button>
                   <Bell className={`w-4 h-4 shrink-0 ${n.read ? 'text-gray-400' : 'text-indigo-500'}`} />
-                  <p className="text-sm text-gray-700 flex-1">{n.message}</p>
+                  <p className={`text-sm flex-1 ${n.read ? 'text-gray-600 font-normal' : 'text-gray-900 font-semibold'}`}>{n.message}</p>
                   <span className="text-xs text-gray-400 shrink-0">{n.created_at?.split('T')[0]}</span>
                 </div>
               ))}

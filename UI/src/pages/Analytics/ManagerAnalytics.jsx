@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/client';
 import {
@@ -83,6 +83,7 @@ export default function ManagerAnalytics() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const monthlyScrollRef = useRef(null);
 
   useEffect(() => {
     api.get('/analytics/manager')
@@ -90,6 +91,13 @@ export default function ManagerAnalytics() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const container = monthlyScrollRef.current;
+    if (container && data?.monthly_activity?.length) {
+      container.scrollLeft = container.scrollWidth;
+    }
+  }, [data]);
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -279,20 +287,24 @@ export default function ManagerAnalytics() {
       {/* Monthly Activity */}
       {monthly.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h2 className="text-sm font-bold text-gray-800 mb-1">Monthly Activity (Last 6 Months)</h2>
+          <h2 className="text-sm font-bold text-gray-800 mb-1">Monthly Activity (Last 12 Months)</h2>
           <div className="flex items-center gap-4 text-xs mb-3 mt-1">
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded" style={{ background: ORANGE }} /> Quiz Attempts</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded bg-emerald-500" /> Quiz Passed</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded bg-indigo-500" /> Courses Completed</span>
           </div>
-          <LineChart
-            data={monthly}
-            keys={['attempts', 'passed', 'courses_completed']}
-            colors={[ORANGE, '#10b981', '#6366f1']}
-            height={110}
-          />
-          <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-            {monthly.map((m, i) => <span key={i}>{m.month.split(' ')[0]}</span>)}
+          <div ref={monthlyScrollRef} className="overflow-x-auto pb-2" aria-label="Scrollable monthly activity chart">
+            <div style={{ minWidth: `${Math.max(720, monthly.length * 110)}px` }}>
+              <LineChart
+                data={monthly}
+                keys={['attempts', 'passed', 'courses_completed']}
+                colors={[ORANGE, '#10b981', '#6366f1']}
+                height={110}
+              />
+              <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                {monthly.map((m, i) => <span key={i} className="w-20 text-center shrink-0">{m.month}</span>)}
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -721,7 +721,23 @@ def get_assessment(
         if in_progress:
             gen = in_progress.question_generation or 1
 
-    return _assessment_out(a, include_questions=True, for_joiner=is_joiner, generation=gen)
+    result = _assessment_out(a, include_questions=True, for_joiner=is_joiner, generation=gen)
+    result["retake_wait_seconds"] = 0
+    result["retake_available_at"] = None
+    if is_joiner:
+        latest_failed = db.query(TrainingAttempt).filter(
+            TrainingAttempt.assessment_id == assessment_id,
+            TrainingAttempt.user_id == current_user.id,
+            TrainingAttempt.status == "evaluated",
+            TrainingAttempt.passed.is_(False),
+            TrainingAttempt.submitted_at.isnot(None),
+        ).order_by(TrainingAttempt.submitted_at.desc()).first()
+        if latest_failed:
+            available_at = latest_failed.submitted_at + timedelta(minutes=60)
+            wait_seconds = max(0, int((available_at - datetime.utcnow()).total_seconds()))
+            result["retake_wait_seconds"] = wait_seconds
+            result["retake_available_at"] = available_at.isoformat()
+    return result
 
 
 @router.post("/assessments/{assessment_id}/start", response_model=dict)

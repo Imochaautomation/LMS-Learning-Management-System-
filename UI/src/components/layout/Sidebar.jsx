@@ -1,22 +1,26 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigationGuard } from '../../context/NavigationGuardContext';
+import api from '../../api/client';
 import { ShieldAlert } from 'lucide-react';
 import {
   Home, BookOpen, FileText, GraduationCap, Users, LogOut,
   UserCircle, FolderOpen, UserPlus, ChevronRight, Brain, BarChart2,
-  ArrowRightLeft, Video, ClipboardList
+  ArrowRightLeft, Video, ClipboardList, Camera, Loader2
 } from 'lucide-react';
 
 const NAVY = '#1E1040';
 const ORANGE = '#F05A28';
 
 export default function Sidebar() {
-  const { user, logout, avatarUrl, activeView, switchView } = useAuth();
+  const { user, logout, avatarUrl, setAvatarUrl, activeView, switchView } = useAuth();
   const navigate = useNavigate();
   const { blocked } = useNavigationGuard();
   const [showWarning, setShowWarning] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+  const avatarInputRef = useRef(null);
   if (!user) return null;
 
   const effectiveRole = activeView || user.role;
@@ -37,6 +41,34 @@ export default function Sidebar() {
     } else {
       switchView('manager');
       navigate('/manager');
+    }
+  };
+
+  const handleAvatarUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+      setAvatarError('Choose a JPG, PNG, GIF, or WebP image.');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setAvatarError('');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const result = await api.upload('/profile/avatar', formData);
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const url = `${base}${result.avatar_path}?v=${Date.now()}`;
+      setAvatarUrl(url);
+      localStorage.setItem('lms_avatar', url);
+    } catch (error) {
+      setAvatarError(error.message || 'Photo upload failed. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -113,20 +145,46 @@ export default function Sidebar() {
       {/* User card */}
       <div className="px-4 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="flex items-center gap-3">
-          {avatarUrl
-            ? <img
-                src={avatarUrl}
-                alt={user.name}
-                className="w-11 h-11 rounded-xl object-cover shadow-lg"
-                onError={e => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.nextSibling.style.display = 'flex';
-                }}
-              />
-            : null}
-          <div className="w-11 h-11 rounded-xl items-center justify-center text-sm font-bold text-white shrink-0 shadow-lg"
-            style={{ background: avatarGradient, display: avatarUrl ? 'none' : 'flex' }}>
-            {user.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
+          <div className="relative shrink-0">
+            {avatarUrl
+              ? <img
+                  src={avatarUrl}
+                  alt={user.name}
+                  className="w-11 h-11 rounded-xl object-cover shadow-lg"
+                  onError={e => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextSibling.style.display = 'flex';
+                  }}
+                />
+              : null}
+            <div className="w-11 h-11 rounded-xl items-center justify-center text-sm font-bold text-white shadow-lg"
+              style={{ background: avatarGradient, display: avatarUrl ? 'none' : 'flex' }}>
+              {user.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
+            </div>
+            {user.role === 'new_joiner' && (
+              <>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  aria-label={avatarUrl ? 'Change profile photo' : 'Upload profile photo'}
+                  title={avatarUrl ? 'Change profile photo' : 'Upload profile photo'}
+                  className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white border-2 disabled:cursor-wait"
+                  style={{ background: ORANGE, borderColor: NAVY }}
+                >
+                  {uploadingAvatar
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <Camera className="w-3 h-3" />}
+                </button>
+              </>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-white truncate">{user.name}</p>
@@ -136,6 +194,10 @@ export default function Sidebar() {
             </span>
           </div>
         </div>
+
+        {avatarError && user.role === 'new_joiner' && (
+          <p className="mt-2 text-[11px] leading-snug text-red-300">{avatarError}</p>
+        )}
 
         {(user.department || managerName) && (
           <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>

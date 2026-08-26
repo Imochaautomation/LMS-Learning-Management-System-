@@ -22,7 +22,15 @@ async function request(url, options = {}) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(err.detail || 'Request failed');
+    const detail = err.detail;
+    const message = detail && typeof detail === 'object'
+      ? (detail.message || detail.code || JSON.stringify(detail))
+      : (detail || 'Request failed');
+    const error = new Error(message);
+    error.code = detail?.code || null;
+    error.waitSeconds = detail?.wait_seconds || 0;
+    error.availableAt = detail?.available_at || null;
+    throw error;
   }
   if (res.status === 204) return null;
   return res.json();
