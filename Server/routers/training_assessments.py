@@ -65,6 +65,50 @@ def _extract_json(text: str) -> any:
     return json.loads(cleaned)
 
 
+def _normalize_us_quotation_marks(value):
+    """Use double quotation marks for quotations without changing apostrophes.
+
+    AI-generated editing questions sometimes wrap a quoted sentence in single
+    quotation marks despite being instructed to use US English. Only paired
+    quotation marks are changed; apostrophes inside words remain untouched.
+    """
+    if not isinstance(value, str) or "'" not in value and "‘" not in value:
+        return value
+
+    # Curly pairs are handled separately, including curly apostrophes in words.
+    normalized = re.sub(
+        r"‘((?:[^’\n]|(?<=\w)’(?=\w))+?)’(?=$|[\s.,!?;:)\]])",
+        r'“\1”',
+        value,
+    )
+    # Match each quoted passage separately while explicitly allowing apostrophes
+    # within words (for example, "document's" and "don't").
+    normalized = re.sub(
+        r"(?<![\w])'((?:[^'\n]|(?<=\w)'(?=\w))+?)'(?=$|[\s.,!?;:)\]])",
+        r'"\1"',
+        normalized,
+    )
+    return normalized
+
+
+def _normalize_question_quotations(question: dict) -> dict:
+    """Normalize only human-readable question fields."""
+    normalized = dict(question)
+    normalized["question_text"] = _normalize_us_quotation_marks(
+        normalized.get("question_text", "")
+    )
+    if isinstance(normalized.get("options"), list):
+        normalized["options"] = [
+            _normalize_us_quotation_marks(option)
+            for option in normalized["options"]
+        ]
+    if isinstance(normalized.get("correct_answer"), str):
+        normalized["correct_answer"] = _normalize_us_quotation_marks(
+            normalized["correct_answer"]
+        )
+    return normalized
+
+
 def _build_content_context(files: List[SmeKitFileV2]) -> str:
     parts = []
     for f in files:
@@ -181,6 +225,7 @@ For every question:
 5. Store only A, B, C, or D in correct_answer.
 6. Easy scenarios contain an obvious single violation. Medium scenarios require applying a specific rule. Hard scenarios require nuanced judgment and must include both passages that should be flagged and passages that should not.
 7. Vary domains across questions. Use US English, double quotation marks, the Oxford comma, active voice, and neutral professional language.
+8. NEVER use single quotation marks to enclose quoted text, passages, sentences, phrases, or answer choices. Use double quotation marks for every quotation. Use apostrophes only inside contractions and possessives.
 
 QUESTION TYPE MANDATE:
 {type_mandate}
@@ -200,7 +245,7 @@ Follow these rules strictly:
 1. Every question must be directly answerable ONLY from the text between [START OF CONTENT] and [END OF CONTENT] below. Do not use outside knowledge or general facts.
 2. Read the content first. Identify the document's actual subject. Generate questions ONLY about that subject — not about file formats, metadata, or unrelated industry practices.
 3. Do not invent rules, scenarios, or facts. Every correct answer must be explicitly found word-for-word or by clear implication in the content below.
-4. Use US English throughout: American spelling (-ize, -or, -er endings), double quotation marks, Oxford comma, active voice.
+4. Use US English throughout: American spelling (-ize, -or, -er endings), double quotation marks, Oxford comma, active voice. NEVER use single quotation marks to enclose quoted text, passages, sentences, phrases, or answer choices. Use apostrophes only inside contractions and possessives.
 5. {_type_rule('Easy', easy_type)}
 6. {_type_rule('Medium', medium_type)}
 7. {_type_rule('Hard', hard_type)}
@@ -246,7 +291,7 @@ Formatting rules:
     data = _extract_json(raw)
     questions = data.get("questions", [])
     # Enforce exact count — truncate silently if AI returns too many
-    return questions[:total]
+    return [_normalize_question_quotations(q) for q in questions[:total]]
 
 
 def _evaluate_attempt(questions: List[TrainingQuestion], answers: List[dict]) -> dict:
@@ -359,11 +404,11 @@ def _assessment_out(a: TrainingAssessment, include_questions=False, for_joiner=F
                 "order_index": q.order_index,
                 "question_type": q.question_type,
                 "difficulty": q.difficulty,
-                "question_text": q.question_text,
-                "options": q.options,
+                "question_text": _normalize_us_quotation_marks(q.question_text),
+                "options": [_normalize_us_quotation_marks(option) for option in q.options] if isinstance(q.options, list) else q.options,
             }
             if not for_joiner:
-                qd["correct_answer"] = q.correct_answer
+                qd["correct_answer"] = _normalize_us_quotation_marks(q.correct_answer)
             qs.append(qd)
         d["questions"] = qs
     return d
@@ -382,13 +427,13 @@ def _attempt_out(attempt: TrainingAttempt) -> dict:
         }
         # Embed the question data so history works regardless of which generation was used
         if ans.question:
-            a["question_text"] = ans.question.question_text
+            a["question_text"] = _normalize_us_quotation_marks(ans.question.question_text)
             a["question_type"] = ans.question.question_type
             a["difficulty"] = ans.question.difficulty
-            a["options"] = ans.question.options
+            a["options"] = [_normalize_us_quotation_marks(option) for option in ans.question.options] if isinstance(ans.question.options, list) else ans.question.options
             a["order_index"] = ans.question.order_index
-            a["correct_answer"] = ans.question.correct_answer
-            a["correct_answer_text"] = _correct_answer_display(ans.question)
+            a["correct_answer"] = _normalize_us_quotation_marks(ans.question.correct_answer)
+            a["correct_answer_text"] = _normalize_us_quotation_marks(_correct_answer_display(ans.question))
         answers_out.append(a)
     # Sort by order_index so they display in the right sequence
     answers_out.sort(key=lambda x: x.get("order_index", 0))
@@ -569,9 +614,10 @@ async def create_assessment_from_excel(
             question_text = str(row[2] or "").strip()
             if not question_text:
                 continue
+            question_text = _normalize_us_quotation_marks(question_text)
 
             if is_descriptive:
-                answer_explanation = str(row[3] or "").strip()
+                answer_explanation = _normalize_us_quotation_marks(str(row[3] or "").strip())
                 questions_data.append({
                     "order_index": order,
                     "question_type": "descriptive",
@@ -581,10 +627,10 @@ async def create_assessment_from_excel(
                     "correct_answer": f"Model answer: {answer_explanation}",
                 })
             else:
-                opt_a = str(row[3] or "").strip()
-                opt_b = str(row[4] or "").strip()
-                opt_c = str(row[5] or "").strip()
-                opt_d = str(row[6] or "").strip()
+                opt_a = _normalize_us_quotation_marks(str(row[3] or "").strip())
+                opt_b = _normalize_us_quotation_marks(str(row[4] or "").strip())
+                opt_c = _normalize_us_quotation_marks(str(row[5] or "").strip())
+                opt_d = _normalize_us_quotation_marks(str(row[6] or "").strip())
                 correct = str(row[7] or "").strip()
                 questions_data.append({
                     "order_index": order,
