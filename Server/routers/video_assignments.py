@@ -65,6 +65,100 @@ def _calc_status(a: VideoAssignment) -> str:
     return "assigned"
 
 
+def _parse_video_quiz_questions(raw: str) -> List[dict]:
+    """Parse and validate quiz JSON without depending on one response wrapper."""
+    cleaned = re.sub(r"^```(?:json)?\s*", "", (raw or "").strip())
+    cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+    candidates = [cleaned]
+    object_match = re.search(r"\{[\s\S]*\}", cleaned)
+    array_match = re.search(r"\[[\s\S]*\]", cleaned)
+    if object_match:
+        candidates.append(object_match.group())
+    if array_match:
+        candidates.append(array_match.group())
+
+    parsed_questions = None
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(parsed, list):
+            parsed_questions = parsed
+        elif isinstance(parsed, dict):
+            parsed_questions = parsed.get("questions")
+            if not isinstance(parsed_questions, list):
+                parsed_questions = next(
+                    (value for value in parsed.values() if isinstance(value, list)),
+                    None,
+                )
+        if isinstance(parsed_questions, list):
+            break
+
+    valid_questions = []
+    for item in parsed_questions or []:
+        if not isinstance(item, dict):
+            continue
+        question = str(item.get("question") or item.get("question_text") or "").strip()
+        options = item.get("options")
+        correct_index = item.get("correct_index")
+        if isinstance(correct_index, str):
+            value = correct_index.strip().upper()
+            if value in ("A", "B", "C", "D"):
+                correct_index = ord(value) - ord("A")
+            elif value.isdigit():
+                correct_index = int(value)
+        if (
+            question
+            and isinstance(options, list)
+            and len(options) == 4
+            and all(str(option).strip() for option in options)
+            and isinstance(correct_index, int)
+            and 0 <= correct_index <= 3
+        ):
+            valid_questions.append({
+                "question": question,
+                "options": [str(option).strip() for option in options],
+                "correct_index": correct_index,
+            })
+    return valid_questions[:5]
+
+
+async def _generate_video_quiz_with_openrouter(prompt: str) -> List[dict]:
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=120) as client:
+        for attempt in range(2):
+            request_prompt = prompt
+            if attempt:
+                request_prompt += (
+                    "\n\nYour previous response was invalid. Return the exact JSON object only, "
+                    "with five complete and valid question objects."
+                )
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json={
+                    "model": MODEL_NAME,
+                    "messages": [{"role": "user", "content": request_prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 1800,
+                },
+            )
+            if response.status_code != 200:
+                raise HTTPException(502, f"AI request failed: {response.text[:300]}")
+            try:
+                raw = response.json()["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError, ValueError):
+                raw = ""
+            questions = _parse_video_quiz_questions(raw)
+            if len(questions) == 5:
+                return questions
+    raise HTTPException(502, "AI returned an invalid video quiz response after two attempts")
+
+
 _VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".m4v")
 
 
@@ -313,51 +407,29 @@ async def generate_quiz(
     if not OPENROUTER_API_KEY:
         raise HTTPException(500, "AI not configured — set OPENROUTER_API_KEY")
 
-    prompt = (
-        f'Generate exactly 5 multiple-choice quiz questions for a training video titled: "{video.title}".'
-        + (f"\nTopic context: {video.description}" if video.description else "")
-        + "\n\nReturn a JSON array of 5 objects. Each object must have:"
-        + ' "question" (string), "options" (array of exactly 4 strings), "correct_index" (integer 0–3).'
-        + "\nReturn ONLY the raw JSON array, no markdown, no explanation."
-    )
+    prompt = f'''You are creating a professional LMS assessment.
+Generate exactly five multiple-choice questions for a training video titled "{video.title}".
+{f'Topic context: {video.description}' if video.description else ''}
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={"model": MODEL_NAME, "messages": [{"role": "user", "content": prompt}]},
-        )
-        if resp.status_code != 200:
-            raise HTTPException(500, f"AI request failed: {resp.text[:300]}")
+Rules:
+- Every question must have exactly four clear options.
+- Only one option may be correct.
+- correct_index must be an integer from 0 to 3.
+- Use US English and professional language.
+- Return only valid JSON. Do not use Markdown or code fences.
 
-    raw = resp.json()["choices"][0]["message"]["content"].strip()
+Return this exact structure:
+{{
+  "questions": [
+    {{
+      "question": "Question text?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correct_index": 0
+    }}
+  ]
+}}'''
 
-    # Extract JSON array from the response
-    questions_data = None
-    array_match = re.search(r"\[[\s\S]*\]", raw)
-    if array_match:
-        try:
-            questions_data = json.loads(array_match.group())
-        except Exception:
-            pass
-
-    if questions_data is None:
-        obj_match = re.search(r"\{[\s\S]*\}", raw)
-        if obj_match:
-            try:
-                obj = json.loads(obj_match.group())
-                for val in obj.values():
-                    if isinstance(val, list):
-                        questions_data = val
-                        break
-            except Exception:
-                pass
-
-    if not questions_data:
-        raise HTTPException(500, "Could not parse quiz questions from AI response")
+    questions_data = await _generate_video_quiz_with_openrouter(prompt)
 
     # Replace existing questions and bump generation counter
     existing = db.query(VideoQuizQuestion).filter(VideoQuizQuestion.video_id == video_id).all()
@@ -377,7 +449,7 @@ async def generate_quiz(
 
     video.quiz_generated = True
     db.commit()
-    return {"message": "Quiz generated", "question_count": min(len(questions_data), 5)}
+    return {"message": "Quiz generated", "question_count": len(questions_data)}
 
 
 @router.post("/assign")
