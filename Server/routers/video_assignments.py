@@ -1,15 +1,29 @@
+import base64
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
+from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from auth import require_role
-from config import MODEL_NAME, OPENROUTER_API_KEY
+from config import (
+    MODEL_NAME,
+    MS_CLIENT_ID,
+    MS_CLIENT_SECRET,
+    MS_SHAREPOINT_DRIVE_ID,
+    MS_SHAREPOINT_SITE_ID,
+    MS_TENANT_ID,
+    OPENROUTER_API_KEY,
+    JWT_ALGORITHM,
+    JWT_SECRET,
+)
 from database import get_db
 from models import User, VideoAssignment, VideoContent, VideoQuizAttempt, VideoQuizQuestion
 
@@ -51,7 +65,194 @@ def _calc_status(a: VideoAssignment) -> str:
     return "assigned"
 
 
+_VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".m4v")
+
+
+def _sharepoint_is_configured() -> bool:
+    return all((
+        MS_TENANT_ID,
+        MS_CLIENT_ID,
+        MS_CLIENT_SECRET,
+        MS_SHAREPOINT_SITE_ID,
+        MS_SHAREPOINT_DRIVE_ID,
+    ))
+
+
+def _is_sharepoint_url(url: str) -> bool:
+    return bool(re.match(r"^https://[^/]*\.sharepoint\.com/", url or "", re.IGNORECASE))
+
+
+def _create_stream_ticket(user_id: int, video_id: int) -> str:
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "video_id": video_id,
+            "purpose": "sharepoint_video_stream",
+            "exp": datetime.utcnow() + timedelta(hours=6),
+        },
+        JWT_SECRET,
+        algorithm=JWT_ALGORITHM,
+    )
+
+
+def _decode_stream_ticket(ticket: str, video_id: int) -> int:
+    try:
+        payload = jwt.decode(ticket, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("purpose") != "sharepoint_video_stream":
+            raise ValueError("Wrong ticket purpose")
+        if int(payload.get("video_id")) != video_id:
+            raise ValueError("Ticket does not match video")
+        return int(payload.get("sub"))
+    except (JWTError, ValueError, TypeError):
+        raise HTTPException(401, "Invalid or expired video stream ticket")
+
+
+async def _get_graph_app_token(client: httpx.AsyncClient) -> str:
+    token_url = (
+        f"https://login.microsoftonline.com/{quote(MS_TENANT_ID, safe='')}"
+        "/oauth2/v2.0/token"
+    )
+    response = await client.post(token_url, data={
+        "grant_type": "client_credentials",
+        "client_id": MS_CLIENT_ID,
+        "client_secret": MS_CLIENT_SECRET,
+        "scope": "https://graph.microsoft.com/.default",
+    })
+    if response.status_code != 200:
+        raise HTTPException(502, "Microsoft Graph authentication failed")
+    token = response.json().get("access_token")
+    if not token:
+        raise HTTPException(502, "Microsoft Graph did not return an access token")
+    return token
+
+
+async def _graph_collection(
+    client: httpx.AsyncClient,
+    url: str,
+    token: str,
+) -> List[dict]:
+    items = []
+    next_url = url
+    while next_url:
+        response = await client.get(
+            next_url,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code != 200:
+            raise HTTPException(502, "Unable to read the configured SharePoint library")
+        payload = response.json()
+        items.extend(payload.get("value", []))
+        next_url = payload.get("@odata.nextLink")
+    return items
+
+
+async def _list_sharepoint_drive_items(
+    client: httpx.AsyncClient,
+    token: str,
+) -> List[dict]:
+    site_id = quote(MS_SHAREPOINT_SITE_ID, safe="")
+    drive_id = quote(MS_SHAREPOINT_DRIVE_ID, safe="")
+    base_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives/{drive_id}"
+    pending_urls = [f"{base_url}/root/children"]
+    files = []
+
+    while pending_urls:
+        children = await _graph_collection(client, pending_urls.pop(0), token)
+        for item in children:
+            if item.get("folder"):
+                item_id = quote(str(item.get("id", "")), safe="")
+                if item_id:
+                    pending_urls.append(f"{base_url}/items/{item_id}/children")
+            elif item.get("file"):
+                files.append(item)
+    return files
+
+
+async def _resolve_sharepoint_download_url(
+    client: httpx.AsyncClient,
+    token: str,
+    sharepoint_url: str,
+) -> str:
+    encoded_url = base64.urlsafe_b64encode(sharepoint_url.encode("utf-8")).decode("ascii").rstrip("=")
+    share_id = f"u!{encoded_url}"
+    response = await client.get(
+        f"https://graph.microsoft.com/v1.0/shares/{share_id}/driveItem",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if response.status_code != 200:
+        raise HTTPException(502, "Unable to resolve the SharePoint video")
+    download_url = response.json().get("@microsoft.graph.downloadUrl")
+    if not download_url:
+        raise HTTPException(502, "SharePoint did not return a playable video URL")
+    return download_url
+
+
 # ── Manager endpoints ─────────────────────────────────────────────────────────
+
+@router.get("/sharepoint/videos")
+async def list_sharepoint_videos(
+    manager=Depends(require_role("manager")),
+):
+    if not _sharepoint_is_configured():
+        raise HTTPException(
+            503,
+            "SharePoint is not configured. Add the Microsoft Graph site, drive, and app credentials.",
+        )
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        token = await _get_graph_app_token(client)
+        items = await _list_sharepoint_drive_items(client, token)
+
+    videos = []
+    for item in items:
+        name = str(item.get("name", ""))
+        mime_type = str(item.get("file", {}).get("mimeType", ""))
+        if not (mime_type.startswith("video/") or name.lower().endswith(_VIDEO_EXTENSIONS)):
+            continue
+        video_metadata = item.get("video") or {}
+        videos.append({
+            "drive_item_id": item.get("id"),
+            "name": name,
+            "title": re.sub(r"\.[^.]+$", "", name),
+            "web_url": item.get("webUrl"),
+            "size": item.get("size"),
+            "duration_seconds": round((video_metadata.get("duration") or 0) / 1000),
+            "last_modified": item.get("lastModifiedDateTime"),
+            "mime_type": mime_type,
+        })
+
+    videos.sort(key=lambda video: video.get("name", "").lower())
+    return {"videos": videos}
+
+
+@router.get("/videos/{video_id}/stream")
+async def stream_sharepoint_video(
+    video_id: int,
+    ticket: str,
+    db: Session = Depends(get_db),
+):
+    user_id = _decode_stream_ticket(ticket, video_id)
+    assignment = db.query(VideoAssignment).filter(
+        VideoAssignment.video_id == video_id,
+        VideoAssignment.user_id == user_id,
+    ).first()
+    if not assignment:
+        raise HTTPException(403, "This video is not assigned to the current user")
+
+    video = db.query(VideoContent).filter(VideoContent.id == video_id).first()
+    if not video or not _is_sharepoint_url(video.video_url):
+        raise HTTPException(404, "SharePoint video not found")
+    if not _sharepoint_is_configured():
+        raise HTTPException(503, "SharePoint is not configured")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        graph_token = await _get_graph_app_token(client)
+        download_url = await _resolve_sharepoint_download_url(
+            client,
+            graph_token,
+            video.video_url,
+        )
+    return RedirectResponse(download_url, status_code=307)
 
 @router.post("/videos")
 def create_video(
@@ -59,6 +260,14 @@ def create_video(
     db: Session = Depends(get_db),
     manager=Depends(require_role("manager")),
 ):
+    existing = db.query(VideoContent).filter(VideoContent.video_url == body.video_url).first()
+    if existing:
+        existing.title = body.title
+        existing.description = body.description
+        db.commit()
+        db.refresh(existing)
+        return {"id": existing.id, "title": existing.title, "message": "Video already exists and was updated"}
+
     video = VideoContent(
         title=body.title,
         description=body.description,
@@ -285,6 +494,12 @@ def my_assignments(
             "video_id": a.video_id,
             "video_title": a.video.title if a.video else "—",
             "video_url": a.video.video_url if a.video else None,
+            "stream_url": (
+                f"/api/video-assignments/videos/{a.video_id}/stream?ticket="
+                f"{quote(_create_stream_ticket(user.id, a.video_id), safe='')}"
+                if a.video and _is_sharepoint_url(a.video.video_url)
+                else None
+            ),
             "video_description": a.video.description if a.video else None,
             "quiz_generated": a.video.quiz_generated if a.video else False,
             "due_date": a.due_date.isoformat() if a.due_date else None,
@@ -366,4 +581,3 @@ def submit_quiz(
 
     db.commit()
     return {"score": score, "passed": passed, "correct": correct, "total": len(questions)}
-

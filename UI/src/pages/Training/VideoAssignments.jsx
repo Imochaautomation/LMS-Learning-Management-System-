@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import api from '../../api/client';
+import api, { API_HOST } from '../../api/client';
 import {
   Video, CheckCircle, XCircle, Lock, Loader2, PlayCircle,
   Clock, AlertTriangle, Calendar, Trophy, RotateCcw
@@ -23,19 +23,68 @@ function isYouTube(url) {
   return url && (url.includes('youtube.com') || url.includes('youtu.be'));
 }
 
-function VideoPlayer({ url, onProgress, onEnded }) {
+function VideoPlayer({ url, streamUrl, watchedProgress, onProgress, onEnded }) {
   const videoRef = useRef(null);
   const saveTimer = useRef(null);
+  const maxWatchedTime = useRef(0);
+  const correctingSeek = useRef(false);
 
   const ytId = url ? getYouTubeId(url) : null;
   const isYT = isYouTube(url);
+  const playbackUrl = streamUrl ? `${API_HOST}${streamUrl}` : url;
+
+  useEffect(() => {
+    maxWatchedTime.current = 0;
+    correctingSeek.current = false;
+  }, [playbackUrl]);
+
+  const handleLoadedMetadata = () => {
+    const v = videoRef.current;
+    if (!v || !Number.isFinite(v.duration)) return;
+    maxWatchedTime.current = Math.max(
+      maxWatchedTime.current,
+      v.duration * Math.min(100, Math.max(0, watchedProgress || 0)) / 100,
+    );
+  };
 
   const handleTimeUpdate = () => {
     const v = videoRef.current;
     if (!v || !v.duration) return;
+
+    // Never accept a jump beyond the furthest point reached by normal playback.
+    if (!v.seeking && v.currentTime > maxWatchedTime.current + 2) {
+      correctingSeek.current = true;
+      v.currentTime = maxWatchedTime.current;
+      return;
+    }
+
+    if (!v.seeking) {
+      maxWatchedTime.current = Math.max(maxWatchedTime.current, v.currentTime);
+    }
     const pct = Math.round((v.currentTime / v.duration) * 100);
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => onProgress(pct), 2000);
+  };
+
+  const handleSeeking = () => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    if (correctingSeek.current) {
+      correctingSeek.current = false;
+      return;
+    }
+
+    // Seeking is allowed anywhere already watched, but never beyond it.
+    if (v.currentTime > maxWatchedTime.current + 0.5) {
+      correctingSeek.current = true;
+      v.currentTime = maxWatchedTime.current;
+    }
+  };
+
+  const enforceNormalPlaybackSpeed = () => {
+    const v = videoRef.current;
+    if (v && v.playbackRate !== 1) v.playbackRate = 1;
   };
 
   const handleEnded = () => {
@@ -46,7 +95,7 @@ function VideoPlayer({ url, onProgress, onEnded }) {
 
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
-  if (!url) return (
+  if (!playbackUrl) return (
     <div className="w-full aspect-video bg-gray-100 rounded-xl flex items-center justify-center">
       <p className="text-sm text-gray-400">No video URL</p>
     </div>
@@ -65,10 +114,15 @@ function VideoPlayer({ url, onProgress, onEnded }) {
   return (
     <video
       ref={videoRef}
-      src={url}
+      src={playbackUrl}
       controls
+      controlsList="nodownload noplaybackrate"
+      disablePictureInPicture
       className="w-full aspect-video rounded-xl bg-black"
+      onLoadedMetadata={handleLoadedMetadata}
       onTimeUpdate={handleTimeUpdate}
+      onSeeking={handleSeeking}
+      onRateChange={enforceNormalPlaybackSpeed}
       onEnded={handleEnded}
     />
   );
@@ -264,9 +318,14 @@ export default function VideoAssignments() {
             {/* Video player */}
             <VideoPlayer
               url={selected.video_url}
+              streamUrl={selected.stream_url}
+              watchedProgress={selected.progress_percent}
               onProgress={handleVideoProgress}
               onEnded={() => handleVideoProgress(100)}
             />
+            <p className="text-xs text-gray-500 flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5" /> You may seek within the portion already watched, but you cannot skip unwatched content.
+            </p>
 
             {/* Progress section */}
             <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
@@ -504,4 +563,3 @@ export default function VideoAssignments() {
     </div>
   );
 }
-
