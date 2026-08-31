@@ -139,13 +139,14 @@ async def _generate_video_quiz_with_openrouter(
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
     }
+    best_questions = []
     async with httpx.AsyncClient(timeout=120) as client:
         for attempt in range(2):
             request_prompt = prompt
             if attempt:
                 request_prompt += (
                     "\n\nYour previous response was invalid. Return the exact JSON object only, "
-                    "with five complete and valid question objects."
+                    f"with exactly {expected_count} complete and valid question objects."
                 )
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -164,9 +165,12 @@ async def _generate_video_quiz_with_openrouter(
             except (KeyError, IndexError, TypeError, ValueError):
                 raw = ""
             questions = _parse_video_quiz_questions(raw)
+            if len(questions) > len(best_questions):
+                best_questions = questions[:expected_count]
             if len(questions) >= expected_count:
                 return questions[:expected_count]
-    raise HTTPException(502, "AI returned an invalid video quiz response after two attempts")
+    # Keep valid partial output so the caller can request only what is missing.
+    return best_questions
 
 
 def _candidate_question_ids(question_ids: List[int]) -> List[int]:
@@ -483,18 +487,60 @@ Return this exact structure:
     batches = await asyncio.gather(*[
         _generate_video_quiz_with_openrouter(prompt, VIDEO_QUIZ_BATCH_SIZE)
         for prompt in batch_prompts
-    ])
+    ], return_exceptions=True)
     questions_data = []
     seen_questions = set()
-    for batch in batches:
+
+    def add_unique_questions(batch):
+        if isinstance(batch, Exception):
+            return
         for question in batch:
             key = re.sub(r"\W+", " ", question["question"].lower()).strip()
             if key and key not in seen_questions:
                 seen_questions.add(key)
                 questions_data.append(question)
 
+    for batch in batches:
+        add_unique_questions(batch)
+
+    # Retain successful batches and ask only for missing questions. This avoids
+    # discarding 20 valid questions because one provider response was malformed.
     if len(questions_data) < VIDEO_QUIZ_POOL_SIZE:
-        raise HTTPException(502, "AI did not return 30 unique video quiz questions; please retry")
+        missing = VIDEO_QUIZ_POOL_SIZE - len(questions_data)
+        supplement_count = min(VIDEO_QUIZ_BATCH_SIZE, missing)
+        exclusions = "\n".join(
+            f"- {question['question']}" for question in questions_data
+        )
+        supplement_prompt = prompt_template.format(
+            batch_size=supplement_count,
+            title=video.title,
+            topic_context=f"Topic context: {video.description}" if video.description else "",
+            batch_number=batch_total + 1,
+            batch_total=batch_total + 1,
+            batch_focus="new topics and scenarios not covered by the existing questions",
+        )
+        if exclusions:
+            supplement_prompt += (
+                "\n\nDo not repeat or closely paraphrase these existing questions:\n"
+                f"{exclusions}"
+            )
+        try:
+            supplement = await _generate_video_quiz_with_openrouter(
+                supplement_prompt,
+                supplement_count,
+            )
+            add_unique_questions(supplement)
+        except HTTPException:
+            pass
+
+    # Ten valid questions are sufficient to give every candidate a complete quiz.
+    # A smaller-than-target pool is preferable to returning 502 after valid work.
+    if len(questions_data) < VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE:
+        raise HTTPException(
+            502,
+            f"AI returned only {len(questions_data)} valid questions; at least "
+            f"{VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE} are required. Please retry.",
+        )
 
     # Replace existing questions and bump generation counter
     existing = db.query(VideoQuizQuestion).filter(VideoQuizQuestion.video_id == video_id).all()
