@@ -139,6 +139,21 @@ def _is_editing_kit(kit_name: str, content: str) -> bool:
     return sum(1 for signal in signals if signal in excerpt) >= 2
 
 
+def _is_eeoc_kit(kit_name: str, content: str) -> bool:
+    """Identify EEOC/content-validation source documents that need scenario questions."""
+    name = (kit_name or "").lower()
+    excerpt = content[:5000].lower()
+    if "eeoc" in name or "eeoc" in excerpt:
+        return True
+    eeoc_signals = (
+        "protected characteristic", "protected characteristics",
+        "discriminatory language", "content validation checklist",
+        "sensitive keyword", "restricted topic", "restricted topics",
+        "non-discrimination", "inclusivity requirement",
+    )
+    return sum(1 for signal in eeoc_signals if signal in excerpt) >= 3
+
+
 def _generate_questions(
     content: str,
     easy_count: int, easy_type: str,
@@ -217,18 +232,42 @@ def _generate_questions(
     example_block = ",\n".join(example_objs)
 
     if _is_editing_kit(kit_name, content):
+        eeoc_style = _is_eeoc_kit(kit_name, content)
+        eeoc_style_rules = f"""
+EEOC SAMPLE-QUESTION STYLE — FOLLOW THIS PATTERN EXACTLY:
+- Each question must test content-review judgment, not memorization of the checklist.
+- Invent a realistic two-to-four-sentence passage from a varied workplace or assessment domain.
+- Put a blank line and then exactly:
+  Question:
+  Should this text be flagged based on the content validation checklist? Why?
+- For MCQs, every option must begin with "Yes." or "No." and then give a complete reason.
+- Only one option may correctly apply the uploaded document's rule. Distractors must be plausible but must misapply, overlook, or overgeneralize that rule.
+- Include both passages that must be flagged and passages that must NOT be flagged. Do not make "Yes" the correct response every time.
+- Test nuance found in the sample sheet: mentioning restricted terms while describing a review process is not automatically the same as placing restricted content in an assessment. Judge the passage's actual use and context.
+- Across the set, cover different checklist categories actually present in the uploaded EEOC document, such as protected characteristics, discriminatory stereotypes, sensitive topics, diseases, violence, politics, disasters, or geopolitical references. Use only categories supported by the uploaded document.
+- Keep all four options similar in length, specificity, and grammatical structure. Rotate the correct answer across A, B, C, and D.
+- For descriptive questions, use the same passage and exact Question wording, set options to null, and provide a concise model answer that states Flag/Do not flag, identifies the applicable checklist category, and explains why.
+
+Representative style examples (use only as structural guidance; create entirely new passages):
+1. A manager allocates important projects by gender. The correct option begins "Yes." and identifies gender stereotyping and unequal treatment; distractors incorrectly treat it as ordinary management.
+2. A review report says an assessment was checked and contains no violence, political events, diseases, or discriminatory language. The correct option begins "No." because those terms describe the review process rather than restricted assessment content.
+""" if eeoc_style else ""
+
         prompt = f"""You are designing a content-validation assessment from the editing or EEOC guideline below.
 
 [START OF CONTENT]
 {content}
 [END OF CONTENT]
 
+{guidance_block}
+{eeoc_style_rules}
+
 Generate exactly {total} realistic scenario-based questions. Test whether a candidate can decide if an invented passage should be flagged under the guideline. Do not ask recall questions about what the document says or what the document is.
 
 For every question:
 1. Extract and apply a real rule from the guideline.
 2. Invent a fresh two-to-four-sentence workplace passage; do not copy the guideline.
-3. Use this exact question_text structure: "[passage]\\n---\\nQuestion: Should this text be flagged based on the content validation checklist? Why?"
+3. Use this exact question_text structure: "[passage]\\n\\nQuestion:\\nShould this text be flagged based on the content validation checklist? Why?"
 4. For MCQs, provide exactly four comparable options labeled A–D. Each option starts with "Yes." or "No." and gives a complete explanation. Mix Yes and No options.
 5. Store only A, B, C, or D in correct_answer.
 6. Easy scenarios contain an obvious single violation. Medium scenarios require applying a specific rule. Hard scenarios require nuanced judgment and must include both passages that should be flagged and passages that should not.
@@ -237,7 +276,6 @@ For every question:
 
 QUESTION TYPE MANDATE:
 {type_mandate}
-{guidance_block}
 
 Return only valid JSON in this structure:
 {{
