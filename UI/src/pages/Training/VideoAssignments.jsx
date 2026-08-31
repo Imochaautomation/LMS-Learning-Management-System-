@@ -7,6 +7,12 @@ import {
 
 const ORANGE = '#F05A28';
 
+function formatCooldown(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 const STATUS_CONFIG = {
   completed: { label: 'Completed', icon: CheckCircle, cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
   urgent:    { label: 'Urgent',    icon: Clock,        cls: 'text-amber-700 bg-amber-50 border-amber-200' },
@@ -140,6 +146,7 @@ export default function VideoAssignments() {
   const [quizResult, setQuizResult] = useState(null);  // {score, passed, correct, total}
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [retaking, setRetaking] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
   const fetchAssignments = useCallback(async () => {
     try {
@@ -154,12 +161,21 @@ export default function VideoAssignments() {
 
   useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
 
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = window.setInterval(() => {
+      setCooldownSeconds(seconds => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldownSeconds > 0]);
+
   const selectAssignment = (a) => {
     setSelected(a);
     setLocalProgress(a.progress_percent);
     setAnswers({});
     setQuizResult(null);
     setRetaking(false);
+    setCooldownSeconds(a.retake_wait_seconds || 0);
   };
 
   const saveProgress = useCallback(async (pct) => {
@@ -216,6 +232,7 @@ export default function VideoAssignments() {
       if (updated) {
         setSelected(updated);
         setAssignments(refreshed);
+        setCooldownSeconds(updated.retake_wait_seconds || 0);
       }
     } catch (err) {
       alert(err.message || 'Failed to submit quiz');
@@ -225,6 +242,7 @@ export default function VideoAssignments() {
   };
 
   const handleRetake = () => {
+    if (cooldownSeconds > 0) return;
     setAnswers({});
     setQuizResult(null);
     setRetaking(true);
@@ -429,13 +447,16 @@ export default function VideoAssignments() {
                     {!quizResult.passed && selected.attempt_count < 2 && (
                       <button
                         onClick={handleRetake}
+                        disabled={cooldownSeconds > 0}
                         className="mt-4 flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg mx-auto"
                         style={{ background: ORANGE }}
                         onMouseEnter={e => e.currentTarget.style.background = '#c2410c'}
                         onMouseLeave={e => e.currentTarget.style.background = ORANGE}
                       >
                         <RotateCcw className="w-4 h-4" />
-                        Retake Quiz (1 retake remaining)
+                        {cooldownSeconds > 0
+                          ? `Retake available in ${formatCooldown(cooldownSeconds)}`
+                          : 'Retake Quiz (1 retake remaining)'}
                       </button>
                     )}
                     {!quizResult.passed && selected.attempt_count >= 2 && (

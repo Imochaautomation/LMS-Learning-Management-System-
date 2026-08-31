@@ -241,6 +241,38 @@ def startup():
         except Exception:
             pass
 
+    # Store a candidate-specific video quiz question set (v2.8)
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE video_assignments ADD COLUMN quiz_question_ids JSON"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE video_assignments ADD COLUMN IF NOT EXISTS quiz_question_ids JSON"))
+                conn.commit()
+        except Exception:
+            pass
+
+    # Preserve manager guidance for initial and regenerated training questions (v2.9)
+    if "sqlite" in db_url_str:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_assessments ADD COLUMN additional_instructions TEXT"))
+                conn.commit()
+        except Exception:
+            pass
+    else:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE training_assessments ADD COLUMN IF NOT EXISTS additional_instructions TEXT"))
+                conn.commit()
+        except Exception:
+            pass
+
     # Make creator/uploader columns nullable so deleting a user doesn't cascade-fail (v2.6)
     if "sqlite" not in db_url_str:
         for stmt in [

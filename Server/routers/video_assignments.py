@@ -1,5 +1,7 @@
+import asyncio
 import base64
 import json
+import random
 import re
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -28,6 +30,11 @@ from database import get_db
 from models import User, VideoAssignment, VideoContent, VideoQuizAttempt, VideoQuizQuestion
 
 router = APIRouter(prefix="/api/video-assignments", tags=["video-assignments"])
+
+VIDEO_QUIZ_POOL_SIZE = 30
+VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE = 10
+VIDEO_QUIZ_BATCH_SIZE = 10
+VIDEO_RETAKE_COOLDOWN_MINUTES = 15
 
 
 # ── Request schemas ───────────────────────────────────────────────────────────
@@ -121,10 +128,13 @@ def _parse_video_quiz_questions(raw: str) -> List[dict]:
                 "options": [str(option).strip() for option in options],
                 "correct_index": correct_index,
             })
-    return valid_questions[:5]
+    return valid_questions
 
 
-async def _generate_video_quiz_with_openrouter(prompt: str) -> List[dict]:
+async def _generate_video_quiz_with_openrouter(
+    prompt: str,
+    expected_count: int = 5,
+) -> List[dict]:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
@@ -144,7 +154,7 @@ async def _generate_video_quiz_with_openrouter(prompt: str) -> List[dict]:
                     "model": MODEL_NAME,
                     "messages": [{"role": "user", "content": request_prompt}],
                     "temperature": 0.3,
-                    "max_tokens": 1800,
+                    "max_tokens": max(1800, expected_count * 350),
                 },
             )
             if response.status_code != 200:
@@ -154,9 +164,31 @@ async def _generate_video_quiz_with_openrouter(prompt: str) -> List[dict]:
             except (KeyError, IndexError, TypeError, ValueError):
                 raw = ""
             questions = _parse_video_quiz_questions(raw)
-            if len(questions) == 5:
-                return questions
+            if len(questions) >= expected_count:
+                return questions[:expected_count]
     raise HTTPException(502, "AI returned an invalid video quiz response after two attempts")
+
+
+def _candidate_question_ids(question_ids: List[int]) -> List[int]:
+    count = min(VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE, len(question_ids))
+    return random.SystemRandom().sample(question_ids, count) if count else []
+
+
+def _valid_assignment_question_ids(
+    assignment: VideoAssignment,
+    available_ids: List[int],
+) -> List[int]:
+    available = set(available_ids)
+    selected = [
+        int(question_id)
+        for question_id in (assignment.quiz_question_ids or [])
+        if int(question_id) in available
+    ]
+    expected = min(VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE, len(available_ids))
+    if len(selected) != expected:
+        selected = _candidate_question_ids(available_ids)
+        assignment.quiz_question_ids = selected
+    return selected
 
 
 _VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".m4v")
@@ -407,9 +439,11 @@ async def generate_quiz(
     if not OPENROUTER_API_KEY:
         raise HTTPException(500, "AI not configured — set OPENROUTER_API_KEY")
 
-    prompt = f'''You are creating a professional LMS assessment.
-Generate exactly five multiple-choice questions for a training video titled "{video.title}".
-{f'Topic context: {video.description}' if video.description else ''}
+    prompt_template = '''You are creating a professional LMS assessment.
+Generate exactly {batch_size} multiple-choice questions for a training video titled "{title}".
+{topic_context}
+This is question batch {batch_number} of {batch_total}. Create distinct questions and avoid common generic wording.
+Focus this batch on: {batch_focus}.
 
 Rules:
 - Every question must have exactly four clear options.
@@ -429,7 +463,38 @@ Return this exact structure:
   ]
 }}'''
 
-    questions_data = await _generate_video_quiz_with_openrouter(prompt)
+    batch_total = VIDEO_QUIZ_POOL_SIZE // VIDEO_QUIZ_BATCH_SIZE
+    batch_focuses = (
+        "foundational facts and direct comprehension",
+        "practical application and workplace scenarios",
+        "detailed understanding, exceptions, and nuanced decisions",
+    )
+    batch_prompts = [
+        prompt_template.format(
+            batch_size=VIDEO_QUIZ_BATCH_SIZE,
+            title=video.title,
+            topic_context=f"Topic context: {video.description}" if video.description else "",
+            batch_number=batch_number,
+            batch_total=batch_total,
+            batch_focus=batch_focuses[batch_number - 1],
+        )
+        for batch_number in range(1, batch_total + 1)
+    ]
+    batches = await asyncio.gather(*[
+        _generate_video_quiz_with_openrouter(prompt, VIDEO_QUIZ_BATCH_SIZE)
+        for prompt in batch_prompts
+    ])
+    questions_data = []
+    seen_questions = set()
+    for batch in batches:
+        for question in batch:
+            key = re.sub(r"\W+", " ", question["question"].lower()).strip()
+            if key and key not in seen_questions:
+                seen_questions.add(key)
+                questions_data.append(question)
+
+    if len(questions_data) < VIDEO_QUIZ_POOL_SIZE:
+        raise HTTPException(502, "AI did not return 30 unique video quiz questions; please retry")
 
     # Replace existing questions and bump generation counter
     existing = db.query(VideoQuizQuestion).filter(VideoQuizQuestion.video_id == video_id).all()
@@ -438,18 +503,30 @@ Return this exact structure:
         db.delete(q)
     db.flush()
 
-    for item in questions_data[:5]:
-        db.add(VideoQuizQuestion(
+    new_questions = []
+    for item in questions_data[:VIDEO_QUIZ_POOL_SIZE]:
+        question = VideoQuizQuestion(
             video_id=video_id,
             question_text=item.get("question", ""),
             options=item.get("options", []),
             correct_index=int(item.get("correct_index", 0)),
             generation=new_gen,
-        ))
+        )
+        db.add(question)
+        new_questions.append(question)
+    db.flush()
+
+    question_ids = [question.id for question in new_questions]
+    for assignment in video.assignments:
+        assignment.quiz_question_ids = _candidate_question_ids(question_ids)
 
     video.quiz_generated = True
     db.commit()
-    return {"message": "Quiz generated", "question_count": len(questions_data)}
+    return {
+        "message": "Quiz pool generated",
+        "question_count": len(question_ids),
+        "questions_per_candidate": min(VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE, len(question_ids)),
+    }
 
 
 @router.post("/assign")
@@ -463,6 +540,7 @@ def assign_video(
         raise HTTPException(404, "Video not found")
 
     due_date = datetime.fromisoformat(body.due_date) if body.due_date else None
+    available_question_ids = [question.id for question in video.questions]
     created, updated = 0, 0
 
     for uid in body.user_ids:
@@ -473,15 +551,18 @@ def assign_video(
         if existing:
             if due_date:
                 existing.due_date = due_date
+            _valid_assignment_question_ids(existing, available_question_ids)
             updated += 1
         else:
-            db.add(VideoAssignment(
+            assignment = VideoAssignment(
                 video_id=body.video_id,
                 user_id=uid,
                 assigned_by=manager.id,
                 due_date=due_date,
                 status="assigned",
-            ))
+                quiz_question_ids=_candidate_question_ids(available_question_ids),
+            )
+            db.add(assignment)
             created += 1
 
     db.commit()
@@ -548,11 +629,17 @@ def my_assignments(
 
         questions = []
         if a.video and a.video.quiz_generated and a.progress_percent >= 100:
-            qs = (
+            all_questions = (
                 db.query(VideoQuizQuestion)
                 .filter(VideoQuizQuestion.video_id == a.video_id)
                 .all()
             )
+            questions_by_id = {question.id: question for question in all_questions}
+            selected_ids = _valid_assignment_question_ids(
+                a,
+                list(questions_by_id.keys()),
+            )
+            qs = [questions_by_id[question_id] for question_id in selected_ids]
             questions = [
                 {"id": q.id, "question_text": q.question_text, "options": q.options}
                 for q in qs
@@ -560,6 +647,12 @@ def my_assignments(
 
         attempts = sorted(a.attempts, key=lambda x: x.attempt_number)
         latest = attempts[-1] if attempts else None
+        retake_wait_seconds = 0
+        retake_available_at = None
+        if latest and latest.passed is False and latest.submitted_at:
+            available_at = latest.submitted_at + timedelta(minutes=VIDEO_RETAKE_COOLDOWN_MINUTES)
+            retake_wait_seconds = max(0, int((available_at - datetime.utcnow()).total_seconds()))
+            retake_available_at = available_at.isoformat()
 
         result.append({
             "id": a.id,
@@ -581,6 +674,8 @@ def my_assignments(
             "attempt_count": len(a.attempts),
             "last_score": latest.score if latest else None,
             "last_passed": latest.passed if latest else None,
+            "retake_wait_seconds": retake_wait_seconds,
+            "retake_available_at": retake_available_at,
             "questions": questions,
         })
 
@@ -625,12 +720,31 @@ def submit_quiz(
         raise HTTPException(400, "Watch the full video before taking the quiz")
     if len(a.attempts) >= 2:
         raise HTTPException(400, "Maximum 2 attempts reached")
+    latest_attempt = max(a.attempts, key=lambda attempt: attempt.attempt_number, default=None)
+    if latest_attempt and latest_attempt.passed is False and latest_attempt.submitted_at:
+        available_at = latest_attempt.submitted_at + timedelta(minutes=VIDEO_RETAKE_COOLDOWN_MINUTES)
+        now = datetime.utcnow()
+        if now < available_at:
+            wait_seconds = max(1, int((available_at - now).total_seconds()))
+            wait_minutes = (wait_seconds + 59) // 60
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "retake_cooldown",
+                    "message": f"Retake available in {wait_minutes} minute(s).",
+                    "wait_seconds": wait_seconds,
+                    "available_at": available_at.isoformat(),
+                },
+            )
 
-    questions = (
+    all_questions = (
         db.query(VideoQuizQuestion)
         .filter(VideoQuizQuestion.video_id == a.video_id)
         .all()
     )
+    questions_by_id = {question.id: question for question in all_questions}
+    selected_ids = _valid_assignment_question_ids(a, list(questions_by_id.keys()))
+    questions = [questions_by_id[question_id] for question_id in selected_ids]
     if not questions:
         raise HTTPException(400, "No quiz questions available for this video")
 

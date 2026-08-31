@@ -227,6 +227,7 @@ class TrainingAssessment(Base):
     easy_count = Column(Integer, default=0)
     medium_count = Column(Integer, default=0)
     hard_count = Column(Integer, default=0)
+    additional_instructions = Column(Text, nullable=True)
     pass_threshold = Column(Integer, default=70)  # percentage
     status = Column(String(20), default="pending")  # pending, active, completed
     attempt_request_status = Column(String(20), nullable=True)  # null | pending | approved | rejected
@@ -372,6 +373,7 @@ class VideoAssignment(Base):
     status = Column(String(20), default="assigned")
     progress_percent = Column(Integer, default=0)
     quiz_passed = Column(Boolean, nullable=True)
+    quiz_question_ids = Column(JSON, default=list)
     assigned_at = Column(DateTime, server_default=_now)
 
     video = relationship("VideoContent", back_populates="assignments")

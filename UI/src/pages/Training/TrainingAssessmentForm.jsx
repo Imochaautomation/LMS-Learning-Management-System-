@@ -234,7 +234,7 @@ export default function TrainingAssessmentForm() {
     try {
       const res = await api.post(`/training/assessments/${assessmentId}/submit`, { answers: answersArray });
       setResult(res);
-      if (!res.passed) setCooldownSeconds(60 * 60);
+      if (!res.passed) setCooldownSeconds(15 * 60);
       setSubmitted(true);
       setMode('result');
       api.get(`/training/assessments/${assessmentId}/attempts`).then(setPastAttempts).catch(() => {});
@@ -247,7 +247,7 @@ export default function TrainingAssessmentForm() {
         if (evaluated) {
           setPastAttempts(attempts);
           setResult(evaluated);
-          if (!evaluated.passed) setCooldownSeconds(60 * 60);
+          if (!evaluated.passed) setCooldownSeconds(15 * 60);
           setSubmitted(true);
           setMode('result');
           return;
@@ -398,7 +398,7 @@ export default function TrainingAssessmentForm() {
             <History className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-blue-800">Retake available in {formatCooldown(cooldownSeconds)}</p>
-              <p className="text-xs text-blue-700 mt-0.5">A retake is available 60 minutes after completing a failed attempt.</p>
+              <p className="text-xs text-blue-700 mt-0.5">A retake is available 15 minutes after completing a failed attempt.</p>
             </div>
           </div>
         )}

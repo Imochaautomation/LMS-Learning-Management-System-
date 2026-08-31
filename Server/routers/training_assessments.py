@@ -145,8 +145,16 @@ def _generate_questions(
     medium_count: int, medium_type: str,
     hard_count: int, hard_type: str,
     kit_name: str = "",
+    additional_instructions: str = "",
 ) -> List[dict]:
     total = easy_count + medium_count + hard_count
+    manager_guidance = (additional_instructions or "").strip()[:2000]
+    guidance_block = (
+        "\nMANAGER'S ADDITIONAL INSTRUCTIONS:\n"
+        f"{manager_guidance}\n"
+        "Apply these instructions when choosing topics, scenarios, and wording. They must not override the required question counts, selected question types, JSON format, US English rules, or the requirement to stay grounded in the source content.\n"
+        if manager_guidance else ""
+    )
 
     def _type_label(t: str) -> str:
         return "MCQ" if t == "mcq" else "Descriptive (open-ended, no options)"
@@ -229,6 +237,7 @@ For every question:
 
 QUESTION TYPE MANDATE:
 {type_mandate}
+{guidance_block}
 
 Return only valid JSON in this structure:
 {{
@@ -263,6 +272,7 @@ ABSOLUTE PROHIBITION — these question types are forbidden and will invalidate 
 
 QUESTION TYPE MANDATE — this is non-negotiable and overrides any pattern you might infer from the examples below:
 {type_mandate}
+{guidance_block}
 
 Before generating questions, identify: (a) the document's actual topic, and (b) four to six specific rules or concepts it covers. Base ALL questions exclusively on those concepts from the content text.
 
@@ -510,6 +520,7 @@ def generate_assessment(
         payload.medium_count, medium_type,
         payload.hard_count, hard_type,
         kit_name=kit.name or "",
+        additional_instructions=payload.additional_instructions or "",
     )
 
     total = payload.easy_count + payload.medium_count + payload.hard_count
@@ -533,6 +544,7 @@ def generate_assessment(
         easy_count=payload.easy_count,
         medium_count=payload.medium_count,
         hard_count=payload.hard_count,
+        additional_instructions=(payload.additional_instructions or "").strip()[:2000] or None,
         pass_threshold=payload.pass_threshold,
         status="active",
     )
@@ -779,7 +791,7 @@ def get_assessment(
             TrainingAttempt.submitted_at.isnot(None),
         ).order_by(TrainingAttempt.submitted_at.desc()).first()
         if latest_failed:
-            available_at = latest_failed.submitted_at + timedelta(minutes=60)
+            available_at = latest_failed.submitted_at + timedelta(minutes=15)
             wait_seconds = max(0, int((available_at - datetime.utcnow()).total_seconds()))
             result["retake_wait_seconds"] = wait_seconds
             result["retake_available_at"] = available_at.isoformat()
@@ -828,7 +840,7 @@ def start_attempt(
         default=None,
     )
     if latest_failed:
-        available_at = latest_failed.submitted_at + timedelta(minutes=60)
+        available_at = latest_failed.submitted_at + timedelta(minutes=15)
         now = datetime.utcnow()
         if now < available_at:
             wait_seconds = max(1, int((available_at - now).total_seconds()))
@@ -906,6 +918,7 @@ def start_attempt(
                 a.medium_count or 0, medium_type,
                 a.hard_count or 0, hard_type,
                 kit_name=a.kit.name if a.kit else "",
+                additional_instructions=a.additional_instructions or "",
             )
             for qd in questions_data:
                 raw_type = qd.get("question_type", "descriptive")

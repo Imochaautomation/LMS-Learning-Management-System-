@@ -337,6 +337,7 @@ class GenerateAssessmentRequest(BaseModel):
     hard_count: int = 3
     hard_type: str = 'descriptive'
     pass_threshold: int = 70
+    additional_instructions: Optional[str] = None
 
 class TrainingQuestionOut(BaseModel):
     id: int

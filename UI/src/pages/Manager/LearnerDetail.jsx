@@ -727,7 +727,7 @@ export default function LearnerDetail() {
   const [trainingAssessments, setTrainingAssessments] = useState([]);
   const [myKits, setMyKits] = useState([]);
   const [showCreateTraining, setShowCreateTraining] = useState(false);
-  const [trainingForm, setTrainingForm] = useState({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 });
+  const [trainingForm, setTrainingForm] = useState({ title: '', sme_kit_id: '', source_file_ids: [], additional_instructions: '', easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 });
   const [generatingTraining, setGeneratingTraining] = useState(false);
   const [createMode, setCreateMode] = useState('ai'); // 'ai' | 'excel'
   const [excelForm, setExcelForm] = useState({ title: '', pass_threshold: 70, sheet: 'all', file: null });
@@ -828,6 +828,7 @@ export default function LearnerDetail() {
         sme_kit_id: parseInt(trainingForm.sme_kit_id),
         title: trainingForm.title.trim(),
         source_file_ids: trainingForm.source_file_ids,
+        additional_instructions: trainingForm.additional_instructions.trim(),
         easy_count: parseInt(trainingForm.easy_count) || 0,
         easy_type: trainingForm.easy_type || 'mcq',
         medium_count: parseInt(trainingForm.medium_count) || 0,
@@ -838,7 +839,7 @@ export default function LearnerDetail() {
       });
       setTrainingAssessments((p) => [res, ...p]);
       setShowCreateTraining(false);
-      setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 });
+      setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], additional_instructions: '', easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 });
     } catch (e) {
       alert(`Failed to generate assessment: ${e.message}`);
     } finally {
@@ -1017,7 +1018,7 @@ export default function LearnerDetail() {
                 <BookOpen className="w-4 h-4 text-teal-600" /> AI Training Assessments
               </h2>
               <button
-                onClick={() => { setShowCreateTraining(!showCreateTraining); setCreateMode('ai'); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 }); setExcelForm({ title: '', pass_threshold: 70, sheet: 'all', file: null }); }}
+                onClick={() => { setShowCreateTraining(!showCreateTraining); setCreateMode('ai'); setTrainingForm({ title: '', sme_kit_id: '', source_file_ids: [], additional_instructions: '', easy_count: 3, easy_type: 'mcq', medium_count: 4, medium_type: 'mcq', hard_count: 3, hard_type: 'descriptive', pass_threshold: 70 }); setExcelForm({ title: '', pass_threshold: 70, sheet: 'all', file: null }); }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-teal-100 text-teal-700 text-sm font-medium rounded-lg hover:bg-teal-200">
                 <Plus className="w-4 h-4" /> Create Assessment
               </button>
@@ -1148,6 +1149,23 @@ export default function LearnerDetail() {
                   </div>
                 )}
 
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Additional Instructions <span className="font-normal text-gray-400">(optional)</span>
+                  </label>
+                  <textarea
+                    value={trainingForm.additional_instructions}
+                    onChange={(e) => setTrainingForm((p) => ({ ...p, additional_instructions: e.target.value }))}
+                    maxLength={2000}
+                    rows={3}
+                    placeholder="e.g. Focus on workplace discrimination scenarios. Use short case studies and ask candidates to identify the specific EEOC rule that applies."
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white resize-y"
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    Describe the topics, scenario style, wording, or question format the AI should follow.
+                  </p>
+                </div>
+
                 {/* Difficulty breakdown */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-2">Question Difficulty *</label>
@@ -1155,6 +1173,7 @@ export default function LearnerDetail() {
                     {/* Easy */}
                     <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3 space-y-2">
                       <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">🟢 Easy</span>
+                      <label className="text-[10px] text-emerald-600 -mb-1 block">Select from MCQ / Descriptive</label>
                       <select
                         value={trainingForm.easy_type}
                         onChange={(e) => setTrainingForm((p) => ({ ...p, easy_type: e.target.value }))}
@@ -1174,6 +1193,7 @@ export default function LearnerDetail() {
                     {/* Medium */}
                     <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-3 space-y-2">
                       <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">🟡 Medium</span>
+                      <label className="text-[10px] text-amber-600 -mb-1 block">Select from MCQ / Descriptive</label>
                       <select
                         value={trainingForm.medium_type}
                         onChange={(e) => setTrainingForm((p) => ({ ...p, medium_type: e.target.value }))}
@@ -1193,6 +1213,7 @@ export default function LearnerDetail() {
                     {/* Hard */}
                     <div className="rounded-xl border-2 border-red-200 bg-red-50 p-3 space-y-2">
                       <span className="text-xs font-bold text-red-700 uppercase tracking-wide">🔴 Hard</span>
+                      <label className="text-[10px] text-red-600 -mb-1 block">Select from MCQ / Descriptive</label>
                       <select
                         value={trainingForm.hard_type}
                         onChange={(e) => setTrainingForm((p) => ({ ...p, hard_type: e.target.value }))}
