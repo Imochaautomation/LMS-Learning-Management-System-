@@ -454,6 +454,7 @@ Rules:
 - Only one option may be correct.
 - correct_index must be an integer from 0 to 3.
 - Use US English and professional language.
+- Write every question as a grammatically complete, natural direct question. If it uses a WH-word or WH-phrase (Who, What, When, Where, Why, Which, or How), place it at the beginning. Never append constructions such as "being what?", "is what?", or "are which?" to a statement.
 - Return only valid JSON. Do not use Markdown or code fences.
 
 Return this exact structure:

@@ -122,19 +122,27 @@ def _build_content_context(files: List[SmeKitFileV2]) -> str:
 
 
 _EDITING_KIT_NAME_SIGNALS = (
-    "eeoc", "content valid", "editing check", "editing guide",
+    "eeoc", "equal employment opportunity", "content valid", "editing check", "editing guide",
     "style guide", "qc checklist", "content editing", "proofreading",
     "content qc", "editing qc",
 )
 
 
 def _is_editing_kit(kit_name: str, content: str) -> bool:
-    if any(signal in (kit_name or "").lower() for signal in _EDITING_KIT_NAME_SIGNALS):
+    name = (kit_name or "").lower()
+    excerpt = content[:6000].lower()
+    if any(signal in name for signal in _EDITING_KIT_NAME_SIGNALS):
         return True
-    excerpt = content[:2000].lower()
+    if any(signal in excerpt for signal in (
+        "equal employment opportunity commission",
+        "equal employment opportunity guidelines",
+        "employment discrimination",
+    )):
+        return True
     signals = (
         "eeoc", "content validation checklist", "editing checklist",
         "sensitive keyword", "filler word", "uk english", "us english style",
+        "protected characteristic", "discriminatory language",
     )
     return sum(1 for signal in signals if signal in excerpt) >= 2
 
@@ -143,7 +151,12 @@ def _is_eeoc_kit(kit_name: str, content: str) -> bool:
     """Identify EEOC/content-validation source documents that need scenario questions."""
     name = (kit_name or "").lower()
     excerpt = content[:5000].lower()
-    if "eeoc" in name or "eeoc" in excerpt:
+    if any(signal in name or signal in excerpt for signal in (
+        "eeoc",
+        "equal employment opportunity commission",
+        "equal employment opportunity guidelines",
+        "employment discrimination",
+    )):
         return True
     eeoc_signals = (
         "protected characteristic", "protected characteristics",
@@ -236,6 +249,8 @@ def _generate_questions(
         eeoc_style_rules = f"""
 EEOC SAMPLE-QUESTION STYLE — FOLLOW THIS PATTERN EXACTLY:
 - Each question must test content-review judgment, not memorization of the checklist.
+- Never ask about the checklist/document itself, its title, the organization that uses it, the commission or agency associated with it, or what EEOC stands for. Forbidden examples include "Which guidelines does iMocha follow?" and "What is the name of the commission?"
+- Do not mention iMocha, the source file, or the uploaded document in any question or option. Treat the source only as the rulebook used to evaluate the invented passage.
 - Invent a realistic two-to-four-sentence passage from a varied workplace or assessment domain.
 - Put a blank line and then exactly:
   Question:
@@ -263,6 +278,7 @@ Representative style examples (use only as structural guidance; create entirely 
 {eeoc_style_rules}
 
 Generate exactly {total} realistic scenario-based questions. Test whether a candidate can decide if an invented passage should be flagged under the guideline. Do not ask recall questions about what the document says or what the document is.
+Every generated item must contain an invented passage and require application of a substantive EEOC/content-validation rule. Reject and replace any draft item that asks for a document name, guideline name, organization name, commission/agency name, acronym expansion, or other metadata.
 
 For every question:
 1. Extract and apply a real rule from the guideline.
@@ -300,12 +316,15 @@ Follow these rules strictly:
 9. Do not repeat the same question stem pattern more than twice across the full set.
 10. Keep question language professional and neutral — avoid "you" in question stems where possible.
 11. MCQ options must use sentence case: capitalize only the first letter of each option text after the letter prefix (e.g., "A. The correct answer" not "A. The Correct Answer"), unless the option starts with a proper noun or technical term that is inherently capitalized. All four options must follow the same casing pattern.
+12. Write every question as a grammatically complete, natural direct question. If a question uses a WH-word or WH-phrase (Who, What, When, Where, Why, Which, or How), place it at the beginning of the question. Never append constructions such as "being what?", "is what?", or "are which?" to a statement. For example, write "What does the checklist ensure customers do not have to worry about?" rather than "The checklist ensures customers do not have to worry about assessment questions being what?"
+13. Test the source's substantive topic, rules, and their application—not facts about the document itself. Never ask which guidelines an organization follows, which commission or agency is named, what a document/checklist is called, who published it, what an acronym stands for, or similar document-identity and organization-recall questions. For policy or compliance content, ask candidates to apply the policy to realistic situations supported by the source.
 
 ABSOLUTE PROHIBITION — these question types are forbidden and will invalidate the entire output:
 - Do NOT generate any question about these instructions, prompt rules, or directives.
 - Do NOT reference any phrase from these instructions in a question stem or option — phrases like "No content available", "SME Kit content", "the provided rules", "START OF CONTENT", "END OF CONTENT", "Content Editing Guidelines", "outside knowledge", or any other meta-language from this prompt.
 - Do NOT generate questions about what the AI "should" or "should not" do.
 - Do NOT generate questions about the document format, file type, or how the content was provided.
+- Do NOT test document metadata or identity, including the document title, publisher, named organization, named commission/agency, guideline name, or acronym expansion.
 - If the content is too short or unclear to support a question, skip that concept — do not pad with meta-questions.
 
 QUESTION TYPE MANDATE — this is non-negotiable and overrides any pattern you might infer from the examples below:
@@ -387,8 +406,8 @@ CRITICAL RULES:
 - Descriptive (question_type = "descriptive" or "written"): partial credit allowed; compare the user's answer against the model answer and use your judgment.
 - score = (correct_count + 0.5 * partial_count) / {total_q} * 100, rounded to 1 decimal.
 - ai_explanation is REQUIRED for EVERY question and must NEVER be empty — this applies to correct, wrong, and partial answers alike.
-- In ai_explanation, ALWAYS state the correct answer using its full text, not just the option letter. For MCQ, write out the actual option wording (e.g. 'The correct answer is "They" — used when the subject's gender is unspecified.'), NEVER just 'The correct answer is A'.
-- For a wrong answer, briefly explain why the chosen answer is incorrect AND state the full correct answer text. For a correct answer, briefly confirm why it is right.
+- Do NOT restate the correct answer in ai_explanation; it is displayed separately in the interface for every question.
+- For a wrong answer, briefly explain why the chosen answer is incorrect. For a correct answer, briefly confirm why it is right.
 - Be constructive and specific. Reference the actual content from the question."""
 
     raw = _call_ai(prompt)
@@ -1060,23 +1079,22 @@ def submit_attempt(
         for q in questions:
             user_ans = (answer_map.get(q.id) or "").strip().upper()
             correct = (q.correct_answer or "").strip().upper()
-            correct_text = _correct_answer_display(q)
             if q.question_type == "mcq" and user_ans and correct and user_ans == correct:
                 correct_count += 1
                 evals[q.id] = {
                     "question_id": q.id, "is_correct": True, "ai_flag": "correct",
-                    "ai_explanation": f"Correct. The right answer is: {correct_text}",
+                    "ai_explanation": "Correct.",
                 }
             elif q.question_type == "mcq":
                 evals[q.id] = {
                     "question_id": q.id, "is_correct": False, "ai_flag": "wrong",
-                    "ai_explanation": f"The correct answer is: {correct_text}",
+                    "ai_explanation": "The selected option is incorrect.",
                 }
             else:
                 # Descriptive — cannot auto-grade; show the model answer for reference
                 evals[q.id] = {
                     "question_id": q.id, "is_correct": None, "ai_flag": "partial",
-                    "ai_explanation": f"This answer could not be auto-evaluated. Model answer for reference: {correct_text}",
+                    "ai_explanation": "This answer could not be auto-evaluated.",
                 }
         score = round((correct_count / total_q) * 100, 1) if total_q > 0 else 0.0
         overall_feedback = "Descriptive answers could not be AI-evaluated at this time. MCQ answers have been auto-graded."

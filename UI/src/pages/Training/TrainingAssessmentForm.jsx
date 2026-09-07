@@ -9,6 +9,7 @@ import api from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
 import { useNavigationGuard } from '../../context/NavigationGuardContext';
 import { Loader2, CheckCircle2, XCircle, Trophy, AlertTriangle, ChevronDown, ChevronUp, History, PlayCircle, ShieldAlert, Send } from 'lucide-react';
+import { getCandidateAnswerText, getCorrectAnswerText, getExplanationWithoutRepeatedAnswer } from '../../utils/assessmentAnswers';
 
 const ORANGE = '#F05A28';
 const TEAL = '#0d9488';
@@ -67,6 +68,8 @@ function AttemptCard({ attempt, questions, defaultOpen = false }) {
           <div className="divide-y divide-gray-50">
             {answersWithQ.map((ans, idx) => {
               const flag = ans.ai_flag;
+              const correctAnswer = getCorrectAnswerText(ans);
+              const explanation = getExplanationWithoutRepeatedAnswer(ans);
               return (
                 <div key={ans.id} className="px-4 py-3">
                   <div className="flex items-start gap-2">
@@ -88,17 +91,17 @@ function AttemptCard({ attempt, questions, defaultOpen = false }) {
                       <p className="text-sm font-medium text-gray-900 mb-1">{ans.question_text}</p>
                       <div className="bg-gray-50 rounded-lg px-3 py-2 mb-1">
                         <p className="text-xs text-gray-500">Your answer:</p>
-                        <p className="text-sm text-gray-800">{ans.answer_text || '(no answer)'}</p>
+                        <p className="text-sm text-gray-800">{getCandidateAnswerText(ans)}</p>
                       </div>
-                      {flag === 'wrong' && (ans.correct_answer_text || ans.correct_answer) && (
+                      {correctAnswer && (
                         <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 mb-1">
                           <p className="text-xs text-emerald-700 font-semibold">Correct answer:</p>
-                          <p className="text-sm text-emerald-800">{ans.correct_answer_text || ans.correct_answer}</p>
+                          <p className="text-sm text-emerald-800">{correctAnswer}</p>
                         </div>
                       )}
-                      {(ans.ai_explanation || (flag === 'wrong' && (ans.correct_answer_text || ans.correct_answer))) && (
+                      {explanation && (
                         <div className={`rounded-lg px-3 py-2 text-xs ${flag === 'correct' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : flag === 'wrong' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'}`}>
-                          {ans.ai_explanation || `The correct answer is: ${ans.correct_answer_text || ans.correct_answer}`}
+                          {explanation}
                         </div>
                       )}
                     </div>

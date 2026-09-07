@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api, { API_HOST } from '../../api/client';
 import BackButton from '../../components/shared/BackButton';
+import { getCandidateAnswerText, getCorrectAnswerText, getExplanationWithoutRepeatedAnswer } from '../../utils/assessmentAnswers';
 import {
   FileText, GraduationCap, BarChart3, ExternalLink, Send, Search, Plus,
   Trophy, Flame, Award, ArrowRight, FileSearch, Printer, X,
@@ -1428,10 +1429,15 @@ export default function LearnerDetail() {
                                       <div className="divide-y divide-gray-100">
                                         {(att.answers || []).map((ans, ansIdx) => {
                                           // Use embedded question data (works across all question generations)
-                                          const q = { question_text: ans.question_text, question_type: ans.question_type, difficulty: ans.difficulty } ||
-                                                    (a.questions || []).find(q => q.id === ans.question_id) || {};
+                                          const embeddedQuestion = { question_text: ans.question_text, question_type: ans.question_type, difficulty: ans.difficulty, options: ans.options };
+                                          const q = embeddedQuestion.question_text
+                                            ? embeddedQuestion
+                                            : (a.questions || []).find(question => question.id === ans.question_id) || {};
                                           const flagColor = ans.ai_flag === 'correct' ? 'text-emerald-600' : ans.ai_flag === 'wrong' ? 'text-red-600' : 'text-amber-600';
                                           const flagBg = ans.ai_flag === 'correct' ? 'bg-emerald-50 border-emerald-100' : ans.ai_flag === 'wrong' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100';
+                                          const answerForDisplay = { ...ans, question_type: q.question_type, options: q.options };
+                                          const correctAnswer = getCorrectAnswerText(answerForDisplay);
+                                          const explanation = getExplanationWithoutRepeatedAnswer(answerForDisplay);
                                           return (
                                             <div key={ans.id} className="px-4 py-3 bg-white">
                                               <div className="flex items-start gap-2">
@@ -1448,12 +1454,18 @@ export default function LearnerDetail() {
                                                   <p className="text-sm font-medium text-gray-900 mb-1.5">{q.question_text || `Question ${ansIdx + 1}`}</p>
                                                   <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-1.5">
                                                     <p className="text-xs text-gray-500 mb-0.5">Joiner's answer:</p>
-                                                    <p className="text-sm text-gray-800">{ans.answer_text || '(no answer)'}</p>
+                                                    <p className="text-sm text-gray-800">{getCandidateAnswerText(answerForDisplay)}</p>
                                                   </div>
-                                                  {ans.ai_explanation && (
+                                                  {correctAnswer && (
+                                                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 mb-1.5">
+                                                      <p className="text-xs text-emerald-700 font-semibold mb-0.5">Correct answer:</p>
+                                                      <p className="text-sm text-emerald-800">{correctAnswer}</p>
+                                                    </div>
+                                                  )}
+                                                  {explanation && (
                                                     <div className={`border rounded-lg px-3 py-2 text-xs ${flagBg}`}>
                                                       <span className={`font-semibold ${flagColor}`}>AI: </span>
-                                                      <span className="text-gray-700">{ans.ai_explanation}</span>
+                                                      <span className="text-gray-700">{explanation}</span>
                                                     </div>
                                                   )}
                                                 </div>
