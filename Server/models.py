@@ -374,6 +374,9 @@ class VideoAssignment(Base):
     progress_percent = Column(Integer, default=0)
     quiz_passed = Column(Boolean, nullable=True)
     quiz_question_ids = Column(JSON, default=list)
+    attempt_request_status = Column(String(20), nullable=True)  # null | pending | approved | rejected
+    rewatch_ranges = Column(JSON, default=list)  # merged [start_seconds, end_seconds] ranges
+    rewatch_progress_percent = Column(Float, default=0)
     assigned_at = Column(DateTime, server_default=_now)
 
     video = relationship("VideoContent", back_populates="assignments")
@@ -404,6 +407,9 @@ class VideoQuizAttempt(Base):
     attempt_number = Column(Integer, default=1)
     score = Column(Float, nullable=True)
     passed = Column(Boolean, nullable=True)
+    question_ids = Column(JSON, default=list)
+    answers = Column(JSON, default=dict)
+    results = Column(JSON, default=list)
     submitted_at = Column(DateTime, server_default=_now)
 
     assignment = relationship("VideoAssignment", back_populates="attempts")

@@ -5,8 +5,9 @@ from database import get_db
 from models import (
     User, Profile, AssessmentAssignment, UserCourse, CourseAssignment,
     CourseCompletion, InterviewSession, Notification,
-    SmeKitAssignment, SmeKitAssignmentV2, SmeKit, SmeKitFileV2,
+    AssessmentBankItem, SmeKitFile, SmeKitAssignment, SmeKitAssignmentV2, SmeKit, SmeKitFileV2,
     TrainingAssessment, TrainingAttempt, TrainingAnswer, TrainingQuestion,
+    VideoContent, VideoAssignment, VideoQuizAttempt,
 )
 from schemas import UserCreate, UserUpdate, UserOut
 from auth import hash_password, require_role
@@ -149,7 +150,11 @@ def unmark_ready(
 
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(
+    user_id: int,
+    admin: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -185,6 +190,12 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
         # SME Kits created by this user — null out creator (column is now nullable)
         db.query(SmeKit).filter(SmeKit.created_by == user_id).update(
             {"created_by": None}, synchronize_session=False
+        )
+        db.query(AssessmentBankItem).filter(AssessmentBankItem.uploaded_by == user_id).update(
+            {"uploaded_by": None}, synchronize_session=False
+        )
+        db.query(SmeKitFile).filter(SmeKitFile.uploaded_by == user_id).update(
+            {"uploaded_by": None}, synchronize_session=False
         )
 
         # 5. Training: assessments where this user is the new joiner — delete cascade
@@ -232,14 +243,47 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
             TrainingAttempt.user_id == user_id
         ).delete(synchronize_session=False)
 
-        # 8. Profile
+        # 8. Video activity. Attempts must be removed before their assignments.
+        video_assignment_ids = [
+            row[0] for row in db.query(VideoAssignment.id).filter(
+                (VideoAssignment.user_id == user_id) | (VideoAssignment.assigned_by == user_id)
+            ).all()
+        ]
+        if video_assignment_ids:
+            db.query(VideoQuizAttempt).filter(
+                VideoQuizAttempt.assignment_id.in_(video_assignment_ids)
+            ).delete(synchronize_session=False)
+            db.query(VideoAssignment).filter(
+                VideoAssignment.id.in_(video_assignment_ids)
+            ).delete(synchronize_session=False)
+        db.query(VideoQuizAttempt).filter(VideoQuizAttempt.user_id == user_id).delete(
+            synchronize_session=False
+        )
+
+        # Preserve uploaded videos by transferring ownership to the acting admin.
+        if admin.id == user_id:
+            replacement = db.query(User).filter(User.id != user_id).order_by(User.id).first()
+            if not replacement and db.query(VideoContent).filter(VideoContent.uploaded_by == user_id).first():
+                raise HTTPException(400, "Transfer uploaded videos before deleting the only account")
+            replacement_id = replacement.id if replacement else None
+        else:
+            replacement_id = admin.id
+        if replacement_id is not None:
+            db.query(VideoContent).filter(VideoContent.uploaded_by == user_id).update(
+                {"uploaded_by": replacement_id}, synchronize_session=False
+            )
+
+        # 9. Profile
         db.query(Profile).filter(Profile.user_id == user_id).delete()
 
-        # 9. Delete the user
+        # 10. Delete the user
         db.delete(user)
         db.commit()
         return {"ok": True}
 
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")

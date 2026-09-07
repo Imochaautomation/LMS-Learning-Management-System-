@@ -27,7 +27,7 @@ from config import (
     JWT_SECRET,
 )
 from database import get_db
-from models import User, VideoAssignment, VideoContent, VideoQuizAttempt, VideoQuizQuestion
+from models import User, Notification, VideoAssignment, VideoContent, VideoQuizAttempt, VideoQuizQuestion
 
 router = APIRouter(prefix="/api/video-assignments", tags=["video-assignments"])
 
@@ -57,6 +57,11 @@ class ProgressUpdate(BaseModel):
 
 class QuizSubmission(BaseModel):
     answers: dict   # {str(question_id): int(chosen_index)}
+
+
+class RewatchProgressUpdate(BaseModel):
+    ranges: List[List[float]]
+    duration: float
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -176,6 +181,41 @@ async def _generate_video_quiz_with_openrouter(
 def _candidate_question_ids(question_ids: List[int]) -> List[int]:
     count = min(VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE, len(question_ids))
     return random.SystemRandom().sample(question_ids, count) if count else []
+
+
+def _merge_ranges(ranges: List[List[float]], duration: float, max_span: Optional[float] = None) -> List[List[float]]:
+    cleaned = []
+    for item in ranges:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            continue
+        try:
+            start, end = float(item[0]), float(item[1])
+        except (TypeError, ValueError):
+            continue
+        start = max(0.0, min(start, duration))
+        end = max(0.0, min(end, duration))
+        if end > start and (max_span is None or end - start <= max_span):
+            cleaned.append([start, end])
+    cleaned.sort()
+    merged = []
+    for start, end in cleaned:
+        if merged and start <= merged[-1][1] + 0.5:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
+
+
+def _next_question_ids(assignment: VideoAssignment, available_ids: List[int], current_ids: Optional[List[int]] = None) -> List[int]:
+    previously_used = {
+        int(question_id)
+        for attempt in assignment.attempts
+        for question_id in (attempt.question_ids or [])
+    }
+    previously_used.update(int(question_id) for question_id in (current_ids or []))
+    unused = [question_id for question_id in available_ids if question_id not in previously_used]
+    source = unused if len(unused) >= min(VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE, len(available_ids)) else available_ids
+    return _candidate_question_ids(source)
 
 
 def _valid_assignment_question_ids(
@@ -424,6 +464,7 @@ def list_videos(
             "video_url": v.video_url,
             "quiz_generated": v.quiz_generated,
             "question_count": len(v.questions),
+            "questions_per_attempt": min(VIDEO_QUIZ_QUESTIONS_PER_CANDIDATE, len(v.questions)),
             "assignment_count": len(v.assignments),
             "created_at": v.created_at.isoformat() if v.created_at else None,
         }
@@ -637,6 +678,8 @@ def assignment_stats(
             "best_score": max(
                 (att.score for att in a.attempts if att.score is not None), default=None
             ),
+            "attempt_request_status": a.attempt_request_status,
+            "rewatch_progress_percent": a.rewatch_progress_percent or 0,
         }
         for a in assignments
     ]
@@ -675,6 +718,7 @@ def my_assignments(
             a.status = new_status
 
         questions = []
+        questions_by_id = {}
         if a.video and a.video.quiz_generated and a.progress_percent >= 100:
             all_questions = (
                 db.query(VideoQuizQuestion)
@@ -723,6 +767,30 @@ def my_assignments(
             "last_passed": latest.passed if latest else None,
             "retake_wait_seconds": retake_wait_seconds,
             "retake_available_at": retake_available_at,
+            "attempt_request_status": a.attempt_request_status,
+            "rewatch_progress_percent": round(a.rewatch_progress_percent or 0),
+            "requires_rewatch": len(attempts) >= 2 and a.attempt_request_status == "approved",
+            "attempt_results": [
+                {
+                    "attempt_number": attempt.attempt_number,
+                    "score": attempt.score,
+                    "passed": attempt.passed,
+                    "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else None,
+                    "questions": attempt.results or [
+                        {
+                            "id": question_id,
+                            "question_text": questions_by_id[question_id].question_text,
+                            "options": questions_by_id[question_id].options,
+                            "selected_index": (attempt.answers or {}).get(str(question_id)),
+                            "correct_index": questions_by_id[question_id].correct_index,
+                            "is_correct": (attempt.answers or {}).get(str(question_id)) == questions_by_id[question_id].correct_index,
+                        }
+                        for question_id in (attempt.question_ids or [])
+                        if question_id in questions_by_id
+                    ],
+                }
+                for attempt in attempts
+            ],
             "questions": questions,
         })
 
@@ -750,6 +818,99 @@ def update_progress(
     return {"progress_percent": a.progress_percent, "status": a.status}
 
 
+@router.patch("/{assignment_id}/rewatch-progress")
+def update_rewatch_progress(
+    assignment_id: int,
+    body: RewatchProgressUpdate,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("new_joiner", "employee")),
+):
+    a = db.query(VideoAssignment).filter(
+        VideoAssignment.id == assignment_id,
+        VideoAssignment.user_id == user.id,
+    ).first()
+    if not a:
+        raise HTTPException(404, "Assignment not found")
+    if a.attempt_request_status != "approved" or len(a.attempts) < 2:
+        raise HTTPException(400, "No approved video retake requires rewatching")
+    if body.duration <= 0:
+        raise HTTPException(400, "Invalid video duration")
+
+    incoming = _merge_ranges(list(body.ranges or []), body.duration, max_span=30)
+    combined = list(a.rewatch_ranges or []) + incoming
+    merged = _merge_ranges(combined, body.duration)
+    watched_seconds = sum(end - start for start, end in merged)
+    a.rewatch_ranges = merged
+    a.rewatch_progress_percent = min(100, watched_seconds / body.duration * 100)
+    db.commit()
+    return {"rewatch_progress_percent": round(a.rewatch_progress_percent, 1)}
+
+
+@router.post("/{assignment_id}/request-attempt")
+def request_video_attempt(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("new_joiner", "employee")),
+):
+    a = db.query(VideoAssignment).filter(
+        VideoAssignment.id == assignment_id,
+        VideoAssignment.user_id == user.id,
+    ).first()
+    if not a:
+        raise HTTPException(404, "Assignment not found")
+    if len(a.attempts) != 2 or a.quiz_passed:
+        raise HTTPException(400, "A new attempt can be requested only after two unsuccessful attempts")
+    if a.attempt_request_status == "pending":
+        raise HTTPException(400, "A request is already pending")
+    a.attempt_request_status = "pending"
+    db.add(Notification(
+        user_id=a.assigned_by,
+        title="Video Quiz Retake Requested",
+        message=f"{user.name} requested another attempt for '{a.video.title}'.",
+        type="info",
+    ))
+    db.commit()
+    return {"ok": True, "attempt_request_status": "pending"}
+
+
+@router.post("/{assignment_id}/approve-attempt")
+def approve_video_attempt(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    manager=Depends(require_role("manager", "admin")),
+):
+    a = db.query(VideoAssignment).filter(VideoAssignment.id == assignment_id).first()
+    if not a or (manager.role != "admin" and a.assigned_by != manager.id):
+        raise HTTPException(404, "Assignment not found")
+    if a.attempt_request_status != "pending":
+        raise HTTPException(400, "No pending attempt request")
+    a.attempt_request_status = "approved"
+    a.rewatch_ranges = []
+    a.rewatch_progress_percent = 0
+    available_ids = [q.id for q in db.query(VideoQuizQuestion).filter(VideoQuizQuestion.video_id == a.video_id).all()]
+    a.quiz_question_ids = _next_question_ids(a, available_ids)
+    db.add(Notification(user_id=a.user_id, title="Video Quiz Retake Approved", message=f"Watch 75% of '{a.video.title}' to unlock the new quiz attempt.", type="info"))
+    db.commit()
+    return {"ok": True, "attempt_request_status": "approved"}
+
+
+@router.post("/{assignment_id}/reject-attempt")
+def reject_video_attempt(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    manager=Depends(require_role("manager", "admin")),
+):
+    a = db.query(VideoAssignment).filter(VideoAssignment.id == assignment_id).first()
+    if not a or (manager.role != "admin" and a.assigned_by != manager.id):
+        raise HTTPException(404, "Assignment not found")
+    if a.attempt_request_status != "pending":
+        raise HTTPException(400, "No pending attempt request")
+    a.attempt_request_status = "rejected"
+    db.add(Notification(user_id=a.user_id, title="Video Quiz Retake Request Declined", message=f"Your request for another attempt on '{a.video.title}' was declined.", type="info"))
+    db.commit()
+    return {"ok": True, "attempt_request_status": "rejected"}
+
+
 @router.post("/{assignment_id}/quiz")
 def submit_quiz(
     assignment_id: int,
@@ -765,8 +926,13 @@ def submit_quiz(
         raise HTTPException(404, "Assignment not found")
     if a.progress_percent < 100:
         raise HTTPException(400, "Watch the full video before taking the quiz")
-    if len(a.attempts) >= 2:
-        raise HTTPException(400, "Maximum 2 attempts reached")
+    is_extra_attempt = len(a.attempts) >= 2
+    if len(a.attempts) >= 3:
+        raise HTTPException(400, "Maximum 3 attempts reached")
+    if is_extra_attempt and a.attempt_request_status != "approved":
+        raise HTTPException(403, "Request and receive manager approval for another attempt")
+    if is_extra_attempt and (a.rewatch_progress_percent or 0) < 75:
+        raise HTTPException(400, "Watch at least 75% of the video again before taking this quiz")
     latest_attempt = max(a.attempts, key=lambda attempt: attempt.attempt_number, default=None)
     if latest_attempt and latest_attempt.passed is False and latest_attempt.submitted_at:
         available_at = latest_attempt.submitted_at + timedelta(minutes=VIDEO_RETAKE_COOLDOWN_MINUTES)
@@ -802,15 +968,37 @@ def submit_quiz(
     score = round(correct / len(questions) * 100)
     passed = score >= 50
 
-    db.add(VideoQuizAttempt(
+    result_questions = [
+        {
+            "id": q.id,
+            "question_text": q.question_text,
+            "options": q.options,
+            "selected_index": body.answers.get(str(q.id)),
+            "correct_index": q.correct_index,
+            "is_correct": body.answers.get(str(q.id)) == q.correct_index,
+        }
+        for q in questions
+    ]
+    attempt = VideoQuizAttempt(
         assignment_id=a.id,
         user_id=user.id,
         attempt_number=len(a.attempts) + 1,
         score=score,
         passed=passed,
-    ))
+        question_ids=[q.id for q in questions],
+        answers={str(key): value for key, value in body.answers.items()},
+        results=result_questions,
+    )
+    db.add(attempt)
     if passed:
         a.quiz_passed = True
+    if is_extra_attempt:
+        a.attempt_request_status = None
+        a.rewatch_ranges = []
+        a.rewatch_progress_percent = 0
+
+    if not passed:
+        a.quiz_question_ids = _next_question_ids(a, list(questions_by_id.keys()), [q.id for q in questions])
 
     db.commit()
-    return {"score": score, "passed": passed, "correct": correct, "total": len(questions)}
+    return {"score": score, "passed": passed, "correct": correct, "total": len(questions), "questions": result_questions}

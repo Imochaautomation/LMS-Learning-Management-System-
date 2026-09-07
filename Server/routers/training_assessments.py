@@ -174,6 +174,7 @@ def _generate_questions(
     hard_count: int, hard_type: str,
     kit_name: str = "",
     additional_instructions: str = "",
+    previous_question_texts: Optional[List[str]] = None,
 ) -> List[dict]:
     total = easy_count + medium_count + hard_count
     manager_guidance = (additional_instructions or "").strip()[:2000]
@@ -183,6 +184,15 @@ def _generate_questions(
         "Apply these instructions when choosing topics, scenarios, and wording. They must not override the required question counts, selected question types, JSON format, US English rules, or the requirement to stay grounded in the source content.\n"
         if manager_guidance else ""
     )
+    previous_questions = [text.strip() for text in (previous_question_texts or []) if text and text.strip()]
+    exclusion_block = ""
+    if previous_questions:
+        exclusion_block = (
+            "\nRETAKE UNIQUENESS REQUIREMENT:\n"
+            "Create genuinely different questions and scenarios. Do not repeat or closely paraphrase any previous question listed below:\n"
+            + "\n".join(f"- {text[:500]}" for text in previous_questions)
+            + "\n"
+        )
 
     def _type_label(t: str) -> str:
         return "MCQ" if t == "mcq" else "Descriptive (open-ended, no options)"
@@ -276,6 +286,7 @@ Representative style examples (use only as structural guidance; create entirely 
 
 {guidance_block}
 {eeoc_style_rules}
+{exclusion_block}
 
 Generate exactly {total} realistic scenario-based questions. Test whether a candidate can decide if an invented passage should be flagged under the guideline. Do not ask recall questions about what the document says or what the document is.
 Every generated item must contain an invented passage and require application of a substantive EEOC/content-validation rule. Reject and replace any draft item that asks for a document name, guideline name, organization name, commission/agency name, acronym expansion, or other metadata.
@@ -330,6 +341,7 @@ ABSOLUTE PROHIBITION — these question types are forbidden and will invalidate 
 QUESTION TYPE MANDATE — this is non-negotiable and overrides any pattern you might infer from the examples below:
 {type_mandate}
 {guidance_block}
+{exclusion_block}
 
 Before generating questions, identify: (a) the document's actual topic, and (b) four to six specific rules or concepts it covers. Base ALL questions exclusively on those concepts from the content text.
 
@@ -976,6 +988,7 @@ def start_attempt(
                 a.hard_count or 0, hard_type,
                 kit_name=a.kit.name if a.kit else "",
                 additional_instructions=a.additional_instructions or "",
+                previous_question_texts=[q.question_text for q in a.questions],
             )
             for qd in questions_data:
                 raw_type = qd.get("question_type", "descriptive")

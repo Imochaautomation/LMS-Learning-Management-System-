@@ -20,6 +20,32 @@ const STATUS_CONFIG = {
   assigned:  { label: 'Assigned',  icon: PlayCircle,   cls: 'text-blue-700 bg-blue-50 border-blue-200' },
 };
 
+function VideoAttemptReview({ title, score, questions }) {
+  if (!questions?.length) return null;
+  return (
+    <div className="text-left border border-gray-200 rounded-xl overflow-hidden mt-4">
+      <div className="px-4 py-2 bg-gray-50 text-sm font-semibold text-gray-700">{title} · {score}%</div>
+      <div className="divide-y divide-gray-100">
+        {questions.map((question, index) => (
+          <div key={question.id} className="p-4">
+            <p className="text-sm font-medium text-gray-900 mb-2">{index + 1}. {question.question_text}</p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <div className={`rounded-lg border px-3 py-2 ${question.is_correct ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                <p className="text-xs text-gray-500 mb-0.5">Your answer:</p>
+                <p className="text-sm text-gray-800">{question.options?.[question.selected_index] ?? '(no answer)'}</p>
+              </div>
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                <p className="text-xs font-semibold text-emerald-700 mb-0.5">Correct answer:</p>
+                <p className="text-sm text-emerald-800">{question.options?.[question.correct_index] ?? '—'}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function getYouTubeId(url) {
   const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   return match ? match[1] : null;
@@ -29,19 +55,94 @@ function isYouTube(url) {
   return url && (url.includes('youtube.com') || url.includes('youtu.be'));
 }
 
-function VideoPlayer({ url, streamUrl, watchedProgress, onProgress, onEnded }) {
+let youtubeApiPromise;
+function loadYouTubeApi() {
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (!youtubeApiPromise) {
+    youtubeApiPromise = new Promise(resolve => {
+      const previousReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        previousReady?.();
+        resolve(window.YT);
+      };
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const script = document.createElement('script');
+        script.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(script);
+      }
+    });
+  }
+  return youtubeApiPromise;
+}
+
+function VideoPlayer({ url, streamUrl, watchedProgress, onProgress, onEnded, rewatchMode = false, onRewatchSegments }) {
   const videoRef = useRef(null);
   const saveTimer = useRef(null);
   const maxWatchedTime = useRef(0);
   const correctingSeek = useRef(false);
+  const lastPlaybackTime = useRef(null);
+  const pendingRanges = useRef([]);
+  const youtubeContainerRef = useRef(null);
+  const youtubePlayerRef = useRef(null);
+  const onRewatchSegmentsRef = useRef(onRewatchSegments);
 
   const ytId = url ? getYouTubeId(url) : null;
   const isYT = isYouTube(url);
   const playbackUrl = streamUrl ? `${API_HOST}${streamUrl}` : url;
 
+  useEffect(() => { onRewatchSegmentsRef.current = onRewatchSegments; }, [onRewatchSegments]);
+
+  useEffect(() => {
+    if (!isYT || !ytId || !youtubeContainerRef.current) return undefined;
+    let cancelled = false;
+    let pollTimer;
+    let flushTimer;
+    loadYouTubeApi().then(YT => {
+      if (cancelled || !youtubeContainerRef.current) return;
+      youtubePlayerRef.current = new YT.Player(youtubeContainerRef.current, {
+        videoId: ytId,
+        playerVars: { rel: 0 },
+        events: {
+          onStateChange: event => {
+            if (event.data === YT.PlayerState.PLAYING && rewatchMode) {
+              window.clearInterval(pollTimer);
+              window.clearInterval(flushTimer);
+              let previous = event.target.getCurrentTime();
+              pollTimer = window.setInterval(() => {
+                const current = event.target.getCurrentTime();
+                if (current > previous && current - previous <= 2.5) pendingRanges.current.push([previous, current]);
+                previous = current;
+              }, 1000);
+              flushTimer = window.setInterval(() => {
+                const ranges = pendingRanges.current.splice(0);
+                const duration = event.target.getDuration();
+                if (ranges.length && duration > 0) onRewatchSegmentsRef.current?.(ranges, duration);
+              }, 3000);
+            } else {
+              window.clearInterval(pollTimer);
+              window.clearInterval(flushTimer);
+              const ranges = pendingRanges.current.splice(0);
+              const duration = event.target.getDuration();
+              if (ranges.length && duration > 0) onRewatchSegmentsRef.current?.(ranges, duration);
+            }
+          },
+        },
+      });
+    });
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollTimer);
+      window.clearInterval(flushTimer);
+      youtubePlayerRef.current?.destroy?.();
+      youtubePlayerRef.current = null;
+    };
+  }, [isYT, rewatchMode, ytId]);
+
   useEffect(() => {
     maxWatchedTime.current = 0;
     correctingSeek.current = false;
+    lastPlaybackTime.current = null;
+    pendingRanges.current = [];
   }, [playbackUrl]);
 
   const handleLoadedMetadata = () => {
@@ -58,7 +159,7 @@ function VideoPlayer({ url, streamUrl, watchedProgress, onProgress, onEnded }) {
     if (!v || !v.duration) return;
 
     // Never accept a jump beyond the furthest point reached by normal playback.
-    if (!v.seeking && v.currentTime > maxWatchedTime.current + 2) {
+    if (!rewatchMode && !v.seeking && v.currentTime > maxWatchedTime.current + 2) {
       correctingSeek.current = true;
       v.currentTime = maxWatchedTime.current;
       return;
@@ -66,6 +167,19 @@ function VideoPlayer({ url, streamUrl, watchedProgress, onProgress, onEnded }) {
 
     if (!v.seeking) {
       maxWatchedTime.current = Math.max(maxWatchedTime.current, v.currentTime);
+      const previous = lastPlaybackTime.current;
+      if (rewatchMode && previous != null && v.currentTime > previous && v.currentTime - previous <= 2.5) {
+        pendingRanges.current.push([previous, v.currentTime]);
+      }
+      lastPlaybackTime.current = v.currentTime;
+    }
+    if (rewatchMode) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        const ranges = pendingRanges.current.splice(0);
+        if (ranges.length) onRewatchSegments?.(ranges, v.duration);
+      }, 2000);
+      return;
     }
     const pct = Math.round((v.currentTime / v.duration) * 100);
     clearTimeout(saveTimer.current);
@@ -81,8 +195,9 @@ function VideoPlayer({ url, streamUrl, watchedProgress, onProgress, onEnded }) {
       return;
     }
 
-    // Seeking is allowed anywhere already watched, but never beyond it.
-    if (v.currentTime > maxWatchedTime.current + 0.5) {
+    lastPlaybackTime.current = null;
+    // Seeking is unrestricted during an approved rewatch.
+    if (!rewatchMode && v.currentTime > maxWatchedTime.current + 0.5) {
       correctingSeek.current = true;
       v.currentTime = maxWatchedTime.current;
     }
@@ -95,7 +210,7 @@ function VideoPlayer({ url, streamUrl, watchedProgress, onProgress, onEnded }) {
 
   const handleEnded = () => {
     clearTimeout(saveTimer.current);
-    onProgress(100);
+    if (!rewatchMode) onProgress(100);
     onEnded?.();
   };
 
@@ -107,15 +222,7 @@ function VideoPlayer({ url, streamUrl, watchedProgress, onProgress, onEnded }) {
     </div>
   );
 
-  if (isYT && ytId) return (
-    <iframe
-      className="w-full aspect-video rounded-xl"
-      src={`https://www.youtube.com/embed/${ytId}?rel=0`}
-      title="Training video"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-      allowFullScreen
-    />
-  );
+  if (isYT && ytId) return <div ref={youtubeContainerRef} className="w-full aspect-video rounded-xl overflow-hidden" />;
 
   return (
     <video
@@ -147,11 +254,15 @@ export default function VideoAssignments() {
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [retaking, setRetaking] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [requestingAttempt, setRequestingAttempt] = useState(false);
 
   const fetchAssignments = useCallback(async () => {
     try {
       const data = await api.get('/video-assignments/my');
       setAssignments(data || []);
+      setSelected(current => current
+        ? (data || []).find(assignment => assignment.id === current.id) || current
+        : current);
     } catch {
       setAssignments([]);
     } finally {
@@ -162,12 +273,18 @@ export default function VideoAssignments() {
   useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
 
   useEffect(() => {
+    if (selected?.attempt_request_status !== 'pending') return undefined;
+    const timer = window.setInterval(fetchAssignments, 10000);
+    return () => window.clearInterval(timer);
+  }, [fetchAssignments, selected?.attempt_request_status]);
+
+  useEffect(() => {
     if (cooldownSeconds <= 0) return;
     const timer = window.setInterval(() => {
       setCooldownSeconds(seconds => Math.max(0, seconds - 1));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [cooldownSeconds > 0]);
+  }, [cooldownSeconds]);
 
   const selectAssignment = (a) => {
     setSelected(a);
@@ -212,6 +329,29 @@ export default function VideoAssignments() {
     setLocalProgress(pct);
     if (pct > (selected?.progress_percent || 0)) {
       saveProgress(pct);
+    }
+  };
+
+  const handleRewatchSegments = async (ranges, duration) => {
+    if (!selected) return;
+    try {
+      const res = await api.patch(`/video-assignments/${selected.id}/rewatch-progress`, { ranges, duration });
+      setSelected(prev => prev ? { ...prev, rewatch_progress_percent: res.rewatch_progress_percent } : prev);
+    } catch {
+      // Best effort; subsequent playback sends additional ranges.
+    }
+  };
+
+  const requestAnotherAttempt = async () => {
+    if (!selected) return;
+    setRequestingAttempt(true);
+    try {
+      const res = await api.post(`/video-assignments/${selected.id}/request-attempt`, {});
+      setSelected(prev => prev ? { ...prev, attempt_request_status: res.attempt_request_status } : prev);
+    } catch (err) {
+      alert(err.message || 'Could not request another attempt');
+    } finally {
+      setRequestingAttempt(false);
     }
   };
 
@@ -339,10 +479,14 @@ export default function VideoAssignments() {
               streamUrl={selected.stream_url}
               watchedProgress={selected.progress_percent}
               onProgress={handleVideoProgress}
-              onEnded={() => handleVideoProgress(100)}
+              onEnded={() => { if (!selected.requires_rewatch) handleVideoProgress(100); }}
+              rewatchMode={selected.requires_rewatch}
+              onRewatchSegments={handleRewatchSegments}
             />
             <p className="text-xs text-gray-500 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5" /> You may seek within the portion already watched, but you cannot skip unwatched content.
+              <Lock className="w-3.5 h-3.5" /> {selected.requires_rewatch
+                ? 'Approved rewatch: choose any section. Only uniquely watched portions count toward 75%.'
+                : 'You may seek within the portion already watched, but you cannot skip unwatched content.'}
             </p>
 
             {/* Progress section */}
@@ -391,6 +535,18 @@ export default function VideoAssignments() {
               )}
             </div>
 
+            {selected.requires_rewatch && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div className="flex justify-between text-sm font-semibold text-blue-800 mb-2">
+                  <span>Unique rewatch progress</span>
+                  <span>{Math.round(selected.rewatch_progress_percent || 0)}% / 75%</span>
+                </div>
+                <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, selected.rewatch_progress_percent || 0)}%` }} />
+                </div>
+              </div>
+            )}
+
             {/* Quiz section */}
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
@@ -421,7 +577,7 @@ export default function VideoAssignments() {
                 )}
 
                 {/* Already passed */}
-                {selected.progress_percent >= 100 && selected.quiz_passed && !retaking && (
+                {selected.progress_percent >= 100 && selected.quiz_passed && !retaking && !quizResult && (
                   <div className="text-center py-8">
                     <Trophy className="w-12 h-12 text-amber-400 mx-auto mb-3" />
                     <p className="text-base font-bold text-gray-800">Quiz Passed!</p>
@@ -444,6 +600,7 @@ export default function VideoAssignments() {
                     <p className="text-sm text-gray-600 mt-1">
                       Score: <strong>{quizResult.score}%</strong> — {quizResult.correct}/{quizResult.total} correct
                     </p>
+                    <VideoAttemptReview title={`Attempt ${selected.attempt_count}`} score={quizResult.score} questions={quizResult.questions} />
                     {!quizResult.passed && selected.attempt_count < 2 && (
                       <button
                         onClick={handleRetake}
@@ -459,8 +616,10 @@ export default function VideoAssignments() {
                           : 'Retake Quiz (1 retake remaining)'}
                       </button>
                     )}
-                    {!quizResult.passed && selected.attempt_count >= 2 && (
-                      <p className="mt-3 text-xs text-red-500">No more attempts available.</p>
+                    {!quizResult.passed && selected.attempt_count === 2 && (
+                      <button onClick={requestAnotherAttempt} disabled={requestingAttempt || selected.attempt_request_status === 'pending'} className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg disabled:opacity-60">
+                        {selected.attempt_request_status === 'pending' ? 'Retake request pending' : requestingAttempt ? 'Sending request…' : 'Request another attempt'}
+                      </button>
                     )}
                   </div>
                 )}
@@ -470,6 +629,7 @@ export default function VideoAssignments() {
                   selected.quiz_generated &&
                   !selected.quiz_passed &&
                   !quizResult &&
+                  (selected.attempt_count < 2 || (selected.attempt_request_status === 'approved' && selected.rewatch_progress_percent >= 75)) &&
                   selected.questions?.length > 0 && (
                   <div className="space-y-5">
                     {selected.questions.map((q, qi) => (
@@ -528,7 +688,7 @@ export default function VideoAssignments() {
                 )}
 
                 {/* Retake: show questions again (same UI, cleared answers) */}
-                {retaking && selected.questions?.length > 0 && !quizResult && (
+                {retaking && selected.questions?.length > 0 && !quizResult && selected.attempt_count < 2 && (
                   <div className="space-y-5">
                     <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
                       <RotateCcw className="w-4 h-4 shrink-0" /> Retake — answer all questions again.
@@ -576,6 +736,33 @@ export default function VideoAssignments() {
                     </button>
                   </div>
                 )}
+
+                {!quizResult && !selected.quiz_passed && selected.attempt_count === 2 && selected.attempt_request_status !== 'approved' && (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-gray-600 mb-3">Both quiz attempts have been used.</p>
+                    {selected.attempt_request_status === 'pending' ? (
+                      <p className="text-sm font-semibold text-amber-700">Your additional-attempt request is pending manager approval.</p>
+                    ) : (
+                      <button onClick={requestAnotherAttempt} disabled={requestingAttempt} className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg disabled:opacity-60">
+                        {requestingAttempt ? 'Sending request…' : selected.attempt_request_status === 'rejected' ? 'Request again' : 'Request another attempt'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {!quizResult && !selected.quiz_passed && selected.attempt_count >= 3 && (
+                  <p className="text-center py-6 text-sm font-semibold text-red-600">All three quiz attempts have been used.</p>
+                )}
+
+                {!quizResult && selected.attempt_request_status === 'approved' && selected.rewatch_progress_percent < 75 && (
+                  <p className="text-center py-6 text-sm font-semibold text-blue-700">Watch 75% of unique video content to unlock the approved quiz attempt.</p>
+                )}
+
+                {(selected.attempt_results || [])
+                  .filter(attemptResult => !quizResult || attemptResult.attempt_number !== selected.attempt_count)
+                  .map(attemptResult => (
+                  <VideoAttemptReview key={attemptResult.attempt_number} title={`Attempt ${attemptResult.attempt_number}`} score={attemptResult.score} questions={attemptResult.questions} />
+                ))}
               </div>
             </div>
           </div>

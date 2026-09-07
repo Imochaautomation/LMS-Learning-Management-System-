@@ -54,6 +54,7 @@ export default function ManagerVideoAssignments() {
   // Progress filter
   const [statusFilter, setStatusFilter] = useState('all');
   const [progressSearch, setProgressSearch] = useState('');
+  const [requestAction, setRequestAction] = useState(null);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -163,6 +164,19 @@ export default function ManagerVideoAssignments() {
     }
   };
 
+  const handleAttemptRequest = async (assignmentId, action) => {
+    setRequestAction(`${assignmentId}-${action}`);
+    try {
+      await api.post(`/video-assignments/${assignmentId}/${action}-attempt`, {});
+      showToast(`Retake request ${action === 'approve' ? 'approved' : 'declined'}`);
+      await fetchAll();
+    } catch (err) {
+      showToast(err.message || `Could not ${action} request`, 'error');
+    } finally {
+      setRequestAction(null);
+    }
+  };
+
   const filteredStats = stats.filter(s => {
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
     const matchSearch = !progressSearch ||
@@ -192,7 +206,7 @@ export default function ManagerVideoAssignments() {
   };
 
   const TABS = [
-    { key: 'library', label: 'Video Library', icon: Video },
+    { key: 'library', label: 'Question Pools', icon: Video },
     { key: 'assign',  label: 'Assign',         icon: Users },
     { key: 'progress',label: 'Progress Tracker',icon: BarChart2 },
   ];
@@ -339,7 +353,12 @@ export default function ManagerVideoAssignments() {
       {tab === 'library' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <p className="text-sm text-gray-600">{videos.length} video{videos.length !== 1 ? 's' : ''} in library</p>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Video Question Pools</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Each video can have a pool of up to 30 questions. A learner receives 10 questions per assessment attempt.
+              </p>
+            </div>
             <button
               onClick={loadSharePointVideos}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg"
@@ -416,11 +435,12 @@ export default function ManagerVideoAssignments() {
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[640px]">
+                <table className="w-full text-sm min-w-[820px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Video</th>
-                      <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Quiz</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Question Pool</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Questions per Assessment</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assigned</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
                     </tr>
@@ -437,10 +457,14 @@ export default function ManagerVideoAssignments() {
                         <td className="px-4 py-3.5 text-center">
                           {v.quiz_generated
                             ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                                <CheckCircle className="w-3 h-3" /> {v.question_count}Q ready
+                                <CheckCircle className="w-3 h-3" /> {v.question_count} questions
                               </span>
-                            : <span className="text-xs text-gray-400">No quiz</span>
+                            : <span className="text-xs text-gray-400">Not generated</span>
                           }
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          <span className="text-sm font-semibold text-gray-700">{v.questions_per_attempt || '—'}</span>
+                          {v.questions_per_attempt > 0 && <span className="block text-xs text-gray-400">per attempt</span>}
                         </td>
                         <td className="px-4 py-3.5 text-center text-gray-600">{v.assignment_count}</td>
                         <td className="px-4 py-3.5 text-right">
@@ -456,7 +480,7 @@ export default function ManagerVideoAssignments() {
                               ? <Loader2 className="w-3 h-3 animate-spin" />
                               : <Sparkles className="w-3 h-3" />
                             }
-                            {v.quiz_generated ? 'Re-generate Quiz' : 'Generate Quiz'}
+                            {v.quiz_generated ? 'Regenerate Pool' : 'Generate Pool'}
                           </button>
                         </td>
                       </tr>
@@ -662,7 +686,14 @@ export default function ManagerVideoAssignments() {
                             </span>
                           </td>
                           <td className="px-4 py-3.5 text-center">
-                            {s.attempt_count === 0
+                            {s.attempt_request_status === 'pending' ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button onClick={() => handleAttemptRequest(s.id, 'approve')} disabled={requestAction != null} className="px-2 py-1 text-xs font-semibold text-white bg-emerald-600 rounded disabled:opacity-50">Approve</button>
+                                <button onClick={() => handleAttemptRequest(s.id, 'reject')} disabled={requestAction != null} className="px-2 py-1 text-xs font-semibold text-white bg-red-600 rounded disabled:opacity-50">Decline</button>
+                              </div>
+                            ) : s.attempt_request_status === 'approved' ? (
+                              <span className="text-xs font-semibold text-blue-700">Approved · rewatch {Math.round(s.rewatch_progress_percent || 0)}%</span>
+                            ) : s.attempt_count === 0
                               ? <span className="text-xs text-gray-400">Not taken</span>
                               : s.quiz_passed
                                 ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">

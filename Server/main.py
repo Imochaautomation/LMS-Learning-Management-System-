@@ -273,6 +273,26 @@ def startup():
         except Exception:
             pass
 
+    # Video retake approval, unique rewatch progress, and per-question results (v3.0)
+    video_columns = [
+        ("video_assignments", "attempt_request_status", "VARCHAR(20)"),
+        ("video_assignments", "rewatch_ranges", "JSON"),
+        ("video_assignments", "rewatch_progress_percent", "FLOAT DEFAULT 0"),
+        ("video_quiz_attempts", "question_ids", "JSON"),
+        ("video_quiz_attempts", "answers", "JSON"),
+        ("video_quiz_attempts", "results", "JSON"),
+    ]
+    for table, column, definition in video_columns:
+        statement = f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
+        if "sqlite" not in db_url_str:
+            statement = f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}"
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(statement))
+                conn.commit()
+        except Exception:
+            pass
+
     # Make creator/uploader columns nullable so deleting a user doesn't cascade-fail (v2.6)
     if "sqlite" not in db_url_str:
         for stmt in [
