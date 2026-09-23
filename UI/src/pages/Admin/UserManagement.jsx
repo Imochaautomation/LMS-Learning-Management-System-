@@ -94,8 +94,11 @@ export default function UserManagement() {
     setSaving(true);
     try {
       const payload = { ...form };
-      if (!canHaveManager(form.role)) delete payload.manager_id;
-      if (payload.manager_id) payload.manager_id = parseInt(payload.manager_id);
+      if (canHaveManager(form.role)) {
+        payload.manager_id = payload.manager_id ? parseInt(payload.manager_id, 10) : null;
+      } else {
+        delete payload.manager_id;
+      }
       await api.post('/admin/users', payload);
       setShowForm(false);
       setForm({ name: '', email: '', password: '', role: 'manager', department: '', manager_id: '' });
