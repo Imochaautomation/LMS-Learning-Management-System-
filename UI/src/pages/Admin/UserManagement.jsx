@@ -18,6 +18,9 @@ const roleLabel = {
   employee: 'Employee',
 };
 
+const canHaveManager = (role) => ['manager', 'employee', 'new_joiner'].includes(role);
+const requiresManager = (role) => ['employee', 'new_joiner'].includes(role);
+
 const isImochaEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
   ['@imocha.co', '@imocha.io'].some((d) => email.toLowerCase().endsWith(d));
@@ -78,7 +81,7 @@ export default function UserManagement() {
     if (!form.password.trim()) e.password = 'Password is required';
     else if (form.password.length < 8) e.password = 'Password must be at least 8 characters';
     if (!form.department) e.department = 'Please select a department';
-    if ((form.role === 'employee' || form.role === 'new_joiner') && !form.manager_id) e.manager_id = 'Please select a manager';
+    if (requiresManager(form.role) && !form.manager_id) e.manager_id = 'Please select a manager';
     return e;
   };
 
@@ -91,7 +94,7 @@ export default function UserManagement() {
     setSaving(true);
     try {
       const payload = { ...form };
-      if (form.role !== 'employee' && form.role !== 'new_joiner') delete payload.manager_id;
+      if (!canHaveManager(form.role)) delete payload.manager_id;
       if (payload.manager_id) payload.manager_id = parseInt(payload.manager_id);
       await api.post('/admin/users', payload);
       setShowForm(false);
@@ -127,7 +130,7 @@ export default function UserManagement() {
     if (!editForm.email.trim()) e.email = 'Email is required';
     else if (!isImochaEmail(editForm.email)) e.email = 'Email must end with @imocha.co or @imocha.io';
     if (editForm.password && editForm.password.length < 8) e.password = 'Password must be at least 8 characters';
-    if ((editForm.role === 'employee' || editForm.role === 'new_joiner') && !editForm.manager_id) e.manager_id = 'Please select a manager';
+    if (requiresManager(editForm.role) && !editForm.manager_id) e.manager_id = 'Please select a manager';
     return e;
   };
 
@@ -140,13 +143,12 @@ export default function UserManagement() {
     try {
       const payload = { name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department };
       if (editForm.password) payload.password = editForm.password;
-      if (editForm.manager_id) payload.manager_id = parseInt(editForm.manager_id);
-      else if (editForm.role !== 'employee' && editForm.role !== 'new_joiner') payload.manager_id = null;
+      payload.manager_id = editForm.manager_id ? parseInt(editForm.manager_id) : null;
       await api.put(`/admin/users/${editForm.id}`, payload);
       setEditModal(null);
       loadUsers();
     } catch (err) {
-      console.error(err.message);
+      toast.error(`Could not update user: ${err.message}`);
     } finally {
       setEditSaving(false);
     }
@@ -247,9 +249,9 @@ export default function UserManagement() {
               </select>
               {formErrors.department && <p className="text-xs text-red-500 mt-1">{formErrors.department}</p>}
             </div>
-            {(form.role === 'employee' || form.role === 'new_joiner') && form.department && (
+            {canHaveManager(form.role) && form.department && (
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Manager *</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Manager {requiresManager(form.role) ? '*' : <span className="text-gray-400 font-normal">(optional)</span>}</label>
                 <select value={form.manager_id} onChange={(e) => { setForm({ ...form, manager_id: e.target.value }); setFormErrors((p) => ({ ...p, manager_id: '' })); }}
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${formErrors.manager_id ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
                   <option value="">Select Manager</option>
@@ -419,13 +421,13 @@ export default function UserManagement() {
                   <option value="Pre-Sales & Solutioning">Pre-Sales & Solutioning</option>
                 </select>
               </div>
-              {(editForm.role === 'employee' || editForm.role === 'new_joiner') && editForm.department && (
+              {canHaveManager(editForm.role) && editForm.department && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Manager *</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Manager {requiresManager(editForm.role) ? '*' : <span className="text-gray-400 font-normal">(optional)</span>}</label>
                   <select value={editForm.manager_id} onChange={(e) => { setEditForm({ ...editForm, manager_id: e.target.value }); setEditErrors((p) => ({ ...p, manager_id: '' })); }}
                     className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-white ${editErrors.manager_id ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}>
                     <option value="">Select Manager</option>
-                    {managers.filter((m) => m.department === editForm.department).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    {managers.filter((m) => m.id !== editForm.id && m.department === editForm.department).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                   {editErrors.manager_id && <p className="text-xs text-red-500 mt-1">{editErrors.manager_id}</p>}
                 </div>

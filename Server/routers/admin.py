@@ -15,6 +15,26 @@ from auth import hash_password, require_role
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
+def validate_manager_assignment(db: Session, user_id: int | None, manager_id: int | None):
+    """Ensure reporting lines point to managers and cannot form a cycle."""
+    if manager_id is None:
+        return
+    if user_id is not None and manager_id == user_id:
+        raise HTTPException(status_code=400, detail="A user cannot be their own manager")
+
+    manager = db.query(User).filter(User.id == manager_id).first()
+    if not manager or manager.role != "manager":
+        raise HTTPException(status_code=400, detail="Selected manager is not a valid manager account")
+
+    visited = set()
+    current = manager
+    while current and current.manager_id and current.id not in visited:
+        if user_id is not None and current.manager_id == user_id:
+            raise HTTPException(status_code=400, detail="This manager assignment would create a reporting cycle")
+        visited.add(current.id)
+        current = db.query(User).filter(User.id == current.manager_id).first()
+
+
 @router.get("/users", response_model=list[UserOut])
 def list_users(db: Session = Depends(get_db)):
     """List all users — accessible by any authenticated user (manager/admin use it)."""
@@ -33,6 +53,7 @@ def list_users(db: Session = Depends(get_db)):
 def create_user(req: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == req.email, User.role == req.role).first():
         raise HTTPException(status_code=400, detail=f"A {req.role} account with this email already exists")
+    validate_manager_assignment(db, None, req.manager_id)
     user = User(
         name=req.name,
         email=req.email,
@@ -95,7 +116,8 @@ def update_user(user_id: int, req: UserUpdate, db: Session = Depends(get_db)):
         user.designation = req.designation
     if req.experience is not None:
         user.experience = req.experience
-    if req.manager_id is not None:
+    if "manager_id" in req.model_fields_set:
+        validate_manager_assignment(db, user_id, req.manager_id)
         user.manager_id = req.manager_id
     db.commit()
     db.refresh(user)
