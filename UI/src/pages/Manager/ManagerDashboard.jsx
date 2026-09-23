@@ -76,6 +76,7 @@ export default function ManagerDashboard() {
 
   // Notification multi-select
   const [selectedNotifs, setSelectedNotifs] = useState([]);
+  const [deletingNotifs, setDeletingNotifs] = useState(false);
 
   // Multi-select for Assessment Bank & SME Kit
   const [selectedBank, setSelectedBank] = useState([]);
@@ -209,6 +210,24 @@ export default function ManagerDashboard() {
     } catch (e) { toast.error('Failed to mark notifications as read.'); }
   };
 
+  const bulkDeleteNotifs = async () => {
+    if (selectedNotifs.length === 0 || deletingNotifs) return;
+    const idsToDelete = [...selectedNotifs];
+    setDeletingNotifs(true);
+    try {
+      await api.post('/notifications/bulk-delete', idsToDelete);
+      const remaining = notifications.filter((n) => !idsToDelete.includes(n.id));
+      setNotifications(remaining);
+      setNotifPage((current) => Math.min(current, totalPages(remaining)));
+      setSelectedNotifs([]);
+      toast.success(`${idsToDelete.length} notification${idsToDelete.length === 1 ? '' : 's'} deleted.`);
+    } catch {
+      toast.error('Failed to delete selected notifications.');
+    } finally {
+      setDeletingNotifs(false);
+    }
+  };
+
   const markNotificationRead = async (notification) => {
     if (notification.read) return;
     setNotifications((prev) => prev.map((n) => n.id === notification.id ? { ...n, read: true } : n));
@@ -305,10 +324,17 @@ export default function ManagerDashboard() {
                   {selectedNotifs.length === notifications.length ? 'Deselect All' : 'Select All'}
                 </button>
                 {selectedNotifs.length > 0 && (
-                  <button onClick={bulkMarkRead}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50">
-                    <MailCheck className="w-3.5 h-3.5" /> Mark Read ({selectedNotifs.length})
-                  </button>
+                  <>
+                    <button onClick={bulkMarkRead} disabled={deletingNotifs}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                      <MailCheck className="w-3.5 h-3.5" /> Mark Read ({selectedNotifs.length})
+                    </button>
+                    <button onClick={bulkDeleteNotifs} disabled={deletingNotifs}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                      {deletingNotifs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      Delete ({selectedNotifs.length})
+                    </button>
+                  </>
                 )}
               </div>
             )}
